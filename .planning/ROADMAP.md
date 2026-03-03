@@ -9,6 +9,13 @@
 ### Phase 1: Code Cleanup & Project Foundation
 **Goal:** Clean, well-structured codebase ready for improvements
 **Requirements:** CODE-01, CODE-02, CODE-03, CODE-04, CODE-05, CODE-06
+**Plans:** 4 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Gitignore update and German-to-English comment translation
+- [ ] 01-02-PLAN.md — main.py refactor into trading/ mixin modules + lazy import fixes
+- [ ] 01-03-PLAN.md — trainer.py split into trade_filter.py and pipeline.py
+- [ ] 01-04-PLAN.md — Full test suite verification (no regressions)
 
 **Scope:**
 - Refactor main.py into smaller modules
@@ -158,4 +165,4 @@
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-03-03 after initial creation*
+*Last updated: 2026-03-03 after phase 1 planning*
