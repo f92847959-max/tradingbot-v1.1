@@ -1,0 +1,36 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ML Models
+ai_engine/saved_models/
+*.pkl
+*.h5
+*.onnx
+
+# Data
+data/
+
+# Logs
+logs/
+*.log
+*.lock
+
+# OS
+.DS_Store
+Thumbs.db
