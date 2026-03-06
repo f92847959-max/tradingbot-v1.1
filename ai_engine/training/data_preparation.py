@@ -192,6 +192,44 @@ class DataPreparation:
 
         return X_balanced, y_balanced
 
+    def validate_minimum_duration(
+        self,
+        df: pd.DataFrame,
+        min_months: int = 6,
+    ) -> None:
+        """Validate DataFrame contains at least min_months of data.
+
+        Requires DatetimeIndex. Raises ValueError if insufficient.
+
+        Args:
+            df: DataFrame with DatetimeIndex
+            min_months: Minimum required months of data (default: 6)
+        """
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise ValueError(
+                "DataFrame must have DatetimeIndex for duration check"
+            )
+
+        if len(df) < 2:
+            raise ValueError(
+                f"DataFrame has only {len(df)} rows, cannot validate duration"
+            )
+
+        duration = df.index[-1] - df.index[0]
+        months = duration.days / 30.44  # Average days per month
+
+        if months < min_months:
+            raise ValueError(
+                f"Insufficient data: {months:.1f} months available, "
+                f"minimum {min_months} months required. "
+                f"Date range: {df.index[0]} to {df.index[-1]}"
+            )
+
+        logger.info(
+            f"Data duration validated: {months:.1f} months "
+            f"(>= {min_months} required)"
+        )
+
     def remove_warmup_period(
         self,
         df: pd.DataFrame,
