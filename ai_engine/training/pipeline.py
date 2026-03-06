@@ -18,6 +18,12 @@ from typing import TYPE_CHECKING, Any, Dict, List
 import numpy as np
 import pandas as pd
 
+from .model_versioning import (
+    create_version_dir,
+    write_version_json,
+    update_production_pointer,
+    cleanup_old_versions,
+)
 from .trade_filter import probs_to_trade_signals, tune_trade_filter
 from .walk_forward import WalkForwardValidator
 
@@ -179,129 +185,174 @@ class TrainingPipeline:
             results["feature_selection"] = last_window["feature_selection"]
 
         # ================================================================
-        # Step 7: Save models and metadata
+        # Step 7: Save models with versioning
         # ================================================================
-        logger.info(f"\n7/7 Saving models and metadata...")
+        logger.info(f"\n7/7 Saving models with versioning...")
 
-        # Save final window's scaler
+        # Update trainer's scaler reference for backward compat
         if final_scaler is not None:
-            scaler_path = os.path.join(
-                self._t.saved_models_dir, "feature_scaler.pkl"
-            )
-            final_scaler.save(scaler_path)
-            # Also update trainer's scaler reference for backward compat
             self._t._scaler = final_scaler
 
-        # Save models (last window's trained models are already in trainer)
+        # Create versioned directory
+        version_dir = create_version_dir(self._t.saved_models_dir)
+
+        # Save model files to version directory
         if self._t._xgboost.is_trained:
             self._t._xgboost.save(
-                os.path.join(self._t.saved_models_dir, "xgboost_gold.pkl")
+                os.path.join(version_dir, "xgboost_gold.pkl")
             )
         if self._t._lightgbm.is_trained:
             self._t._lightgbm.save(
-                os.path.join(self._t.saved_models_dir, "lightgbm_gold.pkl")
+                os.path.join(version_dir, "lightgbm_gold.pkl")
             )
 
-        # Build metadata (extends existing format)
-        duration = time.time() - start_time
+        # Save the LAST WINDOW's scaler (production scaler)
+        if final_scaler is not None:
+            final_scaler.save(os.path.join(version_dir, "feature_scaler.pkl"))
 
-        # Collect per-window summary for metadata
+        # Build version data (extends existing metadata format)
+        duration = time.time() - start_time
+        version_name = os.path.basename(version_dir)
+
+        # Collect per-window metrics for version.json
         wf_window_summaries = []
         for wr in window_results:
-            summary: Dict[str, Any] = {
-                "window_id": wr["window_id"],
-                "train_samples": wr["train_samples"],
-                "test_samples": wr["test_samples"],
-            }
+            window_metrics: Dict[str, Any] = {}
             for model_key in ["xgboost", "lightgbm"]:
                 eval_key = f"{model_key}_eval"
                 trade_key = f"{model_key}_trading"
+                m: Dict[str, Any] = {}
                 if eval_key in wr:
-                    summary[f"{model_key}_accuracy"] = wr[eval_key].get(
-                        "accuracy", 0
-                    )
-                    summary[f"{model_key}_f1"] = wr[eval_key].get(
-                        "f1_score", 0
-                    )
+                    m["accuracy"] = wr[eval_key].get("accuracy", 0)
+                    m["f1"] = wr[eval_key].get("f1_score", 0)
                 if trade_key in wr:
-                    summary[f"{model_key}_win_rate"] = wr[trade_key].get(
-                        "win_rate", 0
-                    )
-                    summary[f"{model_key}_profit_factor"] = wr[trade_key].get(
-                        "profit_factor", 0
-                    )
-                    summary[f"{model_key}_n_trades"] = wr[trade_key].get(
-                        "n_trades", 0
-                    )
-            wf_window_summaries.append(summary)
+                    m["win_rate"] = wr[trade_key].get("win_rate", 0)
+                    m["profit_factor"] = wr[trade_key].get("profit_factor", 0)
+                    m["expectancy"] = wr[trade_key].get("expectancy_pips", 0)
+                    m["n_trades"] = wr[trade_key].get("n_trades", 0)
+                window_metrics[model_key] = m if m else {"error": "not trained"}
+            wf_window_summaries.append({
+                "window_id": wr["window_id"],
+                "train_samples": wr["train_samples"],
+                "test_samples": wr["test_samples"],
+                "metrics": window_metrics,
+            })
 
-        metadata: Dict[str, Any] = {
+        # Compute aggregate metrics across all windows
+        aggregate_metrics: Dict[str, Any] = {}
+        for model_key in ["xgboost", "lightgbm"]:
+            all_win_rates = []
+            all_profit_factors = []
+            all_expectancies = []
+            total_trades = 0
+            for ws in wf_window_summaries:
+                m = ws["metrics"].get(model_key, {})
+                if "win_rate" in m:
+                    all_win_rates.append(m["win_rate"])
+                if "profit_factor" in m:
+                    all_profit_factors.append(m["profit_factor"])
+                if "expectancy" in m:
+                    all_expectancies.append(m["expectancy"])
+                total_trades += m.get("n_trades", 0)
+            aggregate_metrics[model_key] = {
+                "win_rate": (
+                    sum(all_win_rates) / len(all_win_rates)
+                    if all_win_rates
+                    else 0
+                ),
+                "profit_factor": (
+                    sum(all_profit_factors) / len(all_profit_factors)
+                    if all_profit_factors
+                    else 0
+                ),
+                "expectancy": (
+                    sum(all_expectancies) / len(all_expectancies)
+                    if all_expectancies
+                    else 0
+                ),
+                "n_trades": total_trades,
+            }
+
+        # Compute data range info
+        data_range: Dict[str, Any] = {"n_candles": len(X)}
+        if isinstance(df.index, pd.DatetimeIndex) and len(df) > 1:
+            duration_days = (df.index[-1] - df.index[0]).days
+            data_range["months_of_data"] = round(duration_days / 30.44, 1)
+
+        # Build version_data with ALL existing metadata fields + new fields
+        version_data: Dict[str, Any] = {
+            # Existing metadata fields (backward compat)
             "training_date": datetime.now().isoformat(),
             "timeframe": timeframe,
             "n_samples_total": len(X),
-            "purge_gap_candles": dynamic_purge_gap,
             "n_features_original": len(feature_names),
             "n_features_selected": len(final_feature_names),
             "feature_names": final_feature_names,
             "label_params": self._t._label_generator.get_params(),
-            "label_stats_raw": raw_label_stats,
-            "label_stats": label_stats,
             "training_duration_seconds": round(duration, 1),
+            # NEW: Version metadata
+            "version": version_name.split("_")[0],  # e.g., "v001"
+            "version_dir": version_name,
+            # NEW: Data range info
+            "data_range": data_range,
+            # NEW: Walk-forward results (TRAIN-05)
             "walk_forward": {
                 "n_windows": len(window_results),
                 "window_type": "expanding",
                 "purge_gap_candles": dynamic_purge_gap,
                 "windows": wf_window_summaries,
             },
+            # NEW: Aggregate metrics
+            "aggregate_metrics": aggregate_metrics,
         }
 
-        # Add last-window metrics for backward compatibility
+        # Add last-window flat metrics for backward compatibility
         for eval_r in final_eval_results:
-            model_key = eval_r["model_name"].lower().split("_w")[0]
-            metadata[f"{model_key}_accuracy"] = eval_r["accuracy"]
-            metadata[f"{model_key}_f1"] = eval_r["f1_score"]
+            mk = eval_r["model_name"].lower().split("_w")[0]
+            version_data[f"{mk}_accuracy"] = eval_r["accuracy"]
+            version_data[f"{mk}_f1"] = eval_r["f1_score"]
 
         for model_name, filter_info in final_trade_filters.items():
-            model_key = model_name.lower()
-            metadata[f"{model_key}_trade_min_confidence"] = filter_info[
+            mk = model_name.lower()
+            version_data[f"{mk}_trade_min_confidence"] = filter_info[
                 "min_confidence"
             ]
-            metadata[f"{model_key}_trade_min_margin"] = filter_info[
+            version_data[f"{mk}_trade_min_margin"] = filter_info[
                 "min_margin"
             ]
             val_tr = filter_info.get("validation_trading", {})
-            metadata[f"{model_key}_val_trade_win_rate"] = val_tr.get(
-                "win_rate"
-            )
-            metadata[f"{model_key}_val_trade_profit_factor"] = val_tr.get(
+            version_data[f"{mk}_val_trade_win_rate"] = val_tr.get("win_rate")
+            version_data[f"{mk}_val_trade_profit_factor"] = val_tr.get(
                 "profit_factor"
             )
-            metadata[f"{model_key}_val_trade_count"] = val_tr.get("n_trades")
+            version_data[f"{mk}_val_trade_count"] = val_tr.get("n_trades")
 
-        # Add trading metrics from last window
         for model_key in ["xgboost", "lightgbm"]:
             trade_key = f"{model_key}_trading"
             if trade_key in last_window:
                 tr = last_window[trade_key]
-                metadata[f"{model_key}_win_rate"] = tr.get("win_rate", 0)
-                metadata[f"{model_key}_profit_factor"] = tr.get(
+                version_data[f"{model_key}_win_rate"] = tr.get("win_rate", 0)
+                version_data[f"{model_key}_profit_factor"] = tr.get(
                     "profit_factor", 0
                 )
-                metadata[f"{model_key}_sharpe"] = tr.get("sharpe_ratio", 0)
+                version_data[f"{model_key}_sharpe"] = tr.get(
+                    "sharpe_ratio", 0
+                )
 
-        meta_path = os.path.join(
-            self._t.saved_models_dir, "model_metadata.json"
-        )
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=2, ensure_ascii=False)
+        # Write version.json, update production pointer, cleanup old versions
+        write_version_json(version_dir, version_data)
+        update_production_pointer(self._t.saved_models_dir, version_dir)
+        cleanup_old_versions(self._t.saved_models_dir, keep=5)
 
         logger.info(f"\n{'='*60}")
         logger.info(
             f"Training complete! Duration: {duration:.1f}s "
             f"({len(window_results)} walk-forward windows)"
         )
-        logger.info(f"Models saved to: {self._t.saved_models_dir}")
+        logger.info(f"Version: {version_name}")
+        logger.info(f"Models saved to: {version_dir}")
         logger.info(f"{'='*60}")
 
-        results["metadata"] = metadata
+        results["metadata"] = version_data
+        results["version_dir"] = version_dir
         return results
