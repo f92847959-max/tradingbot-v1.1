@@ -1,14 +1,23 @@
 # Project State
 
 **Project:** GoldBot 2
-**Milestone:** v1.0 — Profitable Demo Trading
+**Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 2 of 8
-**Phase Status:** Planned (3 plans, verified)
+**Current Plan:** 2 of 3
+**Phase Status:** Executing (1/3 plans complete)
 **Total Phases:** 8
 
 ## Next Action
 
-Run `/gsd:execute-phase 2` to execute Phase 2: Training Pipeline — Walk-Forward Validation
+Execute Plan 02-02: Model versioning with version.json and production pointer
+
+## Decisions
+
+- Expanding (anchored) windows for walk-forward validation (train_start=0)
+- Dynamic window count: 9 windows for 12000 samples
+- min_train_samples=1500, min_test_samples=200
+- Per-window fresh FeatureScaler (TRAIN-02)
+- 85/15 internal train/val split within each window
 
 ## Session Log
 
@@ -25,3 +34,7 @@ Run `/gsd:execute-phase 2` to execute Phase 2: Training Pipeline — Walk-Forwar
   - 02-01: Walk-forward validation engine + 6-month data validation
   - 02-02: Model versioning with version.json and production pointer
   - 02-03: Training report generation + end-to-end integration
+- 2026-03-06: Plan 02-01 complete (4/4 tasks, 17 tests, 264s)
+  - WalkForwardValidator with expanding windows in walk_forward.py
+  - 6-month data validation in data_preparation.py
+  - pipeline.py refactored for walk-forward loop
