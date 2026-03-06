@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List
 
 import numpy as np
@@ -408,3 +409,200 @@ class WalkForwardValidator:
             "final_feature_names": last.get("selected_features", feature_names),
             "final_eval_results": last.get("eval_results", []),
         }
+
+
+def generate_training_report(
+    windows_results: List[Dict[str, Any]],
+    version_info: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Generate walk-forward training report.
+
+    Aggregate metrics are computed from combined trade results across all
+    windows (total gross_profit / total gross_loss), NOT averaged ratios.
+    Per research pitfall 6: averaging profit factors is statistically incorrect.
+
+    Args:
+        windows_results: Per-window results from WalkForwardValidator.run_all_windows()
+        version_info: Version metadata (version string, training_date, etc.)
+
+    Returns:
+        Report dict suitable for JSON serialization + console output.
+    """
+    # Build per-window report entries
+    per_window: List[Dict[str, Any]] = []
+    for wr in windows_results:
+        entry: Dict[str, Any] = {
+            "window_id": wr["window_id"],
+            "train_samples": wr["train_samples"],
+            "test_samples": wr["test_samples"],
+        }
+        for model_key in ["xgboost", "lightgbm"]:
+            eval_key = f"{model_key}_eval"
+            trade_key = f"{model_key}_trading"
+            m: Dict[str, Any] = {}
+            if eval_key in wr:
+                m["accuracy"] = wr[eval_key].get("accuracy", 0)
+                m["f1"] = wr[eval_key].get("f1_score", 0)
+            if trade_key in wr:
+                m["win_rate"] = wr[trade_key].get("win_rate", 0)
+                m["profit_factor"] = wr[trade_key].get("profit_factor", 0)
+                m["expectancy"] = wr[trade_key].get("expectancy", 0)
+                m["n_trades"] = wr[trade_key].get("n_trades", 0)
+            entry[model_key] = m if m else {"n_trades": 0}
+        per_window.append(entry)
+
+    # Compute aggregate metrics from combined trade results (NOT averaged ratios)
+    aggregate: Dict[str, Any] = {}
+    for model_key in ["xgboost", "lightgbm"]:
+        total_wins = 0
+        total_losses = 0
+        total_trades = 0
+        total_gross_profit = 0.0
+        total_gross_loss = 0.0
+        all_pips: List[float] = []
+
+        for wr in windows_results:
+            trade_key = f"{model_key}_trading"
+            if trade_key not in wr:
+                continue
+            tr = wr[trade_key]
+            n_trades = tr.get("n_trades", 0)
+            if n_trades == 0:
+                continue
+
+            wins = tr.get("wins", 0)
+            losses = tr.get("losses", 0)
+            tp_pips = tr.get("tp_pips", 0)
+            sl_pips = tr.get("sl_pips", 0)
+            spread_pips = tr.get("spread_pips", 0)
+
+            net_tp = tp_pips - spread_pips
+            net_sl = sl_pips + spread_pips
+
+            total_wins += wins
+            total_losses += losses
+            total_trades += n_trades
+            total_gross_profit += wins * net_tp
+            total_gross_loss += losses * net_sl
+
+            # Collect per-trade pips for Sharpe computation
+            window_pips = [net_tp] * wins + [-net_sl] * losses
+            all_pips.extend(window_pips)
+
+        # Aggregate profit factor from totals
+        agg_pf = (
+            total_gross_profit / total_gross_loss
+            if total_gross_loss > 0
+            else float("inf")
+        )
+        # Aggregate win rate from totals
+        agg_wr = total_wins / total_trades if total_trades > 0 else 0.0
+        # Aggregate expectancy: use TP/SL from last window with trades
+        agg_exp = 0.0
+        for wr in reversed(windows_results):
+            trade_key = f"{model_key}_trading"
+            if trade_key in wr and wr[trade_key].get("n_trades", 0) > 0:
+                tr = wr[trade_key]
+                net_tp = tr["tp_pips"] - tr["spread_pips"]
+                net_sl = tr["sl_pips"] + tr["spread_pips"]
+                agg_exp = (agg_wr * net_tp) - ((1 - agg_wr) * net_sl)
+                break
+        # Sharpe from combined per-trade pips
+        agg_sharpe = 0.0
+        if len(all_pips) > 1:
+            pips_arr = np.array(all_pips)
+            std = pips_arr.std()
+            if std > 0:
+                agg_sharpe = float(
+                    (pips_arr.mean() / std) * np.sqrt(2600)
+                )
+
+        aggregate[model_key] = {
+            "win_rate": float(agg_wr),
+            "profit_factor": float(agg_pf) if agg_pf != float("inf") else 0.0,
+            "expectancy": float(agg_exp),
+            "n_trades": int(total_trades),
+            "sharpe": float(agg_sharpe),
+        }
+
+    # Determine best model by aggregate profit factor
+    xgb_pf = aggregate.get("xgboost", {}).get("profit_factor", 0)
+    lgb_pf = aggregate.get("lightgbm", {}).get("profit_factor", 0)
+    aggregate["best_model"] = "lightgbm" if lgb_pf >= xgb_pf else "xgboost"
+
+    report: Dict[str, Any] = {
+        "report_date": datetime.now().isoformat(),
+        "version": version_info.get("version", "unknown"),
+        "summary": {
+            "n_windows": len(per_window),
+            "total_test_samples": sum(
+                pw["test_samples"] for pw in per_window
+            ),
+            "window_type": "expanding",
+        },
+        "per_window": per_window,
+        "aggregate": aggregate,
+    }
+
+    return report
+
+
+def print_training_report(report: Dict[str, Any]) -> None:
+    """Print a formatted walk-forward training report to the console via logger."""
+    logger.info("=" * 70)
+    logger.info("WALK-FORWARD TRAINING REPORT")
+    logger.info("=" * 70)
+    logger.info(f"Version: {report.get('version', 'unknown')}")
+    summary = report.get("summary", {})
+    logger.info(
+        f"Windows: {summary.get('n_windows', 0)} ({summary.get('window_type', 'expanding')})"
+    )
+    logger.info("")
+
+    for pw in report.get("per_window", []):
+        xgb = pw.get("xgboost", {})
+        lgb = pw.get("lightgbm", {})
+
+        xgb_str = _format_model_metrics("XGB", xgb)
+        lgb_str = _format_model_metrics("LGB", lgb)
+
+        logger.info(
+            f"  Window {pw['window_id']}: "
+            f"train={pw['train_samples']}, test={pw['test_samples']}  "
+            f"| {xgb_str}  | {lgb_str}"
+        )
+
+    logger.info("-" * 70)
+    logger.info("AGGREGATE:")
+
+    agg = report.get("aggregate", {})
+    for model_key in ["xgboost", "lightgbm"]:
+        m = agg.get(model_key, {})
+        if not m:
+            continue
+        label = "XGBoost" if model_key == "xgboost" else "LightGBM"
+        logger.info(
+            f"  {label:>8s}: WR={m.get('win_rate', 0):.1%} "
+            f"PF={m.get('profit_factor', 0):.2f} "
+            f"Exp={m.get('expectancy', 0):+.1f} "
+            f"Sharpe={m.get('sharpe', 0):.2f} "
+            f"({m.get('n_trades', 0)} trades)"
+        )
+
+    best = agg.get("best_model", "unknown")
+    best_pf = agg.get(best, {}).get("profit_factor", 0)
+    logger.info("")
+    logger.info(f"Best model: {best.upper()} (PF={best_pf:.2f})")
+    logger.info("=" * 70)
+
+
+def _format_model_metrics(label: str, m: Dict[str, Any]) -> str:
+    """Format per-window model metrics for console output."""
+    n_trades = m.get("n_trades", 0)
+    if n_trades == 0:
+        return f"{label}: 0 trades"
+    return (
+        f"{label}: WR={m.get('win_rate', 0):.1%} "
+        f"PF={m.get('profit_factor', 0):.2f} "
+        f"Exp={m.get('expectancy', 0):+.1f}"
+    )
