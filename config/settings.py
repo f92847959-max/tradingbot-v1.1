@@ -1,0 +1,234 @@
+"""Application configuration -- loads from .env file via pydantic-settings.
+
+Usage:
+    from config.settings import get_settings
+    cfg = get_settings()
+    print(cfg.capital_email)
+"""
+
+from datetime import time
+from functools import lru_cache
+from typing import Literal
+
+from dataclasses import dataclass as stdlib_dataclass
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings
+
+
+@stdlib_dataclass
+class InstrumentConfig:
+    """Instrument-specific parameters for XAUUSD."""
+    symbol: str = "GOLD"
+    pip_size: float = 0.01
+    lot_unit: str = "oz"
+    margin_factor: float = 0.05
+    default_slippage: float = 0.30
+    spread_threshold: float = 0.50
+
+
+class Settings(BaseSettings):
+    """All settings loaded from environment variables / .env file."""
+
+    # -- Broker (Capital.com) -------------------------------------------------
+    capital_email: str = ""
+    capital_password: str = ""
+    capital_api_key: str = ""
+    capital_demo: bool = True
+
+    # -- Database (PostgreSQL) ------------------------------------------------
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    postgres_db: str = "gold_trader"
+    postgres_user: str = "trader"
+    postgres_password: str = Field(
+        default="",
+        description="PostgreSQL password. MUST be set in .env",
+    )
+
+    # -- Trading --------------------------------------------------------------
+    trading_mode: Literal["auto", "semi_auto"] = "auto"
+    trading_interval_seconds: int = 60
+    position_check_seconds: int = 30
+    timeframes: list[str] = ["5m", "15m", "1h"]
+    min_confidence: float = 0.70
+    min_trade_score: int = 60
+    confirmation_timeout_seconds: int = 120
+
+    # -- Risk -----------------------------------------------------------------
+    max_risk_per_trade_pct: float = 2.0
+    max_daily_loss_pct: float = 5.0
+    max_weekly_loss_pct: float = 10.0
+    max_open_positions: int = 3
+    max_trades_per_day: int = 80
+    kill_switch_drawdown_pct: float = 20.0
+    max_consecutive_losses: int = 5
+    cooldown_minutes: int = 30
+    max_spread_pips: float = 3.0
+    trading_start_hour: int = 8
+    trading_start_minute: int = 0
+    trading_end_hour: int = 22
+    trading_end_minute: int = 0
+
+    # -- Notifications (Twilio WhatsApp) --------------------------------------
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_from_number: str = ""
+    twilio_to_number: str = ""
+    notifications_enabled: bool = True
+
+    # -- API ------------------------------------------------------------------
+    api_enabled: bool = True
+    api_host: str = "127.0.0.1"
+    api_port: int = 8000
+
+    # -- Instrument -----------------------------------------------------------
+    instrument: InstrumentConfig = Field(default_factory=InstrumentConfig, exclude=True)
+
+    # -- Data Retention -------------------------------------------------------
+    candle_retention_days: int = 180
+
+    # -- Logging --------------------------------------------------------------
+    log_level: str = "INFO"
+
+    # -------------------------------------------------------------------------
+    # Computed properties
+    # -------------------------------------------------------------------------
+
+    @property
+    def postgres_url(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    @property
+    def trading_start(self) -> time:
+        return time(self.trading_start_hour, self.trading_start_minute)
+
+    @property
+    def trading_end(self) -> time:
+        return time(self.trading_end_hour, self.trading_end_minute)
+
+    # -------------------------------------------------------------------------
+    # Validation
+    # -------------------------------------------------------------------------
+
+    @field_validator("max_risk_per_trade_pct")
+    @classmethod
+    def validate_risk(cls, v: float) -> float:
+        if v <= 0 or v > 10:
+            raise ValueError("max_risk_per_trade_pct must be between 0 and 10")
+        return v
+
+    @field_validator("trading_interval_seconds")
+    @classmethod
+    def validate_interval(cls, v: int) -> int:
+        if v < 10:
+            raise ValueError(
+                "trading_interval_seconds must be >= 10 (current: %d)" % v
+            )
+        return v
+
+    @field_validator("trading_start_hour", "trading_end_hour")
+    @classmethod
+    def validate_hours(cls, v: int) -> int:
+        if not (0 <= v <= 23):
+            raise ValueError(
+                "Trading hour must be between 0 and 23 (current: %d)" % v
+            )
+        return v
+
+    def validate_required(self) -> list[str]:
+        """Return list of missing/invalid fields. Empty = OK."""
+        import os
+
+        errors: list[str] = []
+
+        # Broker credentials (always required for trading)
+        if not self.capital_email:
+            errors.append("CAPITAL_EMAIL is required")
+        if not self.capital_password:
+            errors.append("CAPITAL_PASSWORD is required")
+        if not self.capital_api_key:
+            errors.append("CAPITAL_API_KEY is required")
+
+        # Database: PostgreSQL password only required if no SQLite fallback
+        sqlite_fallback = os.getenv("SQLITE_FALLBACK", "false").lower() in (
+            "1", "true", "yes",
+        )
+        has_database_url = bool(os.getenv("DATABASE_URL", ""))
+        if not self.postgres_password and not sqlite_fallback and not has_database_url:
+            errors.append(
+                "POSTGRES_PASSWORD is required. "
+                "Or set SQLITE_FALLBACK=true for local operation."
+            )
+
+        # Semi-auto mode requires Twilio
+        if self.trading_mode == "semi_auto" and self.notifications_enabled:
+            if not self.twilio_account_sid or not self.twilio_auth_token:
+                errors.append(
+                    "TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required "
+                    "in semi_auto mode"
+                )
+
+        # Cross-field validation warnings (non-fatal)
+        warnings: list[str] = []
+        if self.trading_interval_seconds < 30:
+            warnings.append(
+                f"TRADING_INTERVAL={self.trading_interval_seconds}s is very low "
+                "(recommended: >= 30s)"
+            )
+        if self.max_trades_per_day > 20:
+            warnings.append(
+                f"MAX_TRADES_PER_DAY={self.max_trades_per_day} is unusually high "
+                "(recommended: <= 20)"
+            )
+        if self.min_confidence < 0.5:
+            warnings.append(
+                f"MIN_CONFIDENCE={self.min_confidence} is below 0.5 (coin-flip level)"
+            )
+
+        if warnings:
+            import logging
+            logger = logging.getLogger(__name__)
+            for w in warnings:
+                logger.warning("Config warning: %s", w)
+
+        return errors
+
+    # Sensitive fields that must never appear in logs
+    _SENSITIVE_FIELDS = frozenset({
+        "capital_password", "capital_api_key", "postgres_password",
+        "twilio_auth_token", "twilio_account_sid",
+    })
+
+    def __repr__(self) -> str:
+        """Mask sensitive fields in repr output."""
+        fields = []
+        for name in self.model_fields:
+            val = getattr(self, name, "")
+            if name in self._SENSITIVE_FIELDS and val:
+                fields.append(f"{name}='***'")
+            else:
+                fields.append(f"{name}={val!r}")
+        return f"Settings({', '.join(fields)})"
+
+    @property
+    def postgres_url_safe(self) -> str:
+        """DB URL with password masked -- safe for logging."""
+        if self.postgres_password:
+            return self.postgres_url.replace(self.postgres_password, "***")
+        return self.postgres_url
+
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return singleton Settings instance."""
+    return Settings()
