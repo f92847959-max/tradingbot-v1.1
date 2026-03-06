@@ -2,8 +2,8 @@
 Training Pipeline -- Walk-forward training orchestration.
 
 Contains the step-by-step pipeline logic extracted from ModelTrainer.train_all().
-Steps 1-12 cover data validation, feature engineering, label generation,
-splitting, scaling, feature selection, model training, evaluation, and saving.
+Steps 1-5 prepare data (validate, features, labels, warmup, split X/y).
+Steps 6-7 run walk-forward validation and save models + metadata.
 """
 
 from __future__ import annotations
@@ -13,12 +13,13 @@ import logging
 import os
 import time
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, List
 
 import numpy as np
 import pandas as pd
 
 from .trade_filter import probs_to_trade_signals, tune_trade_filter
+from .walk_forward import WalkForwardValidator
 
 if TYPE_CHECKING:
     from .trainer import ModelTrainer
@@ -39,293 +40,267 @@ class TrainingPipeline:
         feature_selection: bool = True,
         min_feature_importance: float = 0.005,
     ) -> Dict[str, Any]:
-        """Run the complete 12-step training pipeline."""
+        """Run the walk-forward training pipeline.
+
+        Steps 1-5 run once on the full dataset (data validation, feature
+        engineering, label generation, warmup removal, feature/label separation).
+        Steps 6-7 use walk-forward validation across expanding windows,
+        then save models and metadata from the final window.
+        """
         start_time = time.time()
         results: Dict[str, Any] = {}
 
-        # Step 1: Validate data
+        # ================================================================
+        # Step 1: Validate data (+ 6-month minimum check)
+        # ================================================================
         logger.info(f"\n{'='*60}")
-        logger.info(f"1/12 Daten pruefen... ({len(df)} Candles)")
+        logger.info(f"1/7 Validating data... ({len(df)} candles)")
         logger.info(f"{'='*60}")
 
         required_cols = ["open", "high", "low", "close"]
         missing = [c for c in required_cols if c not in df.columns]
         if missing:
-            raise ValueError(f"Fehlende Spalten: {missing}")
+            raise ValueError(f"Missing columns: {missing}")
         if len(df) < 500:
-            logger.warning(f"Nur {len(df)} Candles -- min. 2000 empfohlen!")
+            logger.warning(f"Only {len(df)} candles -- minimum 2000 recommended!")
 
-        # Step 2: Compute features
-        logger.info(f"\n2/12 Features berechnen...")
+        # 6-month minimum data validation (TRAIN-07)
+        if isinstance(df.index, pd.DatetimeIndex):
+            self._t._data_prep.validate_minimum_duration(df, min_months=6)
+        else:
+            logger.warning(
+                "DataFrame does not have DatetimeIndex -- "
+                "skipping duration validation"
+            )
+
+        # ================================================================
+        # Step 2: Compute features (on full dataset -- safe for lookback indicators)
+        # ================================================================
+        logger.info(f"\n2/7 Computing features...")
         df = self._t._feature_engineer.create_features(df, timeframe=timeframe)
         feature_names = self._t._feature_engineer.get_feature_names()
-        logger.info(f"  -> {len(feature_names)} Features erstellt")
+        logger.info(f"  -> {len(feature_names)} features created")
 
+        # ================================================================
         # Step 3: Generate labels
-        logger.info(f"\n3/12 Labels generieren (Triple Barrier + Spread={self._t.spread_pips} Pips)...")
+        # ================================================================
+        logger.info(
+            f"\n3/7 Generating labels "
+            f"(Triple Barrier + Spread={self._t.spread_pips} pips)..."
+        )
         df["label"] = self._t._label_generator.generate_labels(df)
         raw_label_stats = self._t._label_generator.get_label_stats(df["label"])
         results["label_stats_raw"] = raw_label_stats
 
+        # ================================================================
         # Step 4: Remove warmup period
-        logger.info(f"\n4/12 Warmup-Periode entfernen...")
+        # ================================================================
+        logger.info(f"\n4/7 Removing warmup period...")
         df = self._t._data_prep.remove_warmup_period(df, warmup_candles=200)
-        label_tail = int(getattr(self._t._label_generator, "max_candles", 0) or 0)
+        label_tail = int(
+            getattr(self._t._label_generator, "max_candles", 0) or 0
+        )
         if label_tail > 0 and len(df) > label_tail:
             df = df.iloc[:-label_tail].copy()
-            logger.info(f"  -> Label-Horizon-Tail entfernt: {label_tail} Candles")
+            logger.info(f"  -> Label horizon tail removed: {label_tail} candles")
         label_stats = self._t._label_generator.get_label_stats(df["label"])
         results["label_stats"] = label_stats
 
+        # ================================================================
         # Step 5: Separate features and labels
-        logger.info(f"\n5/12 Features und Labels trennen...")
-        X, y = self._t._data_prep.prepare_features_labels(df, feature_names, "label")
+        # ================================================================
+        logger.info(f"\n5/7 Separating features and labels...")
+        X, y = self._t._data_prep.prepare_features_labels(
+            df, feature_names, "label"
+        )
         logger.info(f"  -> X: {X.shape}, y: {y.shape}")
 
-        # Step 6: Chronological split with purging gap
-        logger.info(f"\n6/12 Chronologischer Split (70/15/15) + Purging-Gap...")
-        max_label_horizon = int(getattr(self._t._label_generator, "max_candles", 60) or 60)
+        # ================================================================
+        # Step 6: Walk-forward validation
+        # ================================================================
+        logger.info(f"\n6/7 Running walk-forward validation...")
+
+        # Compute dynamic purge gap ONCE before the loop
+        max_label_horizon = int(
+            getattr(self._t._label_generator, "max_candles", 60) or 60
+        )
         dynamic_purge_gap = min(max_label_horizon, max(8, len(X) // 20))
-        splits = self._t._data_prep.split_chronological(X, y, purge_gap=dynamic_purge_gap)
-        X_train, y_train = splits["train"]
-        X_val_full, y_val_full = splits["val"]
-        X_test, y_test = splits["test"]
 
-        tune_split_idx = int(len(X_val_full) * 0.67)
-        X_val, y_val = X_val_full[:tune_split_idx], y_val_full[:tune_split_idx]
-        X_tune, y_tune = X_val_full[tune_split_idx:], y_val_full[tune_split_idx:]
-        logger.info(f"  Val/Tune split: val={len(X_val)}, tune={len(X_tune)}")
+        validator = WalkForwardValidator(
+            purge_gap=dynamic_purge_gap,
+            min_train_samples=1500,
+            min_test_samples=200,
+        )
+        windows = validator.calculate_windows(len(X))
+        logger.info(f"  Walk-forward: {len(windows)} expanding windows")
+        logger.info(f"  Purge gap: {dynamic_purge_gap} candles")
 
-        # Step 7: Scale features
-        logger.info(f"\n7/12 Features skalieren (StandardScaler)...")
-        train_df = pd.DataFrame(X_train, columns=feature_names)
-        self._t._scaler.fit(train_df, feature_names)
+        wf_results = validator.run_all_windows(X, y, feature_names, self._t)
 
-        X_train_scaled = self._t._scaler.transform(
-            pd.DataFrame(X_train, columns=feature_names)
-        )[feature_names].values
-        X_val_scaled = self._t._scaler.transform(
-            pd.DataFrame(X_val, columns=feature_names)
-        )[feature_names].values
-        X_test_scaled = self._t._scaler.transform(
-            pd.DataFrame(X_test, columns=feature_names)
-        )[feature_names].values
-        X_tune_scaled = self._t._scaler.transform(
-            pd.DataFrame(X_tune, columns=feature_names)
-        )[feature_names].values
+        # Extract walk-forward data
+        window_results = wf_results["windows"]
+        final_scaler = wf_results["final_scaler"]
+        final_trade_filters = wf_results["final_trade_filters"]
+        final_feature_names = wf_results["final_feature_names"]
+        final_eval_results = wf_results["final_eval_results"]
 
-        scaler_path = os.path.join(self._t.saved_models_dir, "feature_scaler.pkl")
-        self._t._scaler.save(scaler_path)
+        results["walk_forward_windows"] = window_results
+        results["n_windows"] = wf_results["n_windows"]
 
-        for model in [self._t._xgboost, self._t._lightgbm]:
-            model.set_feature_names(feature_names)
-
-        selected_features = feature_names
-
-        # Step 8: Train XGBoost (initial, before feature selection)
-        logger.info(f"\n8/12 Modelle trainieren (mit class_weight + recency)...")
-
-        logger.info(f"\n  8a) XGBoost trainieren...")
-        try:
-            xgb_result = self._t._xgboost.train(
-                X_train_scaled, y_train, X_val_scaled, y_val,
-                use_class_weight=True, use_recency_weight=True,
-            )
-            results["xgboost_train"] = xgb_result
-        except Exception as e:
-            logger.error(f"XGBoost Training fehlgeschlagen: {e}")
-            results["xgboost_train"] = {"error": str(e)}
-
-        # Step 9: Feature selection (optional, importance-based)
-        if feature_selection and self._t._xgboost.is_trained:
-            logger.info(f"\n9/12 Feature-Selektion (Importance > {min_feature_importance*100}%)...")
-            importance = self._t._xgboost.get_feature_importance()
-            total_imp = sum(importance.values()) or 1
-            selected_features = [
-                f for f, imp in importance.items()
-                if imp / total_imp >= min_feature_importance
+        # Populate backward-compatible keys from last window
+        last_window = window_results[-1] if window_results else {}
+        if "xgboost_train" in last_window:
+            results["xgboost_train"] = last_window["xgboost_train"]
+        if "xgboost_train_selected" in last_window:
+            results["xgboost_train_selected"] = last_window[
+                "xgboost_train_selected"
             ]
-            dropped = len(feature_names) - len(selected_features)
-            logger.info(f"  -> {len(selected_features)} Features behalten, {dropped} entfernt")
-            results["feature_selection"] = {
-                "original": len(feature_names),
-                "selected": len(selected_features),
-                "dropped": dropped,
-                "top_10": list(importance.items())[:10],
-            }
+        if "lightgbm_train" in last_window:
+            results["lightgbm_train"] = last_window["lightgbm_train"]
+        if "xgboost_eval" in last_window:
+            results["xgboost_eval"] = last_window["xgboost_eval"]
+        if "lightgbm_eval" in last_window:
+            results["lightgbm_eval"] = last_window["lightgbm_eval"]
+        if "xgboost_trading" in last_window:
+            results["xgboost_trading"] = last_window["xgboost_trading"]
+        if "lightgbm_trading" in last_window:
+            results["lightgbm_trading"] = last_window["lightgbm_trading"]
+        if "xgboost_trade_filter" in last_window:
+            results["xgboost_trade_filter"] = last_window[
+                "xgboost_trade_filter"
+            ]
+        if "lightgbm_trade_filter" in last_window:
+            results["lightgbm_trade_filter"] = last_window[
+                "lightgbm_trade_filter"
+            ]
 
-        if len(selected_features) < len(feature_names):
-            sel_idx = [feature_names.index(f) for f in selected_features if f in feature_names]
-            X_train_scaled = X_train_scaled[:, sel_idx]
-            X_val_scaled = X_val_scaled[:, sel_idx]
-            X_test_scaled = X_test_scaled[:, sel_idx]
-            feature_names = selected_features
+        # Feature selection info from last window
+        if "feature_selection" in last_window:
+            results["feature_selection"] = last_window["feature_selection"]
 
-            logger.info(f"  Re-training XGBoost on {len(selected_features)} selected features...")
-            self._t._xgboost.set_feature_names(selected_features)
-            try:
-                xgb_result = self._t._xgboost.train(
-                    X_train_scaled, y_train, X_val_scaled, y_val,
-                    use_class_weight=True, use_recency_weight=True,
-                )
-                results["xgboost_train_selected"] = xgb_result
-            except Exception as e:
-                logger.error(f"XGBoost re-training fehlgeschlagen: {e}")
+        # ================================================================
+        # Step 7: Save models and metadata
+        # ================================================================
+        logger.info(f"\n7/7 Saving models and metadata...")
 
-        self._t._lightgbm.set_feature_names(selected_features)
-
-        # Step 8b/9b: Train LightGBM on selected features
-        logger.info(f"\n  LightGBM trainieren (auf {len(selected_features)} Features)...")
-        try:
-            lgb_result = self._t._lightgbm.train(
-                X_train_scaled, y_train, X_val_scaled, y_val,
-                use_recency_weight=True,
+        # Save final window's scaler
+        if final_scaler is not None:
+            scaler_path = os.path.join(
+                self._t.saved_models_dir, "feature_scaler.pkl"
             )
-            results["lightgbm_train"] = lgb_result
-        except Exception as e:
-            logger.error(f"LightGBM Training fehlgeschlagen: {e}")
-            results["lightgbm_train"] = {"error": str(e)}
+            final_scaler.save(scaler_path)
+            # Also update trainer's scaler reference for backward compat
+            self._t._scaler = final_scaler
 
-        # Step 10: ML evaluation on test set
-        logger.info(f"\n10/12 ML-Evaluation auf Test-Set...")
-
-        eval_results = []
-        model_predictions = {}
-        trade_filters: Dict[str, Dict[str, Any]] = {}
-
-        for name, model in [("XGBoost", self._t._xgboost), ("LightGBM", self._t._lightgbm)]:
-            if not model.is_trained:
-                continue
-            try:
-                y_probs_test = model.predict(X_test_scaled)
-                y_probs_tune = model.predict(X_tune_scaled)
-
-                eval_result = self._t._evaluator.evaluate_probabilities(
-                    y_test, y_probs_test, label_space="signal", model_name=name
-                )
-                eval_results.append(eval_result)
-                results[f"{name.lower()}_eval"] = eval_result
-
-                trade_filter = tune_trade_filter(
-                    y_true_val=y_tune,
-                    y_probs_val=y_probs_tune,
-                    model_name=name,
-                    evaluator=self._t._evaluator,
-                    tp_pips=self._t.tp_pips,
-                    sl_pips=self._t.sl_pips,
-                    spread_pips=self._t.spread_pips,
-                )
-                trade_filters[name] = trade_filter
-                results[f"{name.lower()}_trade_filter"] = trade_filter
-
-                y_pred_trade = probs_to_trade_signals(
-                    y_probs_test,
-                    min_confidence=trade_filter["min_confidence"],
-                    min_margin=trade_filter["min_margin"],
-                )
-                model_predictions[name] = y_pred_trade
-                logger.info(
-                    "  %s Trade-Filter: min_conf=%.2f min_margin=%.2f | val_pf=%.3f val_wr=%.3f val_trades=%d",
-                    name,
-                    trade_filter["min_confidence"],
-                    trade_filter["min_margin"],
-                    float(trade_filter["validation_trading"].get("profit_factor", 0.0) or 0.0),
-                    float(trade_filter["validation_trading"].get("win_rate", 0.0) or 0.0),
-                    int(trade_filter["validation_trading"].get("n_trades", 0) or 0),
-                )
-            except Exception as e:
-                logger.error(f"{name} Evaluation fehlgeschlagen: {e}")
-        if eval_results:
-            comparison = self._t._evaluator.compare_models(eval_results)
-            results["ml_comparison"] = comparison
-
-        # Step 11: Trading evaluation and backtest
-        logger.info(f"\n11/12 Trading-Evaluation & Backtest...")
-
-        trading_results = []
-        for name, y_pred in model_predictions.items():
-            try:
-                trading_eval = self._t._evaluator.evaluate_trading(
-                    y_test, y_pred,
-                    tp_pips=self._t.tp_pips,
-                    sl_pips=self._t.sl_pips,
-                    spread_pips=self._t.spread_pips,
-                    label_space="signal",
-                    model_name=name,
-                )
-                trading_results.append(trading_eval)
-                results[f"{name.lower()}_trading"] = trading_eval
-            except Exception as e:
-                logger.error(f"{name} Trading-Eval fehlgeschlagen: {e}")
-
-        if trading_results:
-            trading_comparison = self._t._evaluator.compare_trading(trading_results)
-            results["trading_comparison"] = trading_comparison
-
-        if model_predictions:
-            best_name = max(
-                trading_results,
-                key=lambda x: x.get("profit_factor", 0)
-            )["model_name"] if trading_results else list(model_predictions.keys())[0]
-
-            best_pred = model_predictions[best_name]
-            backtest = self._t._backtester.run_simple(best_pred, y_test)
-            results["backtest"] = backtest
-            results["best_model_for_trading"] = best_name
-
-        # Step 12: Save models and metadata
-        logger.info(f"\n12/12 Modelle und Metadata speichern...")
-
+        # Save models (last window's trained models are already in trainer)
         if self._t._xgboost.is_trained:
-            self._t._xgboost.save(os.path.join(self._t.saved_models_dir, "xgboost_gold.pkl"))
+            self._t._xgboost.save(
+                os.path.join(self._t.saved_models_dir, "xgboost_gold.pkl")
+            )
         if self._t._lightgbm.is_trained:
-            self._t._lightgbm.save(os.path.join(self._t.saved_models_dir, "lightgbm_gold.pkl"))
+            self._t._lightgbm.save(
+                os.path.join(self._t.saved_models_dir, "lightgbm_gold.pkl")
+            )
 
-        metadata = {
+        # Build metadata (extends existing format)
+        duration = time.time() - start_time
+
+        # Collect per-window summary for metadata
+        wf_window_summaries = []
+        for wr in window_results:
+            summary: Dict[str, Any] = {
+                "window_id": wr["window_id"],
+                "train_samples": wr["train_samples"],
+                "test_samples": wr["test_samples"],
+            }
+            for model_key in ["xgboost", "lightgbm"]:
+                eval_key = f"{model_key}_eval"
+                trade_key = f"{model_key}_trading"
+                if eval_key in wr:
+                    summary[f"{model_key}_accuracy"] = wr[eval_key].get(
+                        "accuracy", 0
+                    )
+                    summary[f"{model_key}_f1"] = wr[eval_key].get(
+                        "f1_score", 0
+                    )
+                if trade_key in wr:
+                    summary[f"{model_key}_win_rate"] = wr[trade_key].get(
+                        "win_rate", 0
+                    )
+                    summary[f"{model_key}_profit_factor"] = wr[trade_key].get(
+                        "profit_factor", 0
+                    )
+                    summary[f"{model_key}_n_trades"] = wr[trade_key].get(
+                        "n_trades", 0
+                    )
+            wf_window_summaries.append(summary)
+
+        metadata: Dict[str, Any] = {
             "training_date": datetime.now().isoformat(),
             "timeframe": timeframe,
             "n_samples_total": len(X),
-            "n_samples_train": len(X_train),
-            "n_samples_val": len(X_val),
-            "n_samples_test": len(X_test),
             "purge_gap_candles": dynamic_purge_gap,
             "n_features_original": len(feature_names),
-            "n_features_selected": len(selected_features),
-            "feature_names": selected_features,
+            "n_features_selected": len(final_feature_names),
+            "feature_names": final_feature_names,
             "label_params": self._t._label_generator.get_params(),
             "label_stats_raw": raw_label_stats,
             "label_stats": label_stats,
-            "training_duration_seconds": round(time.time() - start_time, 1),
+            "training_duration_seconds": round(duration, 1),
+            "walk_forward": {
+                "n_windows": len(window_results),
+                "window_type": "expanding",
+                "purge_gap_candles": dynamic_purge_gap,
+                "windows": wf_window_summaries,
+            },
         }
 
-        for eval_r in eval_results:
-            model_key = eval_r["model_name"].lower()
+        # Add last-window metrics for backward compatibility
+        for eval_r in final_eval_results:
+            model_key = eval_r["model_name"].lower().split("_w")[0]
             metadata[f"{model_key}_accuracy"] = eval_r["accuracy"]
             metadata[f"{model_key}_f1"] = eval_r["f1_score"]
 
-        for tr in trading_results:
-            model_key = tr["model_name"].lower()
-            metadata[f"{model_key}_win_rate"] = tr["win_rate"]
-            metadata[f"{model_key}_profit_factor"] = tr["profit_factor"]
-            metadata[f"{model_key}_sharpe"] = tr["sharpe_ratio"]
-
-        for model_name, filter_info in trade_filters.items():
+        for model_name, filter_info in final_trade_filters.items():
             model_key = model_name.lower()
-            metadata[f"{model_key}_trade_min_confidence"] = filter_info["min_confidence"]
-            metadata[f"{model_key}_trade_min_margin"] = filter_info["min_margin"]
+            metadata[f"{model_key}_trade_min_confidence"] = filter_info[
+                "min_confidence"
+            ]
+            metadata[f"{model_key}_trade_min_margin"] = filter_info[
+                "min_margin"
+            ]
             val_tr = filter_info.get("validation_trading", {})
-            metadata[f"{model_key}_val_trade_win_rate"] = val_tr.get("win_rate")
-            metadata[f"{model_key}_val_trade_profit_factor"] = val_tr.get("profit_factor")
+            metadata[f"{model_key}_val_trade_win_rate"] = val_tr.get(
+                "win_rate"
+            )
+            metadata[f"{model_key}_val_trade_profit_factor"] = val_tr.get(
+                "profit_factor"
+            )
             metadata[f"{model_key}_val_trade_count"] = val_tr.get("n_trades")
 
-        meta_path = os.path.join(self._t.saved_models_dir, "model_metadata.json")
+        # Add trading metrics from last window
+        for model_key in ["xgboost", "lightgbm"]:
+            trade_key = f"{model_key}_trading"
+            if trade_key in last_window:
+                tr = last_window[trade_key]
+                metadata[f"{model_key}_win_rate"] = tr.get("win_rate", 0)
+                metadata[f"{model_key}_profit_factor"] = tr.get(
+                    "profit_factor", 0
+                )
+                metadata[f"{model_key}_sharpe"] = tr.get("sharpe_ratio", 0)
+
+        meta_path = os.path.join(
+            self._t.saved_models_dir, "model_metadata.json"
+        )
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)
 
-        duration = time.time() - start_time
         logger.info(f"\n{'='*60}")
-        logger.info(f"Training komplett! Dauer: {duration:.1f}s")
-        logger.info(f"Modelle gespeichert in: {self._t.saved_models_dir}")
+        logger.info(
+            f"Training complete! Duration: {duration:.1f}s "
+            f"({len(window_results)} walk-forward windows)"
+        )
+        logger.info(f"Models saved to: {self._t.saved_models_dir}")
         logger.info(f"{'='*60}")
 
         results["metadata"] = metadata
