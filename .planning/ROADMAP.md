@@ -37,6 +37,12 @@ Plans:
 ### Phase 2: Training Pipeline — Walk-Forward Validation
 **Goal:** Training produces models validated with walk-forward method, preventing overfitting
 **Requirements:** TRAIN-01, TRAIN-02, TRAIN-05, TRAIN-06, TRAIN-07
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Walk-forward validation engine + 6-month data validation
+- [ ] 02-02-PLAN.md — Model versioning with version.json and production pointer
+- [ ] 02-03-PLAN.md — Training report generation + end-to-end integration
 
 **Scope:**
 - Implement walk-forward validation (train on rolling window, test on next period)
@@ -165,4 +171,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-03-03 after phase 1 planning*
+*Last updated: 2026-03-06 after phase 2 planning*
