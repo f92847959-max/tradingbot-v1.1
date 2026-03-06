@@ -3,13 +3,13 @@
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 2 of 8
-**Current Plan:** 2 of 3
-**Phase Status:** Executing (1/3 plans complete)
+**Current Plan:** 3 of 3
+**Phase Status:** Executing (2/3 plans complete)
 **Total Phases:** 8
 
 ## Next Action
 
-Execute Plan 02-02: Model versioning with version.json and production pointer
+Execute Plan 02-03: Training report generation + end-to-end integration
 
 ## Decisions
 
@@ -18,6 +18,9 @@ Execute Plan 02-02: Model versioning with version.json and production pointer
 - min_train_samples=1500, min_test_samples=200
 - Per-window fresh FeatureScaler (TRAIN-02)
 - 85/15 internal train/val split within each window
+- Version directory format: v{NNN}_{YYYYMMDD}_{HHMMSS}
+- production.json pointer file (not symlinks) for Windows compatibility
+- Retain 5 most recent versions, delete older ones
 
 ## Session Log
 
@@ -38,3 +41,7 @@ Execute Plan 02-02: Model versioning with version.json and production pointer
   - WalkForwardValidator with expanding windows in walk_forward.py
   - 6-month data validation in data_preparation.py
   - pipeline.py refactored for walk-forward loop
+- 2026-03-06: Plan 02-02 complete (4/4 tasks, 7 tests, 172s)
+  - model_versioning.py with create/write/pointer/cleanup functions
+  - pipeline.py save step uses versioned directories
+  - version.json extends model_metadata.json with walk-forward metrics
