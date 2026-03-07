@@ -25,7 +25,11 @@ from .model_versioning import (
     cleanup_old_versions,
 )
 from .trade_filter import probs_to_trade_signals, tune_trade_filter
-from .walk_forward import WalkForwardValidator
+from .walk_forward import (
+    WalkForwardValidator,
+    generate_training_report,
+    print_training_report,
+)
 
 if TYPE_CHECKING:
     from .trainer import ModelTrainer
@@ -214,64 +218,40 @@ class TrainingPipeline:
         duration = time.time() - start_time
         version_name = os.path.basename(version_dir)
 
-        # Collect per-window metrics for version.json
+        # Generate training report (aggregate from combined results, not averaged)
+        version_info = {
+            "version": version_name.split("_")[0],  # e.g., "v001"
+            "version_dir": version_name,
+        }
+        report = generate_training_report(window_results, version_info)
+        print_training_report(report)
+
+        # Save report as JSON in version directory
+        report_path = os.path.join(version_dir, "training_report.json")
+        with open(report_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, indent=2, ensure_ascii=False)
+        logger.info(f"Training report saved to: {report_path}")
+
+        results["training_report"] = report
+
+        # Use report's per-window entries for version.json
         wf_window_summaries = []
-        for wr in window_results:
-            window_metrics: Dict[str, Any] = {}
-            for model_key in ["xgboost", "lightgbm"]:
-                eval_key = f"{model_key}_eval"
-                trade_key = f"{model_key}_trading"
-                m: Dict[str, Any] = {}
-                if eval_key in wr:
-                    m["accuracy"] = wr[eval_key].get("accuracy", 0)
-                    m["f1"] = wr[eval_key].get("f1_score", 0)
-                if trade_key in wr:
-                    m["win_rate"] = wr[trade_key].get("win_rate", 0)
-                    m["profit_factor"] = wr[trade_key].get("profit_factor", 0)
-                    m["expectancy"] = wr[trade_key].get("expectancy_pips", 0)
-                    m["n_trades"] = wr[trade_key].get("n_trades", 0)
-                window_metrics[model_key] = m if m else {"error": "not trained"}
+        for pw in report["per_window"]:
             wf_window_summaries.append({
-                "window_id": wr["window_id"],
-                "train_samples": wr["train_samples"],
-                "test_samples": wr["test_samples"],
-                "metrics": window_metrics,
+                "window_id": pw["window_id"],
+                "train_samples": pw["train_samples"],
+                "test_samples": pw["test_samples"],
+                "metrics": {
+                    "xgboost": pw.get("xgboost", {}),
+                    "lightgbm": pw.get("lightgbm", {}),
+                },
             })
 
-        # Compute aggregate metrics across all windows
-        aggregate_metrics: Dict[str, Any] = {}
-        for model_key in ["xgboost", "lightgbm"]:
-            all_win_rates = []
-            all_profit_factors = []
-            all_expectancies = []
-            total_trades = 0
-            for ws in wf_window_summaries:
-                m = ws["metrics"].get(model_key, {})
-                if "win_rate" in m:
-                    all_win_rates.append(m["win_rate"])
-                if "profit_factor" in m:
-                    all_profit_factors.append(m["profit_factor"])
-                if "expectancy" in m:
-                    all_expectancies.append(m["expectancy"])
-                total_trades += m.get("n_trades", 0)
-            aggregate_metrics[model_key] = {
-                "win_rate": (
-                    sum(all_win_rates) / len(all_win_rates)
-                    if all_win_rates
-                    else 0
-                ),
-                "profit_factor": (
-                    sum(all_profit_factors) / len(all_profit_factors)
-                    if all_profit_factors
-                    else 0
-                ),
-                "expectancy": (
-                    sum(all_expectancies) / len(all_expectancies)
-                    if all_expectancies
-                    else 0
-                ),
-                "n_trades": total_trades,
-            }
+        # Aggregate metrics from report (computed from combined trades)
+        aggregate_metrics = {
+            k: v for k, v in report["aggregate"].items()
+            if k != "best_model"
+        }
 
         # Compute data range info
         data_range: Dict[str, Any] = {"n_candles": len(X)}
@@ -302,8 +282,10 @@ class TrainingPipeline:
                 "purge_gap_candles": dynamic_purge_gap,
                 "windows": wf_window_summaries,
             },
-            # NEW: Aggregate metrics
+            # NEW: Aggregate metrics (from combined results, not averaged)
             "aggregate_metrics": aggregate_metrics,
+            # NEW: Training report reference
+            "training_report": report,
         }
 
         # Add last-window flat metrics for backward compatibility
