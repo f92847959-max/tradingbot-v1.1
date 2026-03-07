@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: "Profitable Demo Trading"
 current_phase: 3 of 8
-current_plan: 2 of 3
+current_plan: 3 of 3
 status: in_progress
-last_updated: "2026-03-07T15:28:30Z"
+last_updated: "2026-03-07T15:34:11Z"
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 14
-  completed_plans: 8
-  percent: 57
+  completed_plans: 9
+  percent: 64
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 3 of 8
-**Current Plan:** 2 of 3
-**Phase Status:** Plan 03-01 complete, 03-02 next
+**Current Plan:** 3 of 3
+**Phase Status:** Plan 03-02 complete, 03-03 next
 **Total Phases:** 8
 
 ## Next Action
 
-Execute Plan 03-02 (SHAP integration into walk-forward pipeline)
+Execute Plan 03-03 (SHAP persistence in pipeline + model versioning)
 
 ## Decisions
 
@@ -44,6 +44,10 @@ Execute Plan 03-02 (SHAP integration into walk-forward pipeline)
 - Handle both list and 3D array SHAP output formats for version compatibility
 - Fixed seed RandomState(42) for reproducible subsampling
 - matplotlib Agg backend set at module level before pyplot import
+- SHAP importance computed on test data (not training) to measure generalization
+- Performance guard compares pruned vs full model profit factor before accepting
+- Default accept pruning when full model has 0 trades (no basis for comparison)
+- result["feature_selection"] replaced by result["feature_pruning"] and result["shap_importance"]
 
 ## Session Log
 
@@ -81,3 +85,8 @@ Execute Plan 03-02 (SHAP integration into walk-forward pipeline)
   - shap_importance.py module: compute_shap_importance + save_feature_importance_chart
   - shap==0.51.0 and matplotlib>=3.8 added to requirements.txt
   - 6 unit tests, 0 regressions in existing test suite
+- 2026-03-07: Plan 03-02 complete (4/4 tasks, 6 tests, 210s)
+  - SHAP pruning replaces XGBoost gain importance in walk_forward.py step 5
+  - Performance guard: pruned vs full model profit factor comparison
+  - Training report enriched with SHAP top features and pruning info per window
+  - 6 integration tests, 0 regressions in existing 23 tests
