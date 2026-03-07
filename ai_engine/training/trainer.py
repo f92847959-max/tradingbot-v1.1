@@ -109,15 +109,20 @@ class ModelTrainer:
         timeframe: str = "5m",
         feature_selection: bool = True,
         min_feature_importance: float = 0.005,
+        min_data_months: int = 6,
     ) -> Dict[str, Any]:
         """Train all models using walk-forward pipeline."""
         pipeline = TrainingPipeline(self)
-        return pipeline.run(df, timeframe, feature_selection, min_feature_importance)
+        return pipeline.run(
+            df, timeframe, feature_selection, min_feature_importance,
+            min_data_months=min_data_months,
+        )
 
     def train_from_csv(
         self,
         csv_path: str,
         timeframe: str = "5m",
+        min_data_months: int = 6,
     ) -> Dict[str, Any]:
         """Convenience: Train from a CSV file."""
         logger.info(f"Loading data from: {csv_path}")
@@ -127,7 +132,7 @@ class ModelTrainer:
             df["timestamp"] = pd.to_datetime(df["timestamp"])
             df.set_index("timestamp", inplace=True)
 
-        return self.train_all(df, timeframe=timeframe)
+        return self.train_all(df, timeframe=timeframe, min_data_months=min_data_months)
 
 
 if __name__ == "__main__":

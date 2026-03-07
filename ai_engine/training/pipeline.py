@@ -49,6 +49,7 @@ class TrainingPipeline:
         timeframe: str = "5m",
         feature_selection: bool = True,
         min_feature_importance: float = 0.005,
+        min_data_months: int = 6,
     ) -> Dict[str, Any]:
         """Run the walk-forward training pipeline.
 
@@ -76,7 +77,7 @@ class TrainingPipeline:
 
         # 6-month minimum data validation (TRAIN-07)
         if isinstance(df.index, pd.DatetimeIndex):
-            self._t._data_prep.validate_minimum_duration(df, min_months=6)
+            self._t._data_prep.validate_minimum_duration(df, min_months=min_data_months)
         else:
             logger.warning(
                 "DataFrame does not have DatetimeIndex -- "
