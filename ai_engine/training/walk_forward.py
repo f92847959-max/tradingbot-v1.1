@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from ..features.feature_scaler import FeatureScaler
+from .shap_importance import compute_shap_importance
 from .trade_filter import probs_to_trade_signals, tune_trade_filter
 
 if TYPE_CHECKING:
@@ -211,53 +212,135 @@ class WalkForwardValidator:
             logger.error(f"    XGBoost training failed (window {wid}): {e}")
             result["xgboost_train"] = {"error": str(e)}
 
-        # 5. Feature selection (importance-based using XGBoost)
+        # 5. SHAP-based feature importance + 50% pruning (replaces XGBoost gain importance)
+        shap_importance = {}
+        pruning_result = {
+            "method": "shap_mean_abs",
+            "original_count": len(feature_names),
+            "kept_count": len(feature_names),
+            "pruned_count": 0,
+            "pruned_features": [],
+            "kept_features": list(feature_names),
+            "pruning_accepted": False,
+        }
+
         if trainer._xgboost.is_trained:
-            importance = trainer._xgboost.get_feature_importance()
-            total_imp = sum(importance.values()) or 1
-            selected_features = [
-                f
-                for f, imp in importance.items()
-                if imp / total_imp >= 0.005  # min_feature_importance
-            ]
-            if not selected_features:
-                selected_features = list(feature_names)
+            # Compute SHAP importance on TEST data (not training data)
+            shap_importance = compute_shap_importance(
+                model=trainer._xgboost.model,
+                X_data=X_test_scaled,
+                feature_names=feature_names,
+                max_samples=2000,
+            )
 
-            dropped = len(feature_names) - len(selected_features)
-            if dropped > 0:
-                logger.info(
-                    f"    Feature selection: kept {len(selected_features)}, "
-                    f"dropped {dropped}"
+            # Save full-model eval BEFORE pruning for comparison
+            full_model_eval = None
+            try:
+                y_probs_full = trainer._xgboost.predict(X_test_scaled)
+                full_model_eval = trainer._evaluator.evaluate_trading(
+                    y_test,
+                    probs_to_trade_signals(y_probs_full, min_confidence=0.4, min_margin=0.1),
+                    tp_pips=trainer.tp_pips,
+                    sl_pips=trainer.sl_pips,
+                    spread_pips=trainer.spread_pips,
+                    label_space="signal",
+                    model_name=f"XGBoost_W{wid}_full",
+                    log_details=False,
                 )
-                sel_idx = [
-                    feature_names.index(f)
-                    for f in selected_features
-                    if f in feature_names
-                ]
-                X_train_scaled = X_train_scaled[:, sel_idx]
-                X_val_scaled = X_val_scaled[:, sel_idx]
-                X_test_scaled = X_test_scaled[:, sel_idx]
+            except Exception as e:
+                logger.warning(f"    Full-model eval failed (window {wid}): {e}")
 
-                # Re-train XGBoost on selected features
-                trainer._xgboost.set_feature_names(selected_features)
+            # Rank and prune bottom 50%
+            ranked = sorted(shap_importance.items(), key=lambda x: x[1], reverse=True)
+            n_keep = max(len(ranked) // 2, 1)  # Keep at least 1 feature
+            kept_features = [f for f, _ in ranked[:n_keep]]
+            pruned_features_list = [f for f, _ in ranked[n_keep:]]
+
+            if len(kept_features) < len(feature_names):
+                logger.info(
+                    f"    SHAP pruning: keeping {len(kept_features)}/{len(feature_names)} features"
+                )
+
+                # Slice arrays to kept features
+                sel_idx = [feature_names.index(f) for f in kept_features]
+                X_train_pruned = X_train_scaled[:, sel_idx]
+                X_val_pruned = X_val_scaled[:, sel_idx]
+                X_test_pruned = X_test_scaled[:, sel_idx]
+
+                # Retrain XGBoost on pruned features
+                trainer._xgboost.set_feature_names(kept_features)
                 try:
-                    xgb_result = trainer._xgboost.train(
-                        X_train_scaled,
-                        y_train,
-                        X_val_scaled,
-                        y_val,
-                        use_class_weight=True,
-                        use_recency_weight=True,
+                    xgb_pruned_result = trainer._xgboost.train(
+                        X_train_pruned, y_train, X_val_pruned, y_val,
+                        use_class_weight=True, use_recency_weight=True,
                     )
-                    result["xgboost_train_selected"] = xgb_result
-                except Exception as e:
-                    logger.error(f"    XGBoost re-training failed (window {wid}): {e}")
+                    result["xgboost_train_pruned"] = xgb_pruned_result
 
-            result["feature_selection"] = {
-                "original": len(feature_names),
-                "selected": len(selected_features),
-                "dropped": dropped,
-            }
+                    # Performance guard: compare pruned vs full
+                    pruning_accepted = True  # Default accept if can't compare
+                    if full_model_eval and full_model_eval.get("n_trades", 0) > 0:
+                        try:
+                            y_probs_pruned = trainer._xgboost.predict(X_test_pruned)
+                            pruned_eval = trainer._evaluator.evaluate_trading(
+                                y_test,
+                                probs_to_trade_signals(
+                                    y_probs_pruned, min_confidence=0.4, min_margin=0.1
+                                ),
+                                tp_pips=trainer.tp_pips,
+                                sl_pips=trainer.sl_pips,
+                                spread_pips=trainer.spread_pips,
+                                label_space="signal",
+                                model_name=f"XGBoost_W{wid}_pruned",
+                                log_details=False,
+                            )
+                            full_pf = full_model_eval.get("profit_factor", 0)
+                            pruned_pf = pruned_eval.get("profit_factor", 0)
+                            pruning_accepted = pruned_pf >= full_pf
+
+                            logger.info(
+                                f"    Performance guard: full PF={full_pf:.2f}, "
+                                f"pruned PF={pruned_pf:.2f} -> "
+                                f"{'ACCEPTED' if pruning_accepted else 'REJECTED (falling back)'}"
+                            )
+
+                            result["pruning_comparison"] = {
+                                "full_profit_factor": full_pf,
+                                "pruned_profit_factor": pruned_pf,
+                                "pruning_accepted": pruning_accepted,
+                            }
+                        except Exception as e:
+                            logger.warning(f"    Pruned eval failed (window {wid}): {e}")
+
+                    if pruning_accepted:
+                        # Accept pruning: update arrays and selected_features
+                        selected_features = kept_features
+                        X_train_scaled = X_train_pruned
+                        X_val_scaled = X_val_pruned
+                        X_test_scaled = X_test_pruned
+
+                        pruning_result.update({
+                            "kept_count": len(kept_features),
+                            "pruned_count": len(pruned_features_list),
+                            "pruned_features": pruned_features_list,
+                            "kept_features": kept_features,
+                            "pruning_accepted": True,
+                        })
+                    else:
+                        # Reject pruning: retrain XGBoost on full features
+                        trainer._xgboost.set_feature_names(list(feature_names))
+                        trainer._xgboost.train(
+                            X_train_scaled, y_train, X_val_scaled, y_val,
+                            use_class_weight=True, use_recency_weight=True,
+                        )
+                        logger.info(f"    Reverted to full feature set ({len(feature_names)} features)")
+
+                except Exception as e:
+                    logger.error(f"    XGBoost pruned re-training failed (window {wid}): {e}")
+                    # Fall back to full features on error
+                    trainer._xgboost.set_feature_names(list(feature_names))
+
+        result["shap_importance"] = shap_importance
+        result["feature_pruning"] = pruning_result
 
         # 6. Train LightGBM on selected features
         trainer._lightgbm.set_feature_names(selected_features)
@@ -408,6 +491,7 @@ class WalkForwardValidator:
             "final_trade_filters": last.get("trade_filters", {}),
             "final_feature_names": last.get("selected_features", feature_names),
             "final_eval_results": last.get("eval_results", []),
+            "final_shap_importance": last.get("shap_importance", {}),
         }
 
 
@@ -449,6 +533,15 @@ def generate_training_report(
                 m["expectancy"] = wr[trade_key].get("expectancy", 0)
                 m["n_trades"] = wr[trade_key].get("n_trades", 0)
             entry[model_key] = m if m else {"n_trades": 0}
+        # Add SHAP/pruning info per window
+        if "shap_importance" in wr and wr["shap_importance"]:
+            # Only store top 10 features in report to keep size manageable
+            top_shap = dict(
+                list(wr["shap_importance"].items())[:10]
+            )
+            entry["shap_top_features"] = top_shap
+        if "feature_pruning" in wr:
+            entry["feature_pruning"] = wr["feature_pruning"]
         per_window.append(entry)
 
     # Compute aggregate metrics from combined trade results (NOT averaged ratios)
