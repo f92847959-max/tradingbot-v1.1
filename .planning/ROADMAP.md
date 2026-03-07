@@ -86,6 +86,12 @@ Plans:
 ### Phase 4: Strategy Improvements — Dynamic TP/SL & Regime Detection
 **Goal:** Trading strategy adapts to market conditions instead of using fixed parameters
 **Requirements:** STRAT-01, STRAT-02, STRAT-03, STRAT-04
+**Plans:** 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Regime detection foundation (MarketRegime enum, RegimeDetector, REGIME_PARAMS)
+- [ ] 04-02-PLAN.md — Dynamic ATR-based label generation and backtester alignment
+- [ ] 04-03-PLAN.md — Regime-aware strategy parameters and ATR position sizing
 
 **Scope:**
 - Replace fixed 50/30 pip TP/SL with ATR-based dynamic levels
@@ -177,4 +183,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-03-07 after phase 3 planning*
+*Last updated: 2026-03-07 after phase 4 planning*
