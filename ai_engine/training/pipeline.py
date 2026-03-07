@@ -24,6 +24,7 @@ from .model_versioning import (
     update_production_pointer,
     cleanup_old_versions,
 )
+from .shap_importance import save_feature_importance_chart
 from .trade_filter import probs_to_trade_signals, tune_trade_filter
 from .walk_forward import (
     WalkForwardValidator,
@@ -154,6 +155,7 @@ class TrainingPipeline:
         final_trade_filters = wf_results["final_trade_filters"]
         final_feature_names = wf_results["final_feature_names"]
         final_eval_results = wf_results["final_eval_results"]
+        final_shap_importance = wf_results.get("final_shap_importance", {})
 
         results["walk_forward_windows"] = window_results
         results["n_windows"] = wf_results["n_windows"]
@@ -185,9 +187,11 @@ class TrainingPipeline:
                 "lightgbm_trade_filter"
             ]
 
-        # Feature selection info from last window
-        if "feature_selection" in last_window:
-            results["feature_selection"] = last_window["feature_selection"]
+        # Feature pruning and SHAP importance from last window (Phase 3)
+        if "feature_pruning" in last_window:
+            results["feature_pruning"] = last_window["feature_pruning"]
+        if "shap_importance" in last_window:
+            results["shap_importance"] = last_window["shap_importance"]
 
         # ================================================================
         # Step 7: Save models with versioning
@@ -234,6 +238,16 @@ class TrainingPipeline:
         logger.info(f"Training report saved to: {report_path}")
 
         results["training_report"] = report
+
+        # Save feature importance chart as PNG in version directory
+        chart_path = ""
+        if final_shap_importance:
+            chart_path = save_feature_importance_chart(
+                shap_importance=final_shap_importance,
+                output_path=os.path.join(version_dir, "feature_importance.png"),
+                top_n=20,
+            )
+            logger.info(f"Feature importance chart saved to: {chart_path}")
 
         # Use report's per-window entries for version.json
         wf_window_summaries = []
@@ -287,6 +301,12 @@ class TrainingPipeline:
             "aggregate_metrics": aggregate_metrics,
             # NEW: Training report reference
             "training_report": report,
+            # NEW Phase 3: SHAP importance data (TRAIN-03)
+            "shap_importance": final_shap_importance,
+            # NEW Phase 3: Feature pruning summary (TRAIN-04)
+            "feature_pruning": last_window.get("feature_pruning", {}),
+            # NEW Phase 3: Chart reference
+            "feature_importance_chart": os.path.basename(chart_path) if chart_path else None,
         }
 
         # Add last-window flat metrics for backward compatibility
