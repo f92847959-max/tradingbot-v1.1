@@ -2,30 +2,30 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: "Profitable Demo Trading"
-current_phase: 3 of 8
-current_plan: 3 of 3
+current_phase: 4 of 8
+current_plan: 1 of 3
 status: in_progress
-last_updated: "2026-03-07T15:34:11Z"
+last_updated: "2026-03-07T15:40:12Z"
 progress:
   total_phases: 8
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 14
-  completed_plans: 9
-  percent: 64
+  completed_plans: 10
+  percent: 71
 ---
 
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 3 of 8
-**Current Plan:** 3 of 3
-**Phase Status:** Plan 03-02 complete, 03-03 next
+**Current Phase:** 4 of 8
+**Current Plan:** 1 of 3
+**Phase Status:** Phase 3 complete, Phase 4 next
 **Total Phases:** 8
 
 ## Next Action
 
-Execute Plan 03-03 (SHAP persistence in pipeline + model versioning)
+Plan Phase 4 (trade filter optimization)
 
 ## Decisions
 
@@ -48,6 +48,9 @@ Execute Plan 03-03 (SHAP persistence in pipeline + model versioning)
 - Performance guard compares pruned vs full model profit factor before accepting
 - Default accept pruning when full model has 0 trades (no basis for comparison)
 - result["feature_selection"] replaced by result["feature_pruning"] and result["shap_importance"]
+- Store full shap_importance dict in version.json (acceptable for 50-80 features)
+- Chart filename stored as basename only in version.json (version dir is context)
+- feature_selection key replaced with feature_pruning and shap_importance keys in pipeline.py
 
 ## Session Log
 
@@ -90,3 +93,8 @@ Execute Plan 03-03 (SHAP persistence in pipeline + model versioning)
   - Performance guard: pruned vs full model profit factor comparison
   - Training report enriched with SHAP top features and pruning info per window
   - 6 integration tests, 0 regressions in existing 23 tests
+- 2026-03-07: Plan 03-03 complete (3/3 tasks, 0 new tests, 245s)
+  - SHAP persistence wired into pipeline.py (chart PNG + version.json data)
+  - Feature pruning summary added to train_models.py console output
+  - E2e test extended with all 4 Phase 3 UAT assertions (13/13 SHAP tests pass)
+- 2026-03-07: Phase 3 complete (3/3 plans, 13 SHAP tests total, 208/208 passing, 0 regressions)
