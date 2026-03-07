@@ -221,6 +221,22 @@ def main() -> None:
         best_pf = agg.get(best, {}).get("profit_factor", 0)
         print(f"  Best model: {best.upper()} (PF={best_pf:.2f})")
 
+    # Feature pruning summary
+    pruning = results.get("feature_pruning", {})
+    if pruning:
+        print(
+            f"  Features: {pruning.get('original_count', '?')} -> "
+            f"{pruning.get('kept_count', '?')} "
+            f"(pruned {pruning.get('pruned_count', 0)}, "
+            f"{'accepted' if pruning.get('pruning_accepted') else 'rejected'})"
+        )
+
+    # Feature importance chart
+    if version_dir:
+        chart_file = os.path.join(version_dir, "feature_importance.png")
+        if os.path.exists(chart_file):
+            print(f"  Feature importance chart: {chart_file}")
+
     print(f"  Version dir: {version_dir}")
     print(f"  Models saved to: {args.output}")
 
