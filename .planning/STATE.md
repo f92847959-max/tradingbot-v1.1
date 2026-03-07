@@ -1,16 +1,17 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.0
-milestone_name: — Profitable Demo Trading
+milestone_name: "Profitable Demo Trading"
 current_phase: 3 of 8
-current_plan: 1 of ?
-status: unknown
-last_updated: "2026-03-07T08:33:28.602Z"
+current_plan: 2 of 3
+status: in_progress
+last_updated: "2026-03-07T15:28:30Z"
 progress:
   total_phases: 8
   completed_phases: 2
-  total_plans: 11
-  completed_plans: 7
+  total_plans: 14
+  completed_plans: 8
+  percent: 57
 ---
 
 # Project State
@@ -18,13 +19,13 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 3 of 8
-**Current Plan:** 1 of ?
-**Phase Status:** Phase 2 complete, Phase 3 not yet planned
+**Current Plan:** 2 of 3
+**Phase Status:** Plan 03-01 complete, 03-02 next
 **Total Phases:** 8
 
 ## Next Action
 
-Plan Phase 3 (next phase in roadmap)
+Execute Plan 03-02 (SHAP integration into walk-forward pipeline)
 
 ## Decisions
 
@@ -39,6 +40,10 @@ Plan Phase 3 (next phase in roadmap)
 - Aggregate PF from total gross_profit / total gross_loss (not averaged ratios)
 - Best model selected by aggregate profit factor
 - Sharpe annualized with sqrt(2600) from per-trade pips
+- Use shap.TreeExplainer explicitly (not generic shap.Explainer) to avoid KernelExplainer fallback
+- Handle both list and 3D array SHAP output formats for version compatibility
+- Fixed seed RandomState(42) for reproducible subsampling
+- matplotlib Agg backend set at module level before pyplot import
 
 ## Session Log
 
@@ -72,3 +77,7 @@ Plan Phase 3 (next phase in roadmap)
   - train_models.py updated with walk-forward summary output + --min-data-months
   - End-to-end integration test verifying all Phase 2 UAT criteria
 - 2026-03-07: Phase 2 complete (3/3 plans, 25 tests total, all passing)
+- 2026-03-07: Plan 03-01 complete (3/3 tasks, 6 tests, 159s)
+  - shap_importance.py module: compute_shap_importance + save_feature_importance_chart
+  - shap==0.51.0 and matplotlib>=3.8 added to requirements.txt
+  - 6 unit tests, 0 regressions in existing test suite

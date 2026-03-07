@@ -62,6 +62,12 @@ Plans:
 ### Phase 3: Feature Engineering — SHAP & Pruning
 **Goal:** Remove noisy features, keep only those that contribute to model performance
 **Requirements:** TRAIN-03, TRAIN-04
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — SHAP importance module + dependencies (compute_shap_importance, save_feature_importance_chart)
+- [ ] 03-02-PLAN.md — Replace feature selection with SHAP pruning in walk-forward windows
+- [ ] 03-03-PLAN.md — Wire SHAP persistence into pipeline and version directory
 
 **Scope:**
 - Integrate SHAP for feature importance analysis
@@ -171,4 +177,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-03-06 after phase 2 planning*
+*Last updated: 2026-03-07 after phase 3 planning*
