@@ -1,15 +1,30 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: — Profitable Demo Trading
+current_phase: 3 of 8
+current_plan: 1 of ?
+status: unknown
+last_updated: "2026-03-07T08:33:28.602Z"
+progress:
+  total_phases: 8
+  completed_phases: 2
+  total_plans: 11
+  completed_plans: 7
+---
+
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 2 of 8
-**Current Plan:** 3 of 3
-**Phase Status:** Executing (2/3 plans complete)
+**Current Phase:** 3 of 8
+**Current Plan:** 1 of ?
+**Phase Status:** Phase 2 complete, Phase 3 not yet planned
 **Total Phases:** 8
 
 ## Next Action
 
-Execute Plan 02-03: Training report generation + end-to-end integration
+Plan Phase 3 (next phase in roadmap)
 
 ## Decisions
 
@@ -21,6 +36,9 @@ Execute Plan 02-03: Training report generation + end-to-end integration
 - Version directory format: v{NNN}_{YYYYMMDD}_{HHMMSS}
 - production.json pointer file (not symlinks) for Windows compatibility
 - Retain 5 most recent versions, delete older ones
+- Aggregate PF from total gross_profit / total gross_loss (not averaged ratios)
+- Best model selected by aggregate profit factor
+- Sharpe annualized with sqrt(2600) from per-trade pips
 
 ## Session Log
 
@@ -48,3 +66,9 @@ Execute Plan 02-03: Training report generation + end-to-end integration
 - 2026-03-06: Phase 7 context gathered (dashboard/history UI decisions captured)
   - Context file: .planning/phases/07-control-app-dashboard-history/07-CONTEXT.md
   - Focus: compact adaptive feed/error panes, one-line status strip, minimal dark glass style, micro-animations
+- 2026-03-07: Plan 02-03 complete (4/4 tasks, 1 test added, 291s)
+  - generate_training_report() with combined-trade aggregation in walk_forward.py
+  - Report wired into pipeline.py (JSON save + console output)
+  - train_models.py updated with walk-forward summary output + --min-data-months
+  - End-to-end integration test verifying all Phase 2 UAT criteria
+- 2026-03-07: Phase 2 complete (3/3 plans, 25 tests total, all passing)

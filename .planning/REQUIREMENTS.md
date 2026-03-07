@@ -21,7 +21,7 @@
 - [ ] **TRAIN-03**: SHAP-based feature importance analysis is integrated
 - [ ] **TRAIN-04**: Bottom 50% features by importance can be pruned automatically
 - [ ] **TRAIN-05**: Model versioning — each training run saves version metadata (date, params, metrics)
-- [ ] **TRAIN-06**: Training report shows walk-forward results across all windows
+- [x] **TRAIN-06**: Training report shows walk-forward results across all windows
 - [ ] **TRAIN-07**: Minimum 6 months of historical data used for training
 
 ### Strategy
@@ -102,7 +102,7 @@
 | TRAIN-03 | Phase 3 | Pending |
 | TRAIN-04 | Phase 3 | Pending |
 | TRAIN-05 | Phase 2 | Pending |
-| TRAIN-06 | Phase 2 | Pending |
+| TRAIN-06 | Phase 2 | Complete |
 | TRAIN-07 | Phase 2 | Pending |
 | STRAT-01 | Phase 4 | Pending |
 | STRAT-02 | Phase 4 | Pending |
