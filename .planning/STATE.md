@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: "Profitable Demo Trading"
 current_phase: 4 of 8
-current_plan: 1 of 3
+current_plan: 2 of 3
 status: in_progress
-last_updated: "2026-03-07T15:40:12Z"
+last_updated: "2026-03-08T12:42:00Z"
 progress:
   total_phases: 8
   completed_phases: 3
-  total_plans: 14
-  completed_plans: 10
-  percent: 71
+  total_plans: 17
+  completed_plans: 11
+  percent: 65
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 4 of 8
-**Current Plan:** 1 of 3
-**Phase Status:** Phase 3 complete, Phase 4 next
+**Current Plan:** 2 of 3
+**Phase Status:** Plan 04-01 complete, 04-02 next
 **Total Phases:** 8
 
 ## Next Action
 
-Plan Phase 4 (trade filter optimization)
+Execute Plan 04-02 (Dynamic TP/SL)
 
 ## Decisions
 
@@ -51,6 +51,8 @@ Plan Phase 4 (trade filter optimization)
 - Store full shap_importance dict in version.json (acceptable for 50-80 features)
 - Chart filename stored as basename only in version.json (version dir is context)
 - feature_selection key replaced with feature_pruning and shap_importance keys in pipeline.py
+- [Phase 04]: ADX + ATR ratio sufficient for 3-state regime classification (BB width excluded)
+- [Phase 04]: RANGING is the safest default for all fallback/error cases
 
 ## Session Log
 
@@ -98,3 +100,8 @@ Plan Phase 4 (trade filter optimization)
   - Feature pruning summary added to train_models.py console output
   - E2e test extended with all 4 Phase 3 UAT assertions (13/13 SHAP tests pass)
 - 2026-03-07: Phase 3 complete (3/3 plans, 13 SHAP tests total, 208/208 passing, 0 regressions)
+- 2026-03-08: Plan 04-01 complete (5/5 tasks, 33 tests added, 413s)
+  - RegimeDetector class with MarketRegime enum (TRENDING/RANGING/VOLATILE)
+  - detect() with hysteresis for live trading, detect_series() stateless for backtesting
+  - REGIME_PARAMS lookup table with per-regime TP/SL/confidence parameters
+  - 33 tests covering classification, hysteresis, edge cases, params
