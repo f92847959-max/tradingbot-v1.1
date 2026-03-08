@@ -11,6 +11,7 @@ Improvements over V1:
 """
 
 import logging
+import warnings
 from typing import Dict, Optional, Tuple
 
 import numpy as np
@@ -183,7 +184,9 @@ class LabelGenerator:
             raise ValueError("atr_14 column required for dynamic ATR mode")
 
         atr = df["atr_14"].values.astype(np.float64).copy()
-        median_atr = np.nanmedian(atr)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            median_atr = np.nanmedian(atr)
 
         if np.isnan(median_atr):
             # All ATR values are NaN -- fall back to fixed pips
