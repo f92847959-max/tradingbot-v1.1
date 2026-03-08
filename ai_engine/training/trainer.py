@@ -54,6 +54,9 @@ class ModelTrainer:
         pip_size: float = 0.01,
         spread_pips: float = 2.5,
         slippage_pips: float = 0.5,
+        use_dynamic_atr: bool = True,
+        tp_atr_multiplier: float = 2.0,
+        sl_atr_multiplier: float = 1.5,
     ) -> None:
         """
         Initialize the ModelTrainer.
@@ -66,12 +69,18 @@ class ModelTrainer:
             pip_size: Pip size for Gold
             spread_pips: Spread cost for labels
             slippage_pips: Slippage for labels
+            use_dynamic_atr: Use ATR-based dynamic TP/SL for labels (default True)
+            tp_atr_multiplier: ATR multiplier for take-profit distance
+            sl_atr_multiplier: ATR multiplier for stop-loss distance
         """
         self.saved_models_dir = saved_models_dir
         self.tp_pips = tp_pips
         self.sl_pips = sl_pips
         self.spread_pips = spread_pips
         self.slippage_pips = slippage_pips
+        self.use_dynamic_atr = use_dynamic_atr
+        self.tp_atr_multiplier = tp_atr_multiplier
+        self.sl_atr_multiplier = sl_atr_multiplier
 
         self._feature_engineer = FeatureEngineer()
         self._label_generator = LabelGenerator(
@@ -81,6 +90,9 @@ class ModelTrainer:
             pip_size=pip_size,
             spread_pips=spread_pips,
             slippage_pips=slippage_pips,
+            use_dynamic_atr=use_dynamic_atr,
+            tp_atr_multiplier=tp_atr_multiplier,
+            sl_atr_multiplier=sl_atr_multiplier,
         )
         self._data_prep = DataPreparation(
             train_ratio=0.70,
