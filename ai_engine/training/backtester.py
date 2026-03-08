@@ -143,6 +143,9 @@ class Backtester:
         self,
         predictions: np.ndarray,
         actual_labels: np.ndarray,
+        atr_values: Optional[np.ndarray] = None,
+        tp_atr_multiplier: float = 2.0,
+        sl_atr_multiplier: float = 1.5,
     ) -> Dict[str, Any]:
         """
         Simplified backtest: Each prediction = 1 trade.
@@ -153,6 +156,9 @@ class Backtester:
         Args:
             predictions: Predicted labels
             actual_labels: True labels
+            atr_values: Optional per-candle ATR values for dynamic TP/SL
+            tp_atr_multiplier: ATR multiplier for take-profit (when atr_values given)
+            sl_atr_multiplier: ATR multiplier for stop-loss (when atr_values given)
 
         Returns:
             Performance report
@@ -178,10 +184,25 @@ class Backtester:
 
         # Win/Loss
         wins = pred_trades == true_trades
-        net_tp = self.tp_pips - self.total_cost_pips
-        net_sl = self.sl_pips + self.total_cost_pips
 
-        pips_per_trade = np.where(wins, net_tp, -net_sl)
+        if atr_values is not None:
+            # Per-trade ATR-based TP/SL
+            atr_trades = np.array(atr_values)[trade_mask]
+            tp_pips_per_trade = atr_trades * tp_atr_multiplier / self.pip_size
+            sl_pips_per_trade = atr_trades * sl_atr_multiplier / self.pip_size
+            net_tp = tp_pips_per_trade - self.total_cost_pips
+            net_sl = sl_pips_per_trade + self.total_cost_pips
+            pips_per_trade = np.where(wins, net_tp, -net_sl)
+            avg_tp_pips = float(tp_pips_per_trade.mean())
+            avg_sl_pips = float(sl_pips_per_trade.mean())
+        else:
+            # Fixed TP/SL
+            net_tp = self.tp_pips - self.total_cost_pips
+            net_sl = self.sl_pips + self.total_cost_pips
+            pips_per_trade = np.where(wins, net_tp, -net_sl)
+            avg_tp_pips = None
+            avg_sl_pips = None
+
         usd_per_trade = pips_per_trade * self.pip_value
 
         # Equity Curve
@@ -198,7 +219,10 @@ class Backtester:
                 "pnl_usd": float(usd_per_trade[i]),
             })
 
-        return self._generate_report(trades, equity_curve.tolist())
+        return self._generate_report(
+            trades, equity_curve.tolist(),
+            avg_tp_pips=avg_tp_pips, avg_sl_pips=avg_sl_pips,
+        )
 
     def _close_position(
         self,
@@ -231,8 +255,17 @@ class Backtester:
         self,
         trades: List[Dict],
         equity_curve: List[float],
+        avg_tp_pips: Optional[float] = None,
+        avg_sl_pips: Optional[float] = None,
     ) -> Dict[str, Any]:
-        """Generates the complete performance report."""
+        """Generates the complete performance report.
+
+        Args:
+            trades: List of trade dicts
+            equity_curve: Equity curve values
+            avg_tp_pips: Average TP pips (for ATR-based mode, overrides self.tp_pips)
+            avg_sl_pips: Average SL pips (for ATR-based mode, overrides self.sl_pips)
+        """
         if not trades:
             return self._empty_report()
 
@@ -251,9 +284,11 @@ class Backtester:
         gross_loss = float(abs(pips_array[pips_array < 0].sum())) if (pips_array < 0).any() else 0
         profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf")
 
-        # Expectancy
-        net_tp = self.tp_pips - self.total_cost_pips
-        net_sl = self.sl_pips + self.total_cost_pips
+        # Expectancy (use provided averages for ATR-based mode, else fixed)
+        eff_tp = avg_tp_pips if avg_tp_pips is not None else self.tp_pips
+        eff_sl = avg_sl_pips if avg_sl_pips is not None else self.sl_pips
+        net_tp = eff_tp - self.total_cost_pips
+        net_sl = eff_sl + self.total_cost_pips
         expectancy = (win_rate * net_tp) - ((1 - win_rate) * net_sl)
 
         # Equity & Drawdown
