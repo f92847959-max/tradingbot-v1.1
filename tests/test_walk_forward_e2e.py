@@ -80,6 +80,7 @@ def test_walk_forward_e2e(tmp_path):
     )
 
     # Create trainer with realistic label params
+    # use_dynamic_atr=False because synthetic data has no atr_14 column
     saved_models_dir = str(tmp_path)
     trainer = ModelTrainer(
         saved_models_dir=saved_models_dir,
@@ -89,6 +90,7 @@ def test_walk_forward_e2e(tmp_path):
         pip_size=0.01,
         spread_pips=2.5,
         slippage_pips=0.5,
+        use_dynamic_atr=False,
     )
 
     # Run the full pipeline
