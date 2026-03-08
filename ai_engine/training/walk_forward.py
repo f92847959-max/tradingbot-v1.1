@@ -156,6 +156,9 @@ class WalkForwardValidator:
             "test_end": window.test_end,
             "train_samples": window.train_size,
             "test_samples": window.test_size,
+            "use_dynamic_atr": getattr(trainer, "use_dynamic_atr", False),
+            "tp_atr_multiplier": getattr(trainer, "tp_atr_multiplier", 2.0),
+            "sl_atr_multiplier": getattr(trainer, "sl_atr_multiplier", 1.5),
         }
 
         # 1. Slice data by window
