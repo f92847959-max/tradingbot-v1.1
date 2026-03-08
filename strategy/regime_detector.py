@@ -246,7 +246,7 @@ class RegimeDetector:
         if self._current_regime is None:
             # First detection — accept immediately
             self._current_regime = raw_regime
-            self._confirm_count = 1
+            self._confirm_count = 0
             return raw_regime
 
         if raw_regime == self._current_regime:
