@@ -140,6 +140,22 @@ def main() -> None:
         "--min-data-months", type=int, default=6,
         help="Minimum months of data required for training (default: 6)",
     )
+    parser.add_argument(
+        "--dynamic-atr", action="store_true", default=True,
+        help="Use ATR-based dynamic TP/SL for label generation (default: True)",
+    )
+    parser.add_argument(
+        "--no-dynamic-atr", dest="dynamic_atr", action="store_false",
+        help="Use fixed pip TP/SL (legacy mode)",
+    )
+    parser.add_argument(
+        "--tp-atr-mult", type=float, default=2.0,
+        help="ATR multiplier for take-profit (default: 2.0)",
+    )
+    parser.add_argument(
+        "--sl-atr-mult", type=float, default=1.5,
+        help="ATR multiplier for stop-loss (default: 1.5)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -154,6 +170,9 @@ def main() -> None:
         max_holding_candles=args.max_holding,
         pip_size=args.pip_size,
         spread_pips=args.spread_pips,
+        use_dynamic_atr=args.dynamic_atr,
+        tp_atr_multiplier=args.tp_atr_mult,
+        sl_atr_multiplier=args.sl_atr_mult,
     )
 
     if args.broker:
@@ -195,6 +214,9 @@ def main() -> None:
     print(f"  Duration: {meta.get('training_duration_seconds', 0):.1f}s")
     print(f"  Features: {meta.get('n_features_selected', 0)}")
     print(f"  Samples:  {meta.get('n_samples_total', 0)}")
+    print(f"  Dynamic ATR: {'enabled' if args.dynamic_atr else 'disabled'}")
+    if args.dynamic_atr:
+        print(f"  ATR multipliers: TP={args.tp_atr_mult}x, SL={args.sl_atr_mult}x")
 
     # Walk-forward summary
     n_windows = results.get("n_windows", 0)
