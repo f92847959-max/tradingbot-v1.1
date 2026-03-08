@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: "Profitable Demo Trading"
 current_phase: 4 of 8
-current_plan: 2 of 3
+current_plan: 3 of 3
 status: in_progress
-last_updated: "2026-03-08T12:42:00Z"
+last_updated: "2026-03-08T12:43:06Z"
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 17
-  completed_plans: 11
-  percent: 65
+  completed_plans: 12
+  percent: 71
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 4 of 8
-**Current Plan:** 2 of 3
-**Phase Status:** Plan 04-01 complete, 04-02 next
+**Current Plan:** 3 of 3
+**Phase Status:** Plans 04-01 and 04-02 complete, 04-03 next
 **Total Phases:** 8
 
 ## Next Action
 
-Execute Plan 04-02 (Dynamic TP/SL)
+Execute Plan 04-03 (Regime-aware trade parameters)
 
 ## Decisions
 
@@ -53,6 +53,8 @@ Execute Plan 04-02 (Dynamic TP/SL)
 - feature_selection key replaced with feature_pruning and shap_importance keys in pipeline.py
 - [Phase 04]: ADX + ATR ratio sufficient for 3-state regime classification (BB width excluded)
 - [Phase 04]: RANGING is the safest default for all fallback/error cases
+- [Phase 04]: LabelGenerator defaults use_dynamic_atr=False; ModelTrainer defaults True
+- [Phase 04]: Keep _vectorized_labeling and _vectorized_labeling_dynamic separate (scalar vs array)
 
 ## Session Log
 
@@ -105,3 +107,10 @@ Execute Plan 04-02 (Dynamic TP/SL)
   - detect() with hysteresis for live trading, detect_series() stateless for backtesting
   - REGIME_PARAMS lookup table with per-regime TP/SL/confidence parameters
   - 33 tests covering classification, hysteresis, edge cases, params
+- 2026-03-08: Plan 04-02 complete (7/7 tasks, 18 tests added, 526s)
+  - LabelGenerator: use_dynamic_atr flag with per-candle ATR-based TP/SL distances
+  - Backtester: run_simple() with per-trade ATR-based TP/SL evaluation
+  - ModelTrainer: ATR params forwarded to LabelGenerator (default dynamic=True)
+  - walk_forward.py: ATR mode info stored in window result dict
+  - train_models.py: --dynamic-atr, --no-dynamic-atr, --tp/sl-atr-mult CLI args
+  - E2e test updated for dynamic ATR default; 260 passing, 0 regressions

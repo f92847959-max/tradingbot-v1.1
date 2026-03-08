@@ -26,7 +26,7 @@
 
 ### Strategy
 
-- [ ] **STRAT-01**: Dynamic TP/SL based on ATR instead of fixed 50/30 pips
+- [x] **STRAT-01**: Dynamic TP/SL based on ATR instead of fixed 50/30 pips
 - [ ] **STRAT-02**: ATR-based position sizing adapts to market volatility
 - [x] **STRAT-03**: Regime detection classifies market as trending/ranging/volatile
 - [ ] **STRAT-04**: Strategy parameters differ per detected regime
@@ -104,7 +104,7 @@
 | TRAIN-05 | Phase 2 | Pending |
 | TRAIN-06 | Phase 2 | Complete |
 | TRAIN-07 | Phase 2 | Pending |
-| STRAT-01 | Phase 4 | Pending |
+| STRAT-01 | Phase 4 | Complete |
 | STRAT-02 | Phase 4 | Pending |
 | STRAT-03 | Phase 4 | Complete |
 | STRAT-04 | Phase 4 | Pending |
