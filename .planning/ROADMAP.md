@@ -110,6 +110,11 @@ Plans:
 ### Phase 5: Backtesting & Validation
 **Goal:** Proven strategy performance on historical data with realistic conditions
 **Requirements:** BACK-01, BACK-02, BACK-03, BACK-04
+**Plans:** 2 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Commission support, BacktestRunner, and BacktestReport with consistency checks
+- [ ] 05-02-PLAN.md — CLI backtest script and end-to-end integration test
 
 **Scope:**
 - Build/improve backtesting framework with realistic costs
@@ -183,4 +188,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-03-07 after phase 4 planning*
+*Last updated: 2026-03-09 after phase 5 planning*
