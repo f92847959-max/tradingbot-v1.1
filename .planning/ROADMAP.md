@@ -167,6 +167,12 @@ Plans:
 ### Phase 8: Demo Trading Validation
 **Goal:** Bot runs profitably on demo account, proving the system works
 **Requirements:** DEMO-01, DEMO-02, DEMO-03, DEMO-04
+**Plans:** 3 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Stability hardening (keepalive, heartbeat, reasoning defaults, daily stats)
+- [ ] 08-02-PLAN.md — Operational scripts (preflight check, demo report, PowerShell restart wrapper)
+- [ ] 08-03-PLAN.md — Demo readiness verification and operator checkpoint
 
 **Scope:**
 - Deploy bot on Capital.com demo account
@@ -188,4 +194,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-03-09 after phase 5 planning*
+*Last updated: 2026-03-09 after phase 8 planning*
