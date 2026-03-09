@@ -133,6 +133,11 @@ Plans:
 ### Phase 6: Control App — Core Interface
 **Goal:** Functional web interface to control and monitor the bot
 **Requirements:** CTRL-01, CTRL-02, CTRL-03
+**Plans:** 2 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Backend API endpoints (start/pause/resume, WebSocket /ws/status, metrics)
+- [ ] 06-02-PLAN.md — Frontend API adapter rewrite and WebSocket integration
 
 **Scope:**
 - Unify Control App to use main bot API (remove duplicate backend)
@@ -170,9 +175,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md � Stability hardening (keepalive, heartbeat, reasoning defaults, daily stats)
-- [ ] 08-02-PLAN.md � Operational scripts (preflight check, demo report, PowerShell restart wrapper)
-- [ ] 08-03-PLAN.md � Demo readiness verification and operator checkpoint
+- [ ] 08-01-PLAN.md — Stability hardening (keepalive, heartbeat, reasoning defaults, daily stats)
+- [ ] 08-02-PLAN.md — Operational scripts (preflight check, demo report, PowerShell restart wrapper)
+- [ ] 08-03-PLAN.md — Demo readiness verification and operator checkpoint
 
 **Scope:**
 - Deploy bot on Capital.com demo account
@@ -194,4 +199,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-03-09 after phase 8 planning*
+*Last updated: 2026-03-09 after phase 6 planning*
