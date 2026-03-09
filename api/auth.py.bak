@@ -1,0 +1,96 @@
+"""API authentication and rate limiting."""
+
+import hashlib
+import logging
+import os
+import secrets
+import time
+from collections import defaultdict
+
+from fastapi import HTTPException, Request, Security
+from fastapi.security import APIKeyHeader
+
+logger = logging.getLogger(__name__)
+
+# API key header scheme
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def _get_api_key() -> str:
+    """Get or generate the API key."""
+    key = os.getenv("API_KEY", "")
+    if not key:
+        # Generate a random key on first use and warn
+        key = secrets.token_urlsafe(32)
+        logger.warning(
+            "No API_KEY set in .env — generated temporary key: %s "
+            "(set API_KEY in .env for persistence)",
+            key,
+        )
+        os.environ["API_KEY"] = key
+    return key
+
+
+async def verify_api_key(
+    request: Request,
+    api_key: str | None = Security(_api_key_header),
+) -> str:
+    """FastAPI dependency to verify API key on protected endpoints."""
+    expected = _get_api_key()
+
+    if not api_key:
+        logger.warning("API request without key from %s: %s", request.client.host, request.url.path)
+        raise HTTPException(status_code=401, detail="Missing API key (X-API-Key header)")
+
+    if not secrets.compare_digest(api_key, expected):
+        logger.warning("Invalid API key from %s: %s", request.client.host, request.url.path)
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    return api_key
+
+
+# ---------------------------------------------------------------------------
+# Rate Limiting
+# ---------------------------------------------------------------------------
+
+class RateLimiter:
+    """Simple in-memory rate limiter per IP."""
+
+    def __init__(self, max_requests: int = 10, window_seconds: int = 60) -> None:
+        self.max_requests = max_requests
+        self.window = window_seconds
+        self._requests: dict[str, list[float]] = defaultdict(list)
+
+    def check(self, client_ip: str) -> bool:
+        """Returns True if request is allowed."""
+        now = time.monotonic()
+        timestamps = self._requests[client_ip]
+        # Prune old entries
+        self._requests[client_ip] = [t for t in timestamps if now - t < self.window]
+        if len(self._requests[client_ip]) >= self.max_requests:
+            return False
+        self._requests[client_ip].append(now)
+
+        # Memory cleanup: cap tracked IPs at 1000
+        if len(self._requests) > 1000:
+            # Remove IPs with oldest last-access time
+            sorted_ips = sorted(
+                self._requests.keys(),
+                key=lambda ip: self._requests[ip][-1] if self._requests[ip] else 0,
+            )
+            for ip in sorted_ips[:len(self._requests) - 1000]:
+                del self._requests[ip]
+
+        return True
+
+
+# Global rate limiter for order endpoints
+order_rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
+
+
+async def check_order_rate_limit(request: Request) -> None:
+    """FastAPI dependency for rate-limiting order endpoints."""
+    client_ip = request.client.host if request.client else "unknown"
+    if not order_rate_limiter.check(client_ip):
+        logger.warning("Rate limit exceeded for %s on %s", client_ip, request.url.path)
+        raise HTTPException(status_code=429, detail="Rate limit exceeded (max 10 requests/minute)")

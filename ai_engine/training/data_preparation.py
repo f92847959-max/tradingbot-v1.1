@@ -126,8 +126,8 @@ class DataPreparation:
             for feat in missing:
                 df[feat] = 0.0
 
-        X = df[feature_names].values.astype(np.float32)
-        y = df[label_column].values.astype(int)
+        X = np.asarray(df[feature_names].values.astype(np.float32))
+        y = np.asarray(df[label_column].values.astype(int))
 
         # Check for NaN/Inf
         nan_count = np.isnan(X).sum()

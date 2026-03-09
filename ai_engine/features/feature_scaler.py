@@ -167,8 +167,8 @@ class FeatureScaler:
 
         return pd.DataFrame({
             "feature": self._feature_names,
-            "mean": self._scaler.mean_,
-            "std": np.sqrt(self._scaler.var_),
+            "mean": np.asarray(self._scaler.mean_),
+            "std": np.sqrt(np.asarray(self._scaler.var_)),
         })
 
 
