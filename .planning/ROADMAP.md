@@ -130,54 +130,60 @@ Plans:
 
 ---
 
-### Phase 6: Control App — Core Interface
-**Goal:** Functional web interface to control and monitor the bot
-**Requirements:** CTRL-01, CTRL-02, CTRL-03
-**Plans:** 2 plans
+### Phase 6: MiroFish Swarm Intelligence Integration
+**Goal:** MiroFish multi-agent prediction engine integrated to enhance gold trading signals with swarm intelligence
+**Requirements:** MIRO-01, MIRO-02, MIRO-03, MIRO-04, MIRO-05, MIRO-06
+**Plans:** 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Backend API endpoints (start/pause/resume, WebSocket /ws/status, metrics)
-- [ ] 06-02-PLAN.md — Frontend API adapter rewrite and WebSocket integration
+- [ ] 06-01-PLAN.md — MiroFish setup: seed templates, settings extension, startup script (MIRO-01, MIRO-02, MIRO-03)
+- [ ] 06-02-PLAN.md — MiroFishClient module: simulation pipeline, cache, cost limiter, veto logic, tests (MIRO-04, MIRO-05, MIRO-06)
+- [ ] 06-03-PLAN.md — Trading system wiring: signal_generator veto check, lifecycle background task, integration tests
+
+**System-Profil (zugeschnitten):**
+- Windows 11, AMD Ryzen 5 4500 (6C/12T), 16 GB RAM, GTX 1650 4GB
+- Python 3.12.10, Node.js 25.6, PyTorch 2.10
+- LLM: OpenAI API (gpt-4o-mini) — Ollama gemma3:1b zu klein fuer MiroFish
+- Kein Docker, kein Neo4j (nicht noetig)
+- Package Manager: uv (noetig fuer camel-oasis Dependency)
+- Externer Dienst: Zep Cloud (kostenloser Tier, Pflicht fuer Knowledge Graph)
 
 **Scope:**
-- Unify Control App to use main bot API (remove duplicate backend)
-- Implement Start/Stop controls
-- Live status display (running state, positions, P&L)
-- WebSocket connection for real-time updates
+- `uv` Package Manager installieren (camel-oasis braucht uv statt pip)
+- Zep Cloud Account anlegen (app.getzep.com, Free Tier)
+- MiroFish klonen (github.com/666ghj/MiroFish) nach `mirofish/` im Projekt
+- `.env` konfigurieren: LLM_API_KEY (OpenAI), ZEP_API_KEY, LLM_MODEL_NAME=gpt-4o-mini
+- MiroFish Backend (Flask :5001) starten und Health-Check verifizieren
+- Gold-spezifische Seed-Templates erstellen (Marktdaten + Indikatoren als Markdown/TXT)
+- MiroFish REST-API Python-Client in `ai_engine/mirofish_client.py` bauen
+- Agenten-Profile fuer Gold-Markt konfigurieren (Trader, Analysten, Zentralbanker, etc.)
+- MiroFish-Predictions in `trading/signal_generator.py` als zusaetzliches Signal einbauen
+- Ensemble-Gewichtung: XGBoost/LightGBM + MiroFish Swarm Score kombinieren
+- API-Kosten-Limiter einbauen (max Simulationen pro Tag, Token-Budget)
 
 **UAT:**
-- [ ] Control App makes API calls to main bot, no duplicate backend
-- [ ] Start/Stop buttons work
-- [ ] Live status updates in real-time
-- [ ] WebSocket connected and updating
+- [ ] `uv` installiert und `uv pip install` funktioniert auf Windows 11
+- [ ] Zep Cloud API Key funktioniert (Graph-Erstellung erfolgreich)
+- [ ] MiroFish Backend startet auf localhost:5001 (Flask)
+- [ ] POST /api/graph/ontology/generate gibt JSON-Antwort mit Gold-Ontologie
+- [ ] Gold-Seed-Template mit XAUUSD-Daten erzeugt Agenten-Simulation
+- [ ] Simulation laeuft mit gpt-4o-mini als LLM (kein lokales Modell)
+- [ ] mirofish_client.py kann Simulation starten und Ergebnis abholen
+- [ ] MiroFish-Score in signal_generator.py verfuegbar als Signal-Komponente
+- [ ] API-Kosten pro Simulation unter $0.50 (gpt-4o-mini, 10-20 Agenten)
+- [ ] RAM-Verbrauch unter 4 GB waehrend Simulation (16 GB gesamt)
 
 ---
 
-### Phase 7: Control App — Dashboard & History
-**Goal:** Complete dashboard with trade history and model performance
-**Requirements:** CTRL-04, CTRL-05, CTRL-06
-
-**Scope:**
-- Trade history view with filtering (date, direction, P&L)
-- Model performance metrics display
-- Real-time trade notifications in UI
-
-**UAT:**
-- [ ] Trade history shows all trades with filters
-- [ ] Model metrics page shows accuracy, profit factor per model version
-- [ ] New trades appear in UI without page refresh
-
----
-
-### Phase 8: Demo Trading Validation
+### Phase 7: Demo Trading Validation
 **Goal:** Bot runs profitably on demo account, proving the system works
 **Requirements:** DEMO-01, DEMO-02, DEMO-03, DEMO-04
 **Plans:** 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Stability hardening (keepalive, heartbeat, reasoning defaults, daily stats)
-- [ ] 08-02-PLAN.md — Operational scripts (preflight check, demo report, PowerShell restart wrapper)
-- [ ] 08-03-PLAN.md — Demo readiness verification and operator checkpoint
+- [ ] 07-01-PLAN.md — Stability hardening (keepalive, heartbeat, reasoning defaults, daily stats)
+- [ ] 07-02-PLAN.md — Operational scripts (preflight check, demo report, PowerShell restart wrapper)
+- [ ] 07-03-PLAN.md — Demo readiness verification and operator checkpoint
 
 **Scope:**
 - Deploy bot on Capital.com demo account
@@ -193,10 +199,10 @@ Plans:
 
 ---
 
-**Total phases:** 8
+**Total phases:** 7
 **Total v1 requirements:** 31
 **All requirements mapped.**
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-03-09 after phase 6 planning*
+*Last updated: 2026-03-24 after phase 6 planning*
