@@ -91,6 +91,16 @@ class Settings(BaseSettings):
     # -- Logging --------------------------------------------------------------
     log_level: str = "INFO"
 
+    # -- MiroFish Swarm Intelligence (Phase 6) --------------------------------
+    mirofish_enabled: bool = False           # Opt-in; False = graceful fallback (D-16)
+    mirofish_url: str = "http://localhost:5001"
+    mirofish_cache_ttl_seconds: int = 360    # 6 minutes -- cached result validity (D-11)
+    mirofish_poll_interval_seconds: int = 300  # 5 minutes -- background sim frequency (D-10)
+    mirofish_max_sims_per_day: int = 48      # MIRO-06: max daily simulations
+    mirofish_token_budget_per_day: int = 200_000  # MIRO-06: ~$0.04/day at gpt-4o-mini rates
+    mirofish_simulation_timeout_seconds: float = 180.0  # 3 min max per simulation
+    mirofish_max_rounds: int = 15            # OASIS simulation rounds cap
+
     # -------------------------------------------------------------------------
     # Computed properties
     # -------------------------------------------------------------------------
@@ -174,10 +184,10 @@ class Settings(BaseSettings):
 
         # Cross-field validation warnings (non-fatal)
         warnings: list[str] = []
-        if self.trading_interval_seconds < 30:
+        if self.trading_interval_seconds < 10:
             warnings.append(
                 f"TRADING_INTERVAL={self.trading_interval_seconds}s is very low "
-                "(recommended: >= 30s)"
+                "(recommended: >= 10s)"
             )
         if self.max_trades_per_day > 20:
             warnings.append(
