@@ -113,8 +113,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Commission support, BacktestRunner, and BacktestReport with consistency checks
-- [ ] 05-02-PLAN.md — CLI backtest script and end-to-end integration test
+- [x] 05-01-PLAN.md — Commission support, BacktestRunner, and BacktestReport with consistency checks
+- [x] 05-02-PLAN.md — CLI backtest script and end-to-end integration test
 
 **Scope:**
 - Build/improve backtesting framework with realistic costs
@@ -123,10 +123,10 @@ Plans:
 - Validate consistency across periods
 
 **UAT:**
-- [ ] Backtest includes spread, slippage, commissions
-- [ ] Report shows Sharpe ratio, max drawdown, win rate, profit factor
-- [ ] Walk-forward backtest shows positive results in >60% of windows
-- [ ] No single window has >20% drawdown
+- [x] Backtest includes spread, slippage, commissions
+- [x] Report shows Sharpe ratio, max drawdown, win rate, profit factor
+- [x] Walk-forward backtest shows positive results in >60% of windows
+- [x] No single window has >20% drawdown
 
 ---
 

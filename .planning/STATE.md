@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
 current_phase: 05
-current_plan: 1
+current_plan: 2
 status: Executing Phase 05
-last_updated: "2026-03-23T07:33:08.690Z"
+last_updated: "2026-03-25T15:51:31Z"
 progress:
   total_phases: 7
   completed_phases: 4
-  total_plans: 17
-  completed_plans: 14
+  total_plans: 21
+  completed_plans: 16
 ---
 
 # Project State
@@ -18,13 +18,13 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 05
-**Current Plan:** 1
-**Phase Status:** Phase 4 complete (3/3 plans), Phase 5 next
+**Current Plan:** 2
+**Phase Status:** Phase 5 in progress (2/2 plans complete)
 **Total Phases:** 7
 
 ## Next Action
 
-Plan Phase 5 (Backtesting and Validation)
+Phase 5 complete — proceed to Phase 6 (MiroFish Swarm Intelligence)
 
 ## Decisions
 
@@ -54,6 +54,9 @@ Plan Phase 5 (Backtesting and Validation)
 - [Phase 04]: RANGING is the safest default for all fallback/error cases
 - [Phase 04]: LabelGenerator defaults use_dynamic_atr=False; ModelTrainer defaults True
 - [Phase 04]: Keep _vectorized_labeling and _vectorized_labeling_dynamic separate (scalar vs array)
+- [Phase 05]: CLI defaults report output to {version_dir}/backtest_report.json for co-location with model
+- [Phase 05]: E2E tests use use_dynamic_atr=False for deterministic label generation in tests
+- [Phase 05]: Module-scoped pytest fixture trains model once (7000 candles) shared across all 4 UAT tests
 
 ## Session Log
 
@@ -113,3 +116,12 @@ Plan Phase 5 (Backtesting and Validation)
   - walk_forward.py: ATR mode info stored in window result dict
   - train_models.py: --dynamic-atr, --no-dynamic-atr, --tp/sl-atr-mult CLI args
   - E2e test updated for dynamic ATR default; 260 passing, 0 regressions
+- 2026-03-25: Plan 05-01 complete (18 unit tests, backtest engine + report module)
+  - BacktestRunner: loads version dir, runs OOS walk-forward backtest with cost modeling
+  - backtest_report.py: generate_backtest_report, check_consistency, print_backtest_report
+  - 18 unit tests in test_backtest_runner.py, 0 regressions
+- 2026-03-25: Plan 05-02 complete (2/2 tasks, 4 e2e tests, ~8 min)
+  - scripts/run_backtest.py: CLI entry point for OOS backtest with argparse (8 args)
+  - tests/test_backtest_e2e.py: E2e test validating all 4 Phase 5 UAT criteria
+  - All 4 BACK-01..BACK-04 criteria verified: OOS windows, cost deduction, metrics, consistency
+  - Decisions: CLI defaults output to version_dir; module-scoped fixture trains once for speed

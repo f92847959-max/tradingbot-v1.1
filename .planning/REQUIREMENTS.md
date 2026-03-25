@@ -33,19 +33,19 @@
 
 ### Backtesting
 
-- [ ] **BACK-01**: Backtesting framework validates strategy on out-of-sample data
-- [ ] **BACK-02**: Backtest includes realistic costs (spread, slippage, commissions)
-- [ ] **BACK-03**: Backtest report shows key metrics (Sharpe ratio, max drawdown, win rate, profit factor)
-- [ ] **BACK-04**: Walk-forward backtest shows consistent performance across time periods
+- [x] **BACK-01**: Backtesting framework validates strategy on out-of-sample data
+- [x] **BACK-02**: Backtest includes realistic costs (spread, slippage, commissions)
+- [x] **BACK-03**: Backtest report shows key metrics (Sharpe ratio, max drawdown, win rate, profit factor)
+- [x] **BACK-04**: Walk-forward backtest shows consistent performance across time periods
 
-### Control App
+### MiroFish Swarm Intelligence
 
-- [ ] **CTRL-01**: React Control App connects to bot API (not duplicate backend)
-- [ ] **CTRL-02**: User can start/stop bot from web interface
-- [ ] **CTRL-03**: User can see live bot status (running/stopped, current positions, P&L)
-- [ ] **CTRL-04**: User can view trade history with filtering
-- [ ] **CTRL-05**: User can view model performance metrics
-- [ ] **CTRL-06**: Real-time updates via WebSocket
+- [ ] **MIRO-01**: MiroFish (666ghj/MiroFish) kloned, uv-Deps installiert, Flask-Backend laeuft auf localhost:5001 (Windows 11, Python 3.12, kein Docker)
+- [ ] **MIRO-02**: Zep Cloud verbunden (Free Tier), Knowledge Graph erstellt Gold-Markt-Ontologie aus Seed-Daten
+- [ ] **MIRO-03**: LLM via OpenAI API (gpt-4o-mini), .env konfiguriert mit LLM_API_KEY + ZEP_API_KEY + LLM_MODEL_NAME
+- [ ] **MIRO-04**: Gold-Agenten (Trader, Analysten, Zentralbanker) simulieren XAUUSD-Szenarien, Ergebnis als Prediction-Score
+- [ ] **MIRO-05**: mirofish_client.py integriert Swarm-Score in signal_generator.py neben XGBoost/LightGBM Ensemble
+- [ ] **MIRO-06**: API-Kosten-Limiter begrenzt Simulationen pro Tag (Token-Budget fuer gpt-4o-mini)
 
 ### Demo Trading
 
@@ -112,16 +112,16 @@
 | BACK-02 | Phase 5 | Pending |
 | BACK-03 | Phase 5 | Pending |
 | BACK-04 | Phase 5 | Pending |
-| CTRL-01 | Phase 6 | Pending |
-| CTRL-02 | Phase 6 | Pending |
-| CTRL-03 | Phase 6 | Pending |
-| CTRL-04 | Phase 7 | Pending |
-| CTRL-05 | Phase 7 | Pending |
-| CTRL-06 | Phase 7 | Pending |
-| DEMO-01 | Phase 8 | Pending |
-| DEMO-02 | Phase 8 | Pending |
-| DEMO-03 | Phase 8 | Pending |
-| DEMO-04 | Phase 8 | Pending |
+| MIRO-01 | Phase 6 | Pending |
+| MIRO-02 | Phase 6 | Pending |
+| MIRO-03 | Phase 6 | Pending |
+| MIRO-04 | Phase 6 | Pending |
+| MIRO-05 | Phase 6 | Pending |
+| MIRO-06 | Phase 6 | Pending |
+| DEMO-01 | Phase 7 | Pending |
+| DEMO-02 | Phase 7 | Pending |
+| DEMO-03 | Phase 7 | Pending |
+| DEMO-04 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 31 total
