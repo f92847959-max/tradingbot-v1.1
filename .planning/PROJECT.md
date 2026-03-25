@@ -12,7 +12,10 @@ Der Bot muss im Demo-Modus profitabel traden — deutlich mehr Gewinne als Verlu
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Codebase ist aufgeräumt, verständlich und wartbar — Validated in Phase 1: Code Cleanup
+- [x] Training-Pipeline funktioniert nachweisbar (messbare Verbesserung durch Training) — Validated in Phase 2-3: Walk-Forward + SHAP
+- [x] Backtesting mit realistischen Kosten (Spread, Slippage, Kommission) — Validated in Phase 5: Backtesting & Validation
+- [x] Strategy passt sich an Marktbedingungen an (Regime Detection, dynamische TP/SL) — Validated in Phase 4: Dynamic TP/SL & Regime Detection
 
 ### Active
 
@@ -26,6 +29,13 @@ Der Bot muss im Demo-Modus profitabel traden — deutlich mehr Gewinne als Verlu
 - [ ] Risk Management funktioniert zuverlässig (Kill-Switch, Position Sizing, etc.)
 - [ ] Capital.com Broker-Integration stabil (REST + WebSocket)
 - [ ] Bot entscheidet selbstständig über optimale Trading-Zeiten
+
+### Phase 6: Advanced Intelligence (Neu)
+- [ ] **MiroFish Integration**: Schwarmintelligenz-Modul als zusätzliche Stimme im Ensemble.
+- [ ] **News-Sentiment**: Einbindung von News-APIs (z.B. Bloomberg/Reuters via NLP) für fundamentale Richtung.
+- [ ] **Wirtschaftskalender**: Automatisches Blockieren von Trades vor High-Impact Events (NFP, CPI).
+- [ ] **Human Factors**: "Fear & Greed" Index Integration (Angst = Gold kaufen, Gier = Vorsicht).
+- [ ] **Auto-Retraining**: Pipeline, die Modelle automatisch neu trainiert, wenn die Performance sinkt.
 
 ### Out of Scope
 
@@ -65,4 +75,4 @@ Der Bot muss im Demo-Modus profitabel traden — deutlich mehr Gewinne als Verlu
 | Capital.com als Broker beibehalten | Bestehende Integration funktioniert, kein Grund zu wechseln | — Pending |
 
 ---
-*Last updated: 2026-03-03 after initialization*
+*Last updated: 2026-03-25 after Phase 5 completion*
