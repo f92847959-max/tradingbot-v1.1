@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
 current_phase: 06
-current_plan: Not started
-status: Ready to plan
-last_updated: "2026-03-25T20:07:47.477Z"
+current_plan: 1
+status: Executing Phase 06
+last_updated: "2026-03-25T20:18:36.620Z"
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 21
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 # Project State
@@ -18,7 +18,7 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 06
-**Current Plan:** Not started
+**Current Plan:** 1
 **Phase Status:** Phase 5 in progress (2/2 plans complete)
 **Total Phases:** 7
 
@@ -57,6 +57,10 @@ Phase 5 complete — proceed to Phase 6 (MiroFish Swarm Intelligence)
 - [Phase 05]: CLI defaults report output to {version_dir}/backtest_report.json for co-location with model
 - [Phase 05]: E2E tests use use_dynamic_atr=False for deterministic label generation in tests
 - [Phase 05]: Module-scoped pytest fixture trains model once (7000 candles) shared across all 4 UAT tests
+- [Phase 06]: Use OpenAI API gpt-4o-mini not Ollama for MiroFish (Ollama too small per ROADMAP override)
+- [Phase 06]: mirofish_enabled defaults to False for D-16 graceful degradation (bot trades without MiroFish)
+- [Phase 06]: LLM_API_KEY reuses OPENAI_API_KEY from host .env to avoid duplicate key management
+- [Phase 06]: uv sync creates isolated Python 3.11 venv for MiroFish (camel-oasis requires Python <3.12)
 
 ## Session Log
 

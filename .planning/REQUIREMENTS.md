@@ -40,9 +40,9 @@
 
 ### MiroFish Swarm Intelligence
 
-- [ ] **MIRO-01**: MiroFish (666ghj/MiroFish) kloned, uv-Deps installiert, Flask-Backend laeuft auf localhost:5001 (Windows 11, Python 3.12, kein Docker)
-- [ ] **MIRO-02**: Zep Cloud verbunden (Free Tier), Knowledge Graph erstellt Gold-Markt-Ontologie aus Seed-Daten
-- [ ] **MIRO-03**: LLM via OpenAI API (gpt-4o-mini), .env konfiguriert mit LLM_API_KEY + ZEP_API_KEY + LLM_MODEL_NAME
+- [x] **MIRO-01**: MiroFish (666ghj/MiroFish) kloned, uv-Deps installiert, Flask-Backend laeuft auf localhost:5001 (Windows 11, Python 3.12, kein Docker)
+- [x] **MIRO-02**: Zep Cloud verbunden (Free Tier), Knowledge Graph erstellt Gold-Markt-Ontologie aus Seed-Daten
+- [x] **MIRO-03**: LLM via OpenAI API (gpt-4o-mini), .env konfiguriert mit LLM_API_KEY + ZEP_API_KEY + LLM_MODEL_NAME
 - [ ] **MIRO-04**: Gold-Agenten (Trader, Analysten, Zentralbanker) simulieren XAUUSD-Szenarien, Ergebnis als Prediction-Score
 - [ ] **MIRO-05**: mirofish_client.py integriert Swarm-Score in signal_generator.py neben XGBoost/LightGBM Ensemble
 - [ ] **MIRO-06**: API-Kosten-Limiter begrenzt Simulationen pro Tag (Token-Budget fuer gpt-4o-mini)
@@ -112,9 +112,9 @@
 | BACK-02 | Phase 5 | Pending |
 | BACK-03 | Phase 5 | Pending |
 | BACK-04 | Phase 5 | Pending |
-| MIRO-01 | Phase 6 | Pending |
-| MIRO-02 | Phase 6 | Pending |
-| MIRO-03 | Phase 6 | Pending |
+| MIRO-01 | Phase 6 | Complete |
+| MIRO-02 | Phase 6 | Complete |
+| MIRO-03 | Phase 6 | Complete |
 | MIRO-04 | Phase 6 | Pending |
 | MIRO-05 | Phase 6 | Pending |
 | MIRO-06 | Phase 6 | Pending |
