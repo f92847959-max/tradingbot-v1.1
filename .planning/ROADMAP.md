@@ -133,12 +133,12 @@ Plans:
 ### Phase 6: MiroFish Swarm Intelligence Integration
 **Goal:** MiroFish multi-agent prediction engine integrated to enhance gold trading signals with swarm intelligence
 **Requirements:** MIRO-01, MIRO-02, MIRO-03, MIRO-04, MIRO-05, MIRO-06
-**Plans:** 1/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [x] 06-01-PLAN.md — MiroFish setup: seed templates, settings extension, startup script (MIRO-01, MIRO-02, MIRO-03)
-- [ ] 06-02-PLAN.md — MiroFishClient module: simulation pipeline, cache, cost limiter, veto logic, tests (MIRO-04, MIRO-05, MIRO-06)
-- [ ] 06-03-PLAN.md — Trading system wiring: signal_generator veto check, lifecycle background task, integration tests
+- [x] 06-02-PLAN.md — MiroFishClient module: simulation pipeline, cache, cost limiter, veto logic, tests (MIRO-04, MIRO-05, MIRO-06)
+- [x] 06-03-PLAN.md — Trading system wiring: signal_generator veto check, lifecycle background task, integration tests
 
 **System-Profil (zugeschnitten):**
 - Windows 11, AMD Ryzen 5 4500 (6C/12T), 16 GB RAM, GTX 1650 4GB
@@ -199,10 +199,133 @@ Plans:
 
 ---
 
-**Total phases:** 7
-**Total v1 requirements:** 31
-**All requirements mapped.**
+---
+
+### Phase 8: Wirtschaftskalender-Integration
+**Goal:** Automatischer Schutz vor Verlusten bei High-Impact Events (NFP, FOMC, CPI) durch Trading-Pausen und Position-Management
+**Requirements:** ECAL-01, ECAL-02, ECAL-03, ECAL-04
+
+**Scope:**
+- Wirtschaftskalender-Daten abrufen (Investing.com / ForexFactory)
+- Gold-relevante Events filtern (USD, EUR, Zinsen, Inflation)
+- Trading-Regeln: kein neuer Trade 30min vor High-Impact, Position schliessen bei Extrem-Events
+- Historische Event-Daten fuer Backtesting speichern
+- Integration in signal_generator.py als Veto-Logik
+
+**UAT:**
+- [ ] Kalender-Daten werden regelmaessig abgerufen und gefiltert
+- [ ] High-Impact Events blockieren neue Trades automatisch
+- [ ] Bestehende Positionen werden bei Extrem-Events geschlossen
+- [ ] Historische Events fuer Backtesting verfuegbar
+
+---
+
+### Phase 9: Advanced Risk & Position Sizing
+**Goal:** Dynamische Positionsgroessen-Berechnung mit Kelly Criterion, Volatilitaets-Anpassung und Portfolio Heat Management
+**Requirements:** RISK-01, RISK-02, RISK-03, RISK-04, RISK-05
+
+**Scope:**
+- Kelly Criterion (optimal f) basierend auf Win-Rate und RRR
+- Volatilitaets-basiertes Sizing (ATR-normalisiert)
+- Portfolio Heat: max 5% Gesamt-Risiko offen
+- Monte Carlo Simulation (1000 Pfade, Drawdown-Verteilung)
+- Equity Curve Filter (kein Trading bei Drawdown > Threshold)
+
+**UAT:**
+- [ ] Position Size berechnet sich dynamisch nach Kelly/Volatilitaet
+- [ ] Portfolio Heat ueberschreitet nie 5% des Kontostands
+- [ ] Monte Carlo zeigt Drawdown-Verteilung und Confidence Intervals
+- [ ] Equity Curve Filter stoppt Trading bei starkem Drawdown
+- [ ] Alle Sizing-Entscheidungen geloggt mit Begruendung
+
+---
+
+### Phase 10: Smart Exit Engine
+**Goal:** Intelligentes dynamisches TP/SL-Management statt fixer Werte — ATR, Struktur und Trailing fuer bessere Exits
+**Requirements:** EXIT-01, EXIT-02, EXIT-03, EXIT-04, EXIT-05
+
+**Scope:**
+- Dynamischer SL: ATR-basiert + unter/ueber Struktur-Level
+- Dynamischer TP: Fibonacci Extensions, naechste S/R-Zone
+- Trailing Stop: ATR-Trail, Breakeven nach +1R
+- Partial Close: 50% bei TP1, Rest mit Trailing
+- Exit-Signale: Reversal-Kerzen, Momentum-Divergenz
+
+**UAT:**
+- [ ] SL wird dynamisch aus ATR + Struktur berechnet, nicht fix
+- [ ] TP passt sich an Marktbedingungen an (Fibonacci/S/R)
+- [ ] Trailing Stop aktiviert sich nach definiertem Gewinn
+- [ ] Partial Close schliesst Teilposition bei TP1
+- [ ] Exit-Signale erkennen Reversals und schliessen frueh
+
+---
+
+---
+
+### Phase 11: News-Sentiment-Analyse
+**Goal:** Echtzeit-Nachrichtenanalyse mit automatischer Sentiment-Bewertung als ML-Feature und MiroFish-Input
+**Requirements:** SENT-01, SENT-02, SENT-03, SENT-04, SENT-05
+
+**Scope:**
+- RSS-Feed Parser: Reuters, Bloomberg, Investing.com, Kitco Gold News
+- Gold-relevante Keywords filtern (Fed, Inflation, Zinsen, Krieg, Dollar)
+- NLP Sentiment-Scoring (FinBERT / VADER, -1.0 bis +1.0)
+- Quellen-Gewichtung + Aktualitaets-Decay
+- Aggregation: 1h, 4h, 24h rollierend + Sentiment-Momentum + Divergenz
+- ML-Features: sentiment_1h, sentiment_4h, sentiment_24h, momentum, divergenz, news_count
+- MiroFish Seed-Template Integration
+
+**UAT:**
+- [ ] RSS-Feeds werden alle 5min abgerufen und Gold-relevant gefiltert
+- [ ] Sentiment-Score pro Nachricht berechnet (-1.0 bis +1.0)
+- [ ] Aggregierte Sentiment-Werte (1h/4h/24h) verfuegbar
+- [ ] Sentiment-Features im ML-Modell als Input nutzbar
+- [ ] Historische Sentiment-Daten fuer Backtesting gespeichert
+
+---
+
+### Phase 12: Korrelations-Engine
+**Goal:** Inter-Market-Korrelationen (DXY, US10Y, Silber, VIX) als zusaetzliche Signalquelle
+**Requirements:** CORR-01, CORR-02, CORR-03, CORR-04
+
+**Scope:**
+- Asset-Daten abrufen: DXY, US10Y, Silber, VIX, S&P500
+- Rolling Correlation berechnen (20/60/120 Perioden)
+- Korrelations-Regime erkennen (normal, breakdown, inversion)
+- Divergenz-Scanner: Gold vs. DXY, Gold vs. Anleihen
+- Lead-Lag Analyse: welches Asset fuehrt Gold?
+- ML-Features: correlation_dxy, correlation_us10y, divergence_score, lead_lag_score
+
+**UAT:**
+- [ ] Mindestens 4 korrelierte Assets werden regelmaessig abgerufen
+- [ ] Rolling Correlation ueber mehrere Zeitfenster berechnet
+- [ ] Korrelations-Breakdowns werden erkannt und gemeldet
+- [ ] Divergenz-Signale als ML-Features verfuegbar
+
+---
+
+### Phase 13: Orderbuch-Analyse
+**Goal:** Order Flow / DOM Analyse zur Erkennung institutioneller Aktivitaet und grosser Bewegungen
+**Requirements:** FLOW-01, FLOW-02, FLOW-03, FLOW-04
+
+**Scope:**
+- Bid/Ask Walls erkennen (grosse Orders im Orderbuch)
+- Delta berechnen: Kauf- vs. Verkaufsdruck pro Kerze
+- Liquiditaets-Zonen identifizieren (Stop-Loss Cluster)
+- Absorption erkennen (grosse Orders aufgesaugt = Reversal-Signal)
+- Order Flow Features fuer ML-Modell
+
+**UAT:**
+- [ ] Order Flow Daten werden abgerufen und verarbeitet
+- [ ] Delta (Kauf/Verkaufsdruck) pro Kerze berechnet
+- [ ] Liquiditaets-Zonen und Bid/Ask Walls erkannt
+- [ ] Order Flow Features im ML-Modell nutzbar
+
+---
+
+**Total phases:** 13
+**Total requirements:** 58 (31 v1 + 27 new)
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-03-24 after phase 6 planning*
+*Last updated: 2026-03-25 — added phases 08-13 (Block A + B)*

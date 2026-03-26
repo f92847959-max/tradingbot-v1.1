@@ -43,9 +43,9 @@
 - [x] **MIRO-01**: MiroFish (666ghj/MiroFish) kloned, uv-Deps installiert, Flask-Backend laeuft auf localhost:5001 (Windows 11, Python 3.12, kein Docker)
 - [x] **MIRO-02**: Zep Cloud verbunden (Free Tier), Knowledge Graph erstellt Gold-Markt-Ontologie aus Seed-Daten
 - [x] **MIRO-03**: LLM via OpenAI API (gpt-4o-mini), .env konfiguriert mit LLM_API_KEY + ZEP_API_KEY + LLM_MODEL_NAME
-- [ ] **MIRO-04**: Gold-Agenten (Trader, Analysten, Zentralbanker) simulieren XAUUSD-Szenarien, Ergebnis als Prediction-Score
-- [ ] **MIRO-05**: mirofish_client.py integriert Swarm-Score in signal_generator.py neben XGBoost/LightGBM Ensemble
-- [ ] **MIRO-06**: API-Kosten-Limiter begrenzt Simulationen pro Tag (Token-Budget fuer gpt-4o-mini)
+- [x] **MIRO-04**: Gold-Agenten (Trader, Analysten, Zentralbanker) simulieren XAUUSD-Szenarien, Ergebnis als Prediction-Score
+- [x] **MIRO-05**: mirofish_client.py integriert Swarm-Score in signal_generator.py neben XGBoost/LightGBM Ensemble
+- [x] **MIRO-06**: API-Kosten-Limiter begrenzt Simulationen pro Tag (Token-Budget fuer gpt-4o-mini)
 
 ### Demo Trading
 
@@ -53,6 +53,51 @@
 - [ ] **DEMO-02**: Bot opens and closes trades automatically based on AI signals
 - [ ] **DEMO-03**: Bot shows positive P&L over a 2-week demo period
 - [ ] **DEMO-04**: All trades are logged with entry/exit prices, P&L, reasoning
+
+### Wirtschaftskalender
+
+- [ ] **ECAL-01**: Wirtschaftskalender-Daten werden automatisch abgerufen und Gold-relevante Events gefiltert
+- [ ] **ECAL-02**: High-Impact Events (NFP, FOMC, CPI) blockieren neue Trades 30min vorher
+- [ ] **ECAL-03**: Extrem-Events schliessen bestehende Positionen automatisch
+- [ ] **ECAL-04**: Historische Event-Daten gespeichert und fuer Backtesting nutzbar
+
+### Advanced Risk & Position Sizing
+
+- [ ] **RISK-01**: Kelly Criterion berechnet optimale Positionsgroesse aus Win-Rate und RRR
+- [ ] **RISK-02**: Volatilitaets-basiertes Sizing normalisiert Positionen nach ATR
+- [ ] **RISK-03**: Portfolio Heat Management begrenzt offenes Gesamtrisiko auf max 5%
+- [ ] **RISK-04**: Monte Carlo Simulation zeigt Drawdown-Verteilung (1000+ Pfade)
+- [ ] **RISK-05**: Equity Curve Filter stoppt Trading bei Drawdown ueber Threshold
+
+### Smart Exit Engine
+
+- [ ] **EXIT-01**: Dynamischer SL berechnet aus ATR + Struktur-Level (nicht fix)
+- [ ] **EXIT-02**: Dynamischer TP anhand Fibonacci Extensions / naechste S/R-Zone
+- [ ] **EXIT-03**: Trailing Stop aktiviert nach +1R, trailt per ATR
+- [ ] **EXIT-04**: Partial Close schliesst 50% bei TP1, Rest laeuft mit Trailing
+- [ ] **EXIT-05**: Exit-Signale erkennen Reversals (Kerzen, Momentum-Divergenz)
+
+### News-Sentiment-Analyse
+
+- [ ] **SENT-01**: RSS-Feeds (Reuters, Bloomberg, Investing.com, Kitco) werden alle 5min abgerufen und Gold-relevant gefiltert
+- [ ] **SENT-02**: NLP Sentiment-Score pro Nachricht berechnet (-1.0 bis +1.0, FinBERT/VADER)
+- [ ] **SENT-03**: Aggregierte Sentiment-Werte (1h/4h/24h rollierend) und Sentiment-Momentum verfuegbar
+- [ ] **SENT-04**: Sentiment-Features (score, momentum, divergenz, news_count) als ML-Input nutzbar
+- [ ] **SENT-05**: Historische Sentiment-Daten gespeichert und fuer Backtesting abrufbar
+
+### Korrelations-Engine
+
+- [ ] **CORR-01**: Asset-Daten (DXY, US10Y, Silber, VIX, S&P500) werden regelmaessig abgerufen
+- [ ] **CORR-02**: Rolling Correlation ueber mehrere Zeitfenster (20/60/120 Perioden) berechnet
+- [ ] **CORR-03**: Korrelations-Breakdowns und Divergenzen werden erkannt und als Signal gemeldet
+- [ ] **CORR-04**: Korrelations-Features als ML-Input nutzbar (correlation, divergence, lead_lag)
+
+### Orderbuch-Analyse
+
+- [ ] **FLOW-01**: Order Flow / Level 2 Daten werden abgerufen und verarbeitet
+- [ ] **FLOW-02**: Delta (Kauf- vs. Verkaufsdruck) pro Kerze berechnet
+- [ ] **FLOW-03**: Liquiditaets-Zonen und Bid/Ask Walls automatisch erkannt
+- [ ] **FLOW-04**: Order Flow Features (delta, absorption, liquidity) als ML-Input nutzbar
 
 ## v2 Requirements
 
@@ -115,9 +160,9 @@
 | MIRO-01 | Phase 6 | Complete |
 | MIRO-02 | Phase 6 | Complete |
 | MIRO-03 | Phase 6 | Complete |
-| MIRO-04 | Phase 6 | Pending |
-| MIRO-05 | Phase 6 | Pending |
-| MIRO-06 | Phase 6 | Pending |
+| MIRO-04 | Phase 6 | Complete |
+| MIRO-05 | Phase 6 | Complete |
+| MIRO-06 | Phase 6 | Complete |
 | DEMO-01 | Phase 7 | Pending |
 | DEMO-02 | Phase 7 | Pending |
 | DEMO-03 | Phase 7 | Pending |

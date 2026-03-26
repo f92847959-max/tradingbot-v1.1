@@ -5,12 +5,12 @@ milestone_name: — Profitable Demo Trading
 current_phase: 06
 current_plan: 1
 status: Executing Phase 06
-last_updated: "2026-03-25T20:18:36.620Z"
+last_updated: "2026-03-26T20:04:18.190Z"
 progress:
-  total_phases: 7
-  completed_phases: 5
-  total_plans: 21
-  completed_plans: 16
+  total_phases: 13
+  completed_phases: 6
+  total_plans: 27
+  completed_plans: 18
 ---
 
 # Project State
@@ -18,13 +18,13 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 06
-**Current Plan:** 1
-**Phase Status:** Phase 5 in progress (2/2 plans complete)
+**Current Plan:** 3
+**Phase Status:** Phase 6 complete (3/3 plans complete -- awaiting human-verify checkpoint)
 **Total Phases:** 7
 
 ## Next Action
 
-Phase 5 complete — proceed to Phase 6 (MiroFish Swarm Intelligence)
+Phase 6 Plans 1-3 complete -- human verification of MiroFish integration required (Task 3 checkpoint)
 
 ## Decisions
 
@@ -61,6 +61,7 @@ Phase 5 complete — proceed to Phase 6 (MiroFish Swarm Intelligence)
 - [Phase 06]: mirofish_enabled defaults to False for D-16 graceful degradation (bot trades without MiroFish)
 - [Phase 06]: LLM_API_KEY reuses OPENAI_API_KEY from host .env to avoid duplicate key management
 - [Phase 06]: uv sync creates isolated Python 3.11 venv for MiroFish (camel-oasis requires Python <3.12)
+- [Phase 06]: Stub only database.connection/models/signal_repo leaf modules (not parent packages) for integration tests to avoid sys.modules pollution
 
 ## Session Log
 
@@ -129,3 +130,8 @@ Phase 5 complete — proceed to Phase 6 (MiroFish Swarm Intelligence)
   - tests/test_backtest_e2e.py: E2e test validating all 4 Phase 5 UAT criteria
   - All 4 BACK-01..BACK-04 criteria verified: OOS windows, cost deduction, metrics, consistency
   - Decisions: CLI defaults output to version_dir; module-scoped fixture trains once for speed
+- 2026-03-26: Plan 06-03 complete (2/2 tasks, 6 new integration tests, ~12 min)
+  - MiroFishClient wired into lifecycle.py (init + asyncio background task in start(), cancel in stop())
+  - Veto check wired into signal_generator.py after ML prediction (HOLD/disabled/no-cache all skip veto)
+  - 6 integration tests in test_mirofish_integration.py (33 total MiroFish tests, 27+6)
+  - Stopped at Task 3: human-verify checkpoint (awaiting user verification)
