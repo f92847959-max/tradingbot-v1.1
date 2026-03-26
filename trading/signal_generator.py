@@ -36,12 +36,20 @@ class SignalGeneratorMixin:
                 candle_data = mtf_data
                 if candle_data is None:
                     candle_data = await self.data.get_multi_timeframe_data(
-                        timeframes=self.settings.timeframes, count=200,
+                        timeframes=self.settings.timeframes,
                     )
                 signal = await self._ai_predictor.predict(
                     candle_data=candle_data,
                     primary_timeframe="5m",
                 )
+                # MiroFish veto check (Phase 6, D-06 to D-09)
+                if (
+                    signal
+                    and signal.get("action") not in (None, "HOLD")
+                    and self.settings.mirofish_enabled
+                    and self._mirofish_client is not None
+                ):
+                    signal = self._mirofish_client.check_veto(signal)
                 return signal
         except (PredictionError, DataError) as e:
             logger.warning("AI engine error: %s", e)

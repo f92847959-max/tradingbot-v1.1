@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 from typing import TYPE_CHECKING
@@ -58,6 +59,8 @@ class LifecycleMixin:
         )
         self._ai_predictor = None  # Lazy-loaded
         self._confirmation_handler = None  # For semi-auto mode
+        self._mirofish_client = None  # Lazy-loaded when mirofish_enabled (Phase 6)
+        self._mirofish_task = None    # Background simulation loop asyncio.Task
         self._consecutive_errors: int = 0
 
         # Cache for account info and spread (refreshed every 5 minutes)
@@ -217,6 +220,30 @@ class LifecycleMixin:
                 self.settings.confirmation_timeout_seconds,
             )
 
+        # Start MiroFish background simulation loop (Phase 6)
+        if self.settings.mirofish_enabled:
+            try:
+                from ai_engine.mirofish_client import MiroFishClient, run_simulation_loop
+                self._mirofish_client = MiroFishClient(
+                    base_url=self.settings.mirofish_url,
+                    timeout_seconds=self.settings.mirofish_simulation_timeout_seconds,
+                    cache_ttl_seconds=self.settings.mirofish_cache_ttl_seconds,
+                    max_simulations_per_day=self.settings.mirofish_max_sims_per_day,
+                    token_budget_per_day=self.settings.mirofish_token_budget_per_day,
+                    max_rounds=self.settings.mirofish_max_rounds,
+                )
+                self._mirofish_task = asyncio.create_task(
+                    run_simulation_loop(
+                        self._mirofish_client,
+                        interval_seconds=self.settings.mirofish_poll_interval_seconds,
+                    )
+                )
+                logger.info("MiroFish swarm intelligence ENABLED (poll every %ds)", self.settings.mirofish_poll_interval_seconds)
+            except Exception as e:
+                logger.warning("MiroFish startup failed (trading continues without it): %s", e)
+                self._mirofish_client = None
+                self._mirofish_task = None
+
         # Start the loops
         self._running = True
         logger.info(
@@ -242,6 +269,13 @@ class LifecycleMixin:
         """
         logger.info("Shutting down...")
         self._running = False
+
+        # Cancel MiroFish background task (Phase 6)
+        if self._mirofish_task is not None:
+            self._mirofish_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._mirofish_task
+            logger.info("MiroFish background task stopped")
 
         try:
             # Kill switch: close all positions
