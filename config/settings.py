@@ -3,17 +3,36 @@
 Usage:
     from config.settings import get_settings
     cfg = get_settings()
-    print(cfg.capital_email)
+    print(cfg.capital_email_masked)
 """
 
+import os
 from datetime import time
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from dataclasses import dataclass as stdlib_dataclass
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
+
+
+def _resolve_env_file() -> str:
+    """Locate the .env file outside OneDrive-synced storage.
+
+    Resolution order: $GOLD_ENV_PATH, ~/secrets/ai-trading-gold/.env, ./.env.
+    """
+    override = os.environ.get("GOLD_ENV_PATH")
+    if override and Path(override).exists():
+        return override
+    external = Path.home() / "secrets" / "ai-trading-gold" / ".env"
+    if external.exists():
+        return str(external)
+    return ".env"
+
+
+_ENV_FILE_PATH = _resolve_env_file()
 
 
 @stdlib_dataclass
@@ -51,7 +70,7 @@ class Settings(BaseSettings):
     trading_interval_seconds: int = 60
     position_check_seconds: int = 30
     timeframes: list[str] = ["5m", "15m", "1h"]
-    min_confidence: float = 0.70
+    min_confidence: float = 0.35
     min_trade_score: int = 60
     confirmation_timeout_seconds: int = 120
 
@@ -101,6 +120,13 @@ class Settings(BaseSettings):
     mirofish_simulation_timeout_seconds: float = 180.0  # 3 min max per simulation
     mirofish_max_rounds: int = 15            # OASIS simulation rounds cap
 
+    # -- Economic Calendar (Phase 8) -------------------------------------------
+    calendar_enabled: bool = True
+    calendar_fetch_interval_minutes: int = 360  # Refresh every 6 hours
+    calendar_block_minutes_before: int = 30     # Block trades N min before high-impact
+    calendar_cooldown_minutes_after: int = 15   # Wait N min after high-impact
+    calendar_force_close_on_extreme: bool = True  # Close positions on extreme events (NFP, FOMC, CPI)
+
     # -------------------------------------------------------------------------
     # Computed properties
     # -------------------------------------------------------------------------
@@ -123,6 +149,29 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # Validation
     # -------------------------------------------------------------------------
+
+    @field_validator("capital_api_key", "capital_password")
+    @classmethod
+    def validate_broker_secret(cls, v: str, info) -> str:
+        # Allow empty during test/import; reject explicit blank-or-whitespace
+        # only when an env value was actively provided. Pydantic passes through
+        # the raw env string, so we treat whitespace-only as invalid.
+        if v is None:
+            raise ValueError(f"{info.field_name} must not be None")
+        if isinstance(v, str) and v != "" and v.strip() == "":
+            raise ValueError(
+                f"{info.field_name} must not be empty/whitespace-only"
+            )
+        return v
+
+    @field_validator("api_port", "postgres_port")
+    @classmethod
+    def validate_port_range(cls, v: int, info) -> int:
+        if not (1 <= v <= 65535):
+            raise ValueError(
+                f"{info.field_name} must be in range 1-65535 (current: {v})"
+            )
+        return v
 
     @field_validator("max_risk_per_trade_pct")
     @classmethod
@@ -231,8 +280,18 @@ class Settings(BaseSettings):
             return self.postgres_url.replace(self.postgres_password, "***")
         return self.postgres_url
 
+    @property
+    def capital_email_masked(self) -> str:
+        """Broker email with local part masked -- safe for logs/docstrings."""
+        if not self.capital_email or "@" not in self.capital_email:
+            return "***"
+        local, _, domain = self.capital_email.partition("@")
+        if len(local) <= 2:
+            return f"***@{domain}"
+        return f"{local[0]}***{local[-1]}@{domain}"
+
     model_config = {
-        "env_file": ".env",
+        "env_file": _ENV_FILE_PATH,
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }

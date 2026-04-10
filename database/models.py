@@ -74,6 +74,10 @@ class Signal(Base):
     rejection_reason: Mapped[str | None] = mapped_column(Text)
     timeframe: Mapped[str | None] = mapped_column(String(10))
 
+    __table_args__ = (
+        Index("idx_signals_executed_ts", "was_executed", "timestamp"),
+    )
+
 
 class ModelMetadata(Base):
     __tablename__ = "model_metadata"
@@ -124,6 +128,7 @@ class Trade(Base):
     __table_args__ = (
         Index("idx_trades_status", "status"),
         Index("idx_trades_closed_at", "closed_at"),
+        Index("idx_trades_opened_at", opened_at.desc()),
     )
 
 
@@ -167,6 +172,10 @@ class DailyRiskState(Base):
     consecutive_losses: Mapped[int] = mapped_column(Integer, default=0)
     kill_switch_activated: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    __table_args__ = (
+        Index("idx_daily_risk_state_date", "date"),
+    )
+
 
 # ---------------------------------------------------------------------------
 # Portfolio
@@ -193,6 +202,10 @@ class DailyStats(Base):
     total_spread_cost: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     total_slippage: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
 
+    __table_args__ = (
+        Index("idx_daily_stats_date", "date"),
+    )
+
 
 class EquityCurve(Base):
     __tablename__ = "equity_curve"
@@ -200,7 +213,9 @@ class EquityCurve(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     equity: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
-    trade_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("trades.id"))
+    trade_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("trades.id", ondelete="CASCADE")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -237,3 +252,28 @@ class PendingConfirmation(Base):
     )  # PENDING, APPROVED, REJECTED, EXPIRED
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     timeout_seconds: Mapped[int] = mapped_column(Integer, default=120)
+
+
+# ---------------------------------------------------------------------------
+# Economic Calendar
+# ---------------------------------------------------------------------------
+
+class EconomicEventRecord(Base):
+    __tablename__ = "economic_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    country: Mapped[str] = mapped_column(String(10), nullable=False)
+    impact: Mapped[str] = mapped_column(String(10), nullable=False)  # low/medium/high
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    forecast: Mapped[str | None] = mapped_column(String(50))
+    previous: Mapped[str | None] = mapped_column(String(50))
+    actual: Mapped[str | None] = mapped_column(String(50))
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("idx_econ_events_time", "event_time"),
+        Index("uq_econ_events", "title", "event_time", unique=True),
+    )
