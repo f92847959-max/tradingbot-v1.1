@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: — Profitable Demo Trading
 current_phase: 08
 current_plan: 2
-status: Executing Phase 08
-last_updated: "2026-04-10T07:42:10Z"
+status: Phase 08 Complete
+last_updated: "2026-04-10T12:22:22Z"
 progress:
   total_phases: 13
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 27
-  completed_plans: 19
+  completed_plans: 21
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 08
 **Current Plan:** 1
-**Phase Status:** Phase 6 complete (3/3 plans complete -- awaiting human-verify checkpoint)
+**Phase Status:** Phase 8 complete (2/2 plans complete)
 **Total Phases:** unowen
 
 ## Next Action
 
-Phase 08 Plan 01 complete -- execute Plan 02 (calendar wiring into trading loop)
+Phase 08 complete (2/2 plans) -- proceed to Phase 09 (Advanced Risk & Position Sizing)
 
 ## Decisions
 
@@ -65,6 +65,9 @@ Phase 08 Plan 01 complete -- execute Plan 02 (calendar wiring into trading loop)
 - [Phase 08]: Stdlib calendar fixup in __init__.py to prevent aiohttp import conflict (calendar/ package shadows stdlib)
 - [Phase 08]: Domain model (calendar/models.py) separate from ORM model (database/models.py) for clean architecture
 - [Phase 08]: EventRules is pure logic (no DB, no async) for testability; EventService is the async facade
+- [Phase 08]: Force-close check placed before high-impact window check in _trading_tick (more urgent)
+- [Phase 08]: Veto at tick level (before signal generation) to avoid wasted AI compute during event windows
+- [Phase 08]: Extended stdlib calendar fixup to re-export ALL public attributes (not just timegm) for pandas compatibility
 
 ## Session Log
 
@@ -146,3 +149,11 @@ Phase 08 Plan 01 complete -- execute Plan 02 (calendar wiring into trading loop)
   - calendar/event_rules.py: Pure-logic EventRules (block window, force-close)
   - calendar/event_service.py: EventService facade for Phase 9/10
   - Fixed stdlib calendar shadow conflict with aiohttp (Rule 3 deviation)
+- 2026-04-10: Plan 08-02 complete (2/2 tasks, 57 tests, ~6 min)
+  - trading/trading_loop.py: force-close check + high-impact window veto in _trading_tick
+  - trading/lifecycle.py: EventService init, initial refresh, _calendar_refresh_loop, gather integration
+  - calendar/__init__.py: Extended stdlib fixup to re-export all public attributes
+  - tests/test_calendar.py: 40 unit tests (models, rules, filter, service)
+  - tests/test_calendar_integration.py: 9 integration tests (veto, force-close, cooldown)
+  - tests/test_calendar_wiring.py: 8 structural tests (wiring correctness)
+  - Phase 08 complete (2/2 plans): calendar module built and wired into trading

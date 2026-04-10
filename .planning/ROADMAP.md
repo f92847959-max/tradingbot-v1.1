@@ -204,6 +204,11 @@ Plans:
 ### Phase 8: Wirtschaftskalender-Integration
 **Goal:** Automatischer Schutz vor Verlusten bei High-Impact Events (NFP, FOMC, CPI) durch Trading-Pausen und Position-Management
 **Requirements:** ECAL-01, ECAL-02, ECAL-03, ECAL-04
+**Plans:** 2/2 plans complete
+
+Plans:
+- [x] 08-01-PLAN.md — Economic calendar module: models, fetcher, filter, rules, service facade
+- [x] 08-02-PLAN.md — Calendar wiring: trading loop veto, force-close, lifecycle refresh, 57 tests
 
 **Scope:**
 - Wirtschaftskalender-Daten abrufen (Investing.com / ForexFactory)
@@ -213,9 +218,9 @@ Plans:
 - Integration in signal_generator.py als Veto-Logik
 
 **UAT:**
-- [ ] Kalender-Daten werden regelmaessig abgerufen und gefiltert
-- [ ] High-Impact Events blockieren neue Trades automatisch
-- [ ] Bestehende Positionen werden bei Extrem-Events geschlossen
+- [x] Kalender-Daten werden regelmaessig abgerufen und gefiltert
+- [x] High-Impact Events blockieren neue Trades automatisch
+- [x] Bestehende Positionen werden bei Extrem-Events geschlossen
 - [ ] Historische Events fuer Backtesting verfuegbar
 
 ---
