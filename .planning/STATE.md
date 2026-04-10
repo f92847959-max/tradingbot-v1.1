@@ -2,29 +2,29 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
-current_phase: 06
-current_plan: 1
-status: Executing Phase 06
-last_updated: "2026-03-26T20:04:18.190Z"
+current_phase: 08
+current_plan: 2
+status: Executing Phase 08
+last_updated: "2026-04-10T07:42:10Z"
 progress:
   total_phases: 13
   completed_phases: 6
   total_plans: 27
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 06
-**Current Plan:** 3
+**Current Phase:** 08
+**Current Plan:** 1
 **Phase Status:** Phase 6 complete (3/3 plans complete -- awaiting human-verify checkpoint)
-**Total Phases:** 7
+**Total Phases:** unowen
 
 ## Next Action
 
-Phase 6 Plans 1-3 complete -- human verification of MiroFish integration required (Task 3 checkpoint)
+Phase 08 Plan 01 complete -- execute Plan 02 (calendar wiring into trading loop)
 
 ## Decisions
 
@@ -62,6 +62,9 @@ Phase 6 Plans 1-3 complete -- human verification of MiroFish integration require
 - [Phase 06]: LLM_API_KEY reuses OPENAI_API_KEY from host .env to avoid duplicate key management
 - [Phase 06]: uv sync creates isolated Python 3.11 venv for MiroFish (camel-oasis requires Python <3.12)
 - [Phase 06]: Stub only database.connection/models/signal_repo leaf modules (not parent packages) for integration tests to avoid sys.modules pollution
+- [Phase 08]: Stdlib calendar fixup in __init__.py to prevent aiohttp import conflict (calendar/ package shadows stdlib)
+- [Phase 08]: Domain model (calendar/models.py) separate from ORM model (database/models.py) for clean architecture
+- [Phase 08]: EventRules is pure logic (no DB, no async) for testability; EventService is the async facade
 
 ## Session Log
 
@@ -135,3 +138,11 @@ Phase 6 Plans 1-3 complete -- human verification of MiroFish integration require
   - Veto check wired into signal_generator.py after ML prediction (HOLD/disabled/no-cache all skip veto)
   - 6 integration tests in test_mirofish_integration.py (33 total MiroFish tests, 27+6)
   - Stopped at Task 3: human-verify checkpoint (awaiting user verification)
+- 2026-04-10: Plan 08-01 complete (3/3 tasks, 9 files, ~5 min)
+  - calendar/models.py: EconomicEvent dataclass + EventImpact enum
+  - calendar/event_repository.py: EventRepository with upsert and query methods
+  - calendar/event_fetcher.py: ForexFactory fetcher via faireconomy.media JSON API
+  - calendar/event_filter.py: Gold-relevant filter (6 currencies + 30 keywords)
+  - calendar/event_rules.py: Pure-logic EventRules (block window, force-close)
+  - calendar/event_service.py: EventService facade for Phase 9/10
+  - Fixed stdlib calendar shadow conflict with aiohttp (Rule 3 deviation)

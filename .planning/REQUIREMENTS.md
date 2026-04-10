@@ -56,9 +56,9 @@
 
 ### Wirtschaftskalender
 
-- [ ] **ECAL-01**: Wirtschaftskalender-Daten werden automatisch abgerufen und Gold-relevante Events gefiltert
-- [ ] **ECAL-02**: High-Impact Events (NFP, FOMC, CPI) blockieren neue Trades 30min vorher
-- [ ] **ECAL-03**: Extrem-Events schliessen bestehende Positionen automatisch
+- [x] **ECAL-01**: Wirtschaftskalender-Daten werden automatisch abgerufen und Gold-relevante Events gefiltert
+- [x] **ECAL-02**: High-Impact Events (NFP, FOMC, CPI) blockieren neue Trades 30min vorher
+- [x] **ECAL-03**: Extrem-Events schliessen bestehende Positionen automatisch
 - [ ] **ECAL-04**: Historische Event-Daten gespeichert und fuer Backtesting nutzbar
 
 ### Advanced Risk & Position Sizing
