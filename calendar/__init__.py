@@ -44,11 +44,18 @@ finally:
     if _self is not None:
         sys.modules["calendar"] = _self
 
-# Re-export stdlib timegm so ``calendar.timegm(...)`` works for aiohttp etc.
-timegm = _stdlib_cal.timegm
+# Re-export ALL stdlib calendar attributes so that third-party code accessing
+# ``calendar.timegm``, ``calendar.day_abbr``, ``calendar.day_name``, etc.
+# continues to work (aiohttp uses timegm, _strptime/pandas use day_abbr).
+for _attr in dir(_stdlib_cal):
+    if not _attr.startswith("_") and _attr not in globals():
+        globals()[_attr] = getattr(_stdlib_cal, _attr)
+
+# Ensure timegm is always available (even if already set above)
+timegm = _stdlib_cal.timegm  # noqa: F811
 
 # Clean up module namespace
-del importlib, os, _project_root, _saved_path, _self, _stdlib_cal
+del importlib, os, _project_root, _saved_path, _self, _stdlib_cal, _attr
 
 # ---------------------------------------------------------------------------
 # Public API

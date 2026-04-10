@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 
 from database.connection import get_session
 from market_data.broker_client import BrokerError
+from shared.constants import TIMEFRAME_CANDLE_COUNTS
 from shared.exceptions import (
-    BrokerError as _BrokerError,
     DataError,
     PredictionError,
     classify_error,
@@ -52,35 +52,34 @@ class TradingLoopMixin:
                     self.risk.force_kill_switch(
                         f"10 consecutive errors, last: {e}"
                     )
-                    self.notifications.notify_kill_switch(
-                        reason=f"10 consecutive errors, last: {e}",
-                        drawdown_pct=0,
-                        positions_closed=0,
-                    )
+                    try:
+                        await self.notifications.notify_kill_switch(
+                            reason=f"10 consecutive errors, last: {e}",
+                            drawdown_pct=0,
+                            positions_closed=0,
+                        )
+                    except Exception:
+                        logger.exception("Kill-switch notification failed")
             except Exception as e:
+                # Unexpected errors: log and alert, but do NOT auto-activate kill-switch immediately.
                 self._consecutive_errors += 1
-                category = classify_error(e)
-                logger.error(
-                    "Unexpected trading loop error [%s] (consecutive: %d): %s",
-                    category.value, self._consecutive_errors, e, exc_info=True,
-                )
-                if category == ErrorCategory.UNKNOWN:
-                    logger.critical(
-                        "Unknown error -- activating kill switch as fail-safe: %s", e,
+                logger.exception("UNEXPECTED trading loop error (count=%d): %s", self._consecutive_errors, e)
+
+                try:
+                    # Non-blocking alert (best-effort, awaited so retries/backoff
+                    # don't block the loop via time.sleep).
+                    await self.notifications.notify_warning(
+                        f"Unexpected error in trading loop: {e}"
                     )
-                    self.risk.force_kill_switch(f"Unknown error in trading loop: {e}")
-                if self._consecutive_errors >= 10:
-                    logger.critical(
-                        "10 consecutive errors -- activating kill switch",
+                except Exception as notify_err:
+                    logger.exception(
+                        "Notification failed: %s", notify_err, exc_info=True,
                     )
-                    self.risk.force_kill_switch(
-                        f"10 consecutive errors, last: {e}"
-                    )
-                    self.notifications.notify_kill_switch(
-                        reason=f"10 consecutive errors, last: {e}",
-                        drawdown_pct=0,
-                        positions_closed=0,
-                    )
+
+                # If many unexpected errors accumulate, stop for manual review (threshold lower)
+                if self._consecutive_errors >= 5:
+                    logger.critical("%d unexpected errors — deactivating trading loop for manual review", self._consecutive_errors)
+                    self._running = False
 
             # Exponential backoff on errors, normal interval on success
             if self._consecutive_errors > 0:
@@ -101,9 +100,30 @@ class TradingLoopMixin:
         if self.risk.kill_switch.is_active:
             return
 
+        # Phase 8: Force-close on extreme events
+        if self._event_service is not None and self._event_service.should_force_close():
+            event = self._event_service.get_blocking_event()
+            event_name = event.title if event else "extreme event"
+            open_count = self.orders.get_open_count()
+            if open_count > 0:
+                logger.warning(
+                    "FORCE CLOSE: %d position(s) due to imminent extreme event '%s'",
+                    open_count, event_name,
+                )
+                closed = await self.orders.close_all()
+                logger.info("Force-closed %d position(s) before '%s'", closed, event_name)
+            return  # Skip tick entirely during extreme events
+
+        # Phase 8: Block new trades during high-impact window
+        if self._event_service is not None and self._event_service.is_high_impact_window():
+            event = self._event_service.get_blocking_event()
+            event_name = event.title if event else "high-impact event"
+            logger.info("Trade blocked: high-impact event window ('%s')", event_name)
+            return
+
         # 1. Get market data
         df = await asyncio.wait_for(
-            self.data.get_candles_df(timeframe="5m", count=200), timeout=30,
+            self.data.get_candles_df(timeframe="5m", count=5000), timeout=60,
         )
         if df.empty or len(df) < 50:
             logger.debug("Insufficient data, skipping tick")
@@ -127,7 +147,7 @@ class TradingLoopMixin:
             return
 
         # 4. Extract signal values (FIX BUG #1: confidence was undefined)
-        direction = signal["action"]
+        direction = signal.get("action", "HOLD")
         confidence = signal.get("confidence", 0.0)
         entry_price = signal.get("entry_price", float(df.iloc[-1]["close"]))
         stop_loss = signal.get(
@@ -170,8 +190,8 @@ class TradingLoopMixin:
                 )
                 self._cached_spread = abs(price_data.get("ask", 0) - price_data.get("bid", 0))
                 self._cached_spread_ts = now_mono
-            except BrokerError:
-                pass
+            except BrokerError as e:
+                logger.warning("Spread fetch failed: %s", e)
         current_spread = self._cached_spread
 
         # 6. Risk check (11 pre-trade checks)
@@ -224,15 +244,18 @@ class TradingLoopMixin:
             await self._save_signal(signal, executed=True)
             await self.risk.metrics_cache.on_trade_opened()
             logger.info("Trade #%s opened successfully", trade.deal_id)
-            self.notifications.notify_trade_opened(
-                direction=direction,
-                price=float(trade.entry_price),
-                lot_size=float(trade.lot_size),
-                stop_loss=stop_loss,
-                take_profit=take_profit,
-                score=signal.get("trade_score", 0),
-                confidence=confidence,
-            )
+            try:
+                await self.notifications.notify_trade_opened(
+                    direction=direction,
+                    price=float(trade.entry_price),
+                    lot_size=float(trade.lot_size),
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
+                    score=signal.get("trade_score", 0),
+                    confidence=confidence,
+                )
+            except Exception:
+                logger.exception("Trade-opened notification failed")
         else:
             logger.warning("Trade execution failed (broker error or lock timeout)")
             await self._save_signal(
@@ -245,7 +268,8 @@ class TradingLoopMixin:
         timeframes = self.settings.timeframes
 
         async def _fetch_one(tf: str):
-            return tf, await self.data.get_candles_df(tf, count=200, with_indicators=True)
+            count = TIMEFRAME_CANDLE_COUNTS.get(tf, 200)
+            return tf, await self.data.get_candles_df(tf, count=count, with_indicators=True)
 
         results = await asyncio.gather(
             *[_fetch_one(tf) for tf in timeframes],
@@ -261,3 +285,4 @@ class TradingLoopMixin:
             mtf[tf] = df
 
         return mtf
+

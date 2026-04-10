@@ -61,6 +61,17 @@ class LifecycleMixin:
         self._confirmation_handler = None  # For semi-auto mode
         self._mirofish_client = None  # Lazy-loaded when mirofish_enabled (Phase 6)
         self._mirofish_task = None    # Background simulation loop asyncio.Task
+        self._mirofish_disabled: bool = False  # Set True if MiroFish failed/crashed
+
+        # Economic calendar (Phase 8) -- graceful when disabled
+        self._event_service = None
+        if settings.calendar_enabled:
+            from calendar.event_service import EventService
+            self._event_service = EventService(
+                block_minutes_before=settings.calendar_block_minutes_before,
+                cooldown_minutes_after=settings.calendar_cooldown_minutes_after,
+                force_close_enabled=settings.calendar_force_close_on_extreme,
+            )
         self._consecutive_errors: int = 0
 
         # Cache for account info and spread (refreshed every 5 minutes)
@@ -69,6 +80,45 @@ class LifecycleMixin:
         self._cached_spread: float = 0.0
         self._cached_spread_ts: float = 0.0
         self._CACHE_TTL_SECONDS: float = 300.0  # 5 minutes
+
+    def _on_mirofish_done(self: TradingSystem, task: asyncio.Task) -> None:
+        """Done-callback for the MiroFish background task.
+
+        Logs unexpected exceptions and marks the subsystem as degraded so
+        monitoring/health endpoints know MiroFish is no longer producing
+        signals. Cancellation during shutdown is treated as expected.
+        """
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is None:
+            # Loop exited cleanly -- still mark as not running so callers
+            # don't expect signals from a stopped task.
+            self._mirofish_disabled = True
+            logger.warning("MiroFish background task exited cleanly (no longer producing signals)")
+            return
+        logger.error(
+            "MiroFish background task crashed: %s", exc, exc_info=exc,
+        )
+        self._mirofish_disabled = True
+        # Drop client reference so accidental usage fails fast.
+        self._mirofish_client = None
+
+    async def _calendar_refresh_loop(self: TradingSystem) -> None:
+        """Background task: refresh economic calendar periodically."""
+        if self._event_service is None:
+            return  # Calendar disabled
+
+        interval = self.settings.calendar_fetch_interval_minutes * 60
+        while self._running:
+            await asyncio.sleep(interval)
+            try:
+                await asyncio.wait_for(self._event_service.refresh(), timeout=60)
+                logger.debug("Calendar refreshed (%d events)", self._event_service.cached_event_count)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.warning("Calendar refresh failed: %s", e)
 
     async def _health_check(self: TradingSystem) -> None:
         """Validate all critical components before starting the trading loop.
@@ -236,13 +286,28 @@ class LifecycleMixin:
                     run_simulation_loop(
                         self._mirofish_client,
                         interval_seconds=self.settings.mirofish_poll_interval_seconds,
-                    )
+                    ),
+                    name="mirofish_simulation_loop",
                 )
+                # Surface background-task crashes instead of swallowing them.
+                self._mirofish_task.add_done_callback(self._on_mirofish_done)
                 logger.info("MiroFish swarm intelligence ENABLED (poll every %ds)", self.settings.mirofish_poll_interval_seconds)
             except Exception as e:
-                logger.warning("MiroFish startup failed (trading continues without it): %s", e)
+                # Use logger.exception to capture full traceback for monitoring.
+                logger.exception(
+                    "MiroFish startup failed (trading continues without it): %s", e
+                )
                 self._mirofish_client = None
                 self._mirofish_task = None
+                self._mirofish_disabled = True
+
+        # Initial calendar refresh (Phase 8)
+        if self._event_service is not None:
+            try:
+                count = await asyncio.wait_for(self._event_service.refresh(), timeout=30)
+                logger.info("[OK] Economic calendar: %d Gold-relevant events loaded", self._event_service.cached_event_count)
+            except Exception as e:
+                logger.warning("[WARN] Economic calendar refresh failed (trading continues): %s", e)
 
         # Start the loops
         self._running = True
@@ -255,6 +320,7 @@ class LifecycleMixin:
             self._trading_loop(),
             self._position_monitor_loop(),
             self._daily_cleanup_loop(),
+            self._calendar_refresh_loop(),  # Phase 8
         )
 
     async def stop(self: TradingSystem) -> None:
