@@ -49,3 +49,11 @@ timegm = _stdlib_cal.timegm
 
 # Clean up module namespace
 del importlib, os, _project_root, _saved_path, _self, _stdlib_cal
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+from calendar.event_service import EventService
+from calendar.models import EconomicEvent, EventImpact
+
+__all__ = ["EventService", "EconomicEvent", "EventImpact"]
