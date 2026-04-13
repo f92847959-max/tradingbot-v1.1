@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
 current_phase: 09
-current_plan: 2
-status: Executing Phase 09
-last_updated: "2026-04-13T19:16:52.373Z"
+current_plan: 3
+status: Phase 09 complete
+last_updated: "2026-04-13T19:35:00.000Z"
 progress:
   total_phases: 13
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 27
-  completed_plans: 22
+  completed_plans: 23
 ---
 
 # Project State
@@ -18,13 +18,13 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 09
-**Current Plan:** 2
-**Phase Status:** Phase 09 executing (1/2 plans complete)
+**Current Plan:** 3 (complete)
+**Phase Status:** Phase 09 complete (3/3 plans complete)
 **Total Phases:** 13
 
 ## Next Action
 
-Phase 09 plan 02 complete -- proceed to Phase 09 plan 03 or next phase plan
+Phase 09 complete -- proceed to Phase 10 (Smart Exit Engine)
 
 ## Decisions
 
@@ -75,6 +75,8 @@ Phase 09 plan 02 complete -- proceed to Phase 09 plan 03 or next phase plan
 - [Phase 09]: Kelly MAX_KELLY cap set to 0.3 (not 0.25) to match plan spec: kelly_fraction(0.6, 2.0, 1.0) == 0.3
 - [Phase 09]: AdvancedPositionSizer in new file risk/position_sizer.py (not position_sizing.py) to preserve RiskManager backward compatibility
 - [Phase 09]: ATR=0 edge case: safe_atr=max(atr, 0.01) floor; factor clamped to max_scale (low ATR = allow larger position)
+- [Phase 09]: approve_trade adds confidence/atr params with backward-compatible defaults; advanced sizing only activates when kelly_fraction > 0
+- [Phase 09]: EquityCurveFilter defaults to allowed=True with insufficient data; portfolio heat check uses sl_distance * lot_size as estimated_risk
 
 ## Session Log
 
@@ -170,3 +172,10 @@ Phase 09 plan 02 complete -- proceed to Phase 09 plan 03 or next phase plan
   - Drawdown percentiles (p50/p75/p90/p95/p99), ruin probability, optimal_f
   - 19 tests covering structure, edge strength, reproducibility, performance, no-DB-imports
   - Stopped at: Completed 09-02-PLAN.md
+- 2026-04-13: Plan 09-03 complete (2/2 tasks, 54 tests, ~7 min)
+  - risk/portfolio_heat.py: PortfolioHeatManager (heat tracking, 5% max limit)
+  - risk/equity_curve_filter.py: EquityCurveFilter (EMA-based, insufficient data defaults to allowed)
+  - risk/risk_manager.py: extended with advanced sizing, heat check, equity filter check
+  - trading/trading_loop.py: passes confidence+atr to approve_trade, tracks heat
+  - risk/__init__.py: full package exports for all 9 risk classes
+  - Phase 09 complete (3/3 plans): full advanced risk pipeline wired
