@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
 current_phase: 09
-current_plan: Not started
-status: Ready to plan
-last_updated: "2026-04-13T19:02:51.480Z"
+current_plan: 2
+status: Executing Phase 09
+last_updated: "2026-04-13T19:13:00.000Z"
 progress:
   total_phases: 13
   completed_phases: 7
   total_plans: 27
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # Project State
@@ -18,13 +18,13 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 09
-**Current Plan:** Not started
-**Phase Status:** Phase 8 complete (2/2 plans complete)
-**Total Phases:** unowen
+**Current Plan:** 2
+**Phase Status:** Phase 09 executing (1/2 plans complete)
+**Total Phases:** 13
 
 ## Next Action
 
-Phase 08 complete (2/2 plans) -- proceed to Phase 09 (Advanced Risk & Position Sizing)
+Phase 09 plan 02 complete -- proceed to Phase 09 plan 03 or next phase plan
 
 ## Decisions
 
@@ -68,6 +68,10 @@ Phase 08 complete (2/2 plans) -- proceed to Phase 09 (Advanced Risk & Position S
 - [Phase 08]: Force-close check placed before high-impact window check in _trading_tick (more urgent)
 - [Phase 08]: Veto at tick level (before signal generation) to avoid wasted AI compute during event windows
 - [Phase 08]: Extended stdlib calendar fixup to re-export ALL public attributes (not just timegm) for pandas compatibility
+- [Phase 09-02]: Use numpy.random.default_rng(seed) for reproducible MC simulations (not legacy np.random.seed)
+- [Phase 09-02]: Store max_drawdown_pcts as fraction [0,1] for consistent arithmetic; multiply by 100 only in log output
+- [Phase 09-02]: Vectorise paths dimension, iterate sequentially over trades axis — best NumPy tradeoff for in-place peak tracking
+- [Phase 09-02]: optimal_f scans 20 candidates 0.005..0.10; each candidate uses seed+i for independent-but-deterministic runs
 
 ## Session Log
 
@@ -157,3 +161,9 @@ Phase 08 complete (2/2 plans) -- proceed to Phase 09 (Advanced Risk & Position S
   - tests/test_calendar_integration.py: 9 integration tests (veto, force-close, cooldown)
   - tests/test_calendar_wiring.py: 8 structural tests (wiring correctness)
   - Phase 08 complete (2/2 plans): calendar module built and wired into trading
+- 2026-04-13: Plan 09-02 complete (1/1 task, 19 tests, ~3 min)
+  - risk/monte_carlo.py: MonteCarloSimulator + SimulationResult (pure numerical, no DB)
+  - Vectorised NumPy simulation: 1000 paths x 200 trades in ~0.3s
+  - Drawdown percentiles (p50/p75/p90/p95/p99), ruin probability, optimal_f
+  - 19 tests covering structure, edge strength, reproducibility, performance, no-DB-imports
+  - Stopped at: Completed 09-02-PLAN.md

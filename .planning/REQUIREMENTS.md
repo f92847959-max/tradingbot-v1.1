@@ -66,7 +66,7 @@
 - [ ] **RISK-01**: Kelly Criterion berechnet optimale Positionsgroesse aus Win-Rate und RRR
 - [ ] **RISK-02**: Volatilitaets-basiertes Sizing normalisiert Positionen nach ATR
 - [ ] **RISK-03**: Portfolio Heat Management begrenzt offenes Gesamtrisiko auf max 5%
-- [ ] **RISK-04**: Monte Carlo Simulation zeigt Drawdown-Verteilung (1000+ Pfade)
+- [x] **RISK-04**: Monte Carlo Simulation zeigt Drawdown-Verteilung (1000+ Pfade)
 - [ ] **RISK-05**: Equity Curve Filter stoppt Trading bei Drawdown ueber Threshold
 
 ### Smart Exit Engine
@@ -167,6 +167,7 @@
 | DEMO-02 | Phase 7 | Pending |
 | DEMO-03 | Phase 7 | Pending |
 | DEMO-04 | Phase 7 | Pending |
+
 
 **Coverage:**
 - v1 requirements: 31 total
