@@ -89,6 +89,14 @@ class Settings(BaseSettings):
     trading_end_hour: int = 22
     trading_end_minute: int = 0
 
+    # -- Advanced Risk / Position Sizing (Phase 9) ----------------------------
+    kelly_mode: str = "half"               # "full", "half", "quarter"
+    atr_baseline: float = 3.0             # Normal XAUUSD ATR-14 on 5min candles
+    max_portfolio_heat_pct: float = 5.0   # RISK-03: max total open risk %
+    equity_curve_ema_period: int = 20     # RISK-05: lookback for equity EMA
+    equity_curve_filter_enabled: bool = True  # RISK-05: enable/disable equity curve filter
+    monte_carlo_paths: int = 1000         # RISK-04: number of MC simulation paths
+
     # -- Notifications (Twilio WhatsApp) --------------------------------------
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
