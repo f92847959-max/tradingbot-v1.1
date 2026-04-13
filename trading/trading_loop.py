@@ -100,6 +100,18 @@ class TradingLoopMixin:
         if self.risk.kill_switch.is_active:
             return
 
+        # Optional: log during high-impact calendar windows (Phase 8)
+        _calendar_high_impact = False
+        try:
+            from calendar.event_service import is_high_impact_window
+            _calendar_high_impact = is_high_impact_window()
+        except ImportError:
+            pass  # Phase 8 not installed yet -- skip
+        if _calendar_high_impact:
+            logger.warning(
+                "High-impact calendar window active -- position sizing will be conservative"
+            )
+
         # Phase 8: Force-close on extreme events
         if self._event_service is not None and self._event_service.should_force_close():
             event = self._event_service.get_blocking_event()
@@ -194,7 +206,10 @@ class TradingLoopMixin:
                 logger.warning("Spread fetch failed: %s", e)
         current_spread = self._cached_spread
 
-        # 6. Risk check (11 pre-trade checks)
+        # Extract ATR from latest candle data (feature engineering adds atr_14 column)
+        current_atr = float(df.iloc[-1]["atr_14"]) if "atr_14" in df.columns else 3.0
+
+        # 6. Risk check (11 pre-trade checks + portfolio heat + equity curve filter)
         approval = await self.risk.approve_trade(
             direction=direction,
             entry_price=entry_price,
@@ -207,6 +222,8 @@ class TradingLoopMixin:
             current_spread=current_spread,
             has_open_same_direction=self.orders.has_position_in_direction(direction),
             weekly_loss_pct=weekly_loss_pct,
+            confidence=confidence,
+            atr=current_atr,
         )
 
         if not approval.approved:
@@ -243,6 +260,9 @@ class TradingLoopMixin:
         if trade:
             await self._save_signal(signal, executed=True)
             await self.risk.metrics_cache.on_trade_opened()
+            # Track portfolio heat for new position
+            risk_amount = abs(entry_price - stop_loss) * approval.lot_size
+            self.risk.on_position_opened(risk_amount, account.balance)
             logger.info("Trade #%s opened successfully", trade.deal_id)
             try:
                 await self.notifications.notify_trade_opened(

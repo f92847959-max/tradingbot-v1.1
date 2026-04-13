@@ -9,6 +9,9 @@ from datetime import datetime, time, timezone
 from .kill_switch import KillSwitch
 from .position_sizing import PositionSizer
 from .pre_trade_check import PreTradeChecker, CheckResult
+from .portfolio_heat import PortfolioHeatManager
+from .equity_curve_filter import EquityCurveFilter
+from .position_sizer import AdvancedPositionSizer
 
 logger = logging.getLogger(__name__)
 
@@ -41,26 +44,37 @@ class RiskMetricsCache:
         return (_time.monotonic() - self.last_db_sync) > self.RECONCILE_INTERVAL
 
     async def load_from_db(self, session) -> None:
-        """Load all metrics from database (called at startup and for reconciliation)."""
+        """Load all metrics from database (called at startup and for reconciliation).
+
+        DB queries run OUTSIDE the lock so we never block other tasks behind I/O.
+        Only the cache mutation is performed under the lock.
+        """
         from database.repositories.trade_repo import TradeRepository
 
+        repo = TradeRepository(session)
+        # All async DB I/O happens lock-free.
+        trades_today = await repo.count_today()
+        consecutive_losses = await repo.get_consecutive_losses()
+        weekly_pnl = await repo.get_weekly_pnl()
+        daily_pnl = await repo.get_today_pnl()
+        open_trades = await repo.get_open_trades()
+        open_position_count = len(open_trades)
+        sync_ts = _time.monotonic()
+
+        # Critical section: only the in-memory mutation is guarded.
         async with self._lock:
-            repo = TradeRepository(session)
-            self.trades_today = await repo.count_today()
-            self.consecutive_losses = await repo.get_consecutive_losses()
-            self.weekly_pnl = await repo.get_weekly_pnl()
-            self.daily_pnl = await repo.get_today_pnl()
+            self.trades_today = trades_today
+            self.consecutive_losses = consecutive_losses
+            self.weekly_pnl = weekly_pnl
+            self.daily_pnl = daily_pnl
+            self.open_position_count = open_position_count
+            self.last_db_sync = sync_ts
 
-            open_trades = await repo.get_open_trades()
-            self.open_position_count = len(open_trades)
-
-            self.last_db_sync = _time.monotonic()
-            logger.info(
-                "Risk metrics cache loaded from DB: trades_today=%d, "
-                "consecutive_losses=%d, daily_pnl=%.2f, weekly_pnl=%.2f",
-                self.trades_today, self.consecutive_losses,
-                self.daily_pnl, self.weekly_pnl,
-            )
+        logger.info(
+            "Risk metrics cache loaded from DB: trades_today=%d, "
+            "consecutive_losses=%d, daily_pnl=%.2f, weekly_pnl=%.2f",
+            trades_today, consecutive_losses, daily_pnl, weekly_pnl,
+        )
 
     async def on_trade_opened(self, pnl_so_far: float = 0.0) -> None:
         """Update cache when a new trade is opened."""
@@ -80,6 +94,19 @@ class RiskMetricsCache:
                 self.consecutive_losses += 1
             else:
                 self.consecutive_losses = 0
+
+    async def reset_daily(self) -> None:
+        """Reset daily counters (daily_pnl, trades_today). Call at UTC midnight."""
+        async with self._lock:
+            self.daily_pnl = 0.0
+            self.trades_today = 0
+            logger.info("Risk metrics cache: daily counters reset")
+
+    async def reset_weekly(self) -> None:
+        """Reset weekly P&L. Call at Monday 00:00 UTC."""
+        async with self._lock:
+            self.weekly_pnl = 0.0
+            logger.info("Risk metrics cache: weekly_pnl reset")
 
     def summary(self) -> dict:
         """Return cache state for monitoring."""
@@ -128,8 +155,15 @@ class RiskManager:
         kill_switch_drawdown_pct: float = 20.0,
         min_lot_size: float = 0.01,
         max_lot_size: float = 10.0,
+        max_leverage: float = 10.0,
         trading_start: time = time(8, 0),
         trading_end: time = time(22, 0),
+        # Advanced risk components (Phase 9 -- all optional with safe defaults)
+        kelly_mode: str = "half",
+        atr_baseline: float = 3.0,
+        max_portfolio_heat_pct: float = 5.0,
+        equity_curve_ema_period: int = 20,
+        equity_curve_filter_enabled: bool = True,
     ) -> None:
         self.kill_switch = KillSwitch(max_drawdown_pct=kill_switch_drawdown_pct)
         self.sizer = PositionSizer(
@@ -146,6 +180,7 @@ class RiskManager:
             cooldown_minutes=cooldown_minutes,
             max_spread=max_spread,
             kill_switch_drawdown_pct=kill_switch_drawdown_pct,
+            max_leverage=max_leverage,
             trading_start=trading_start,
             trading_end=trading_end,
         )
@@ -154,15 +189,70 @@ class RiskManager:
         self._equity_start: float = 0.0
         self._equity_peak: float = 0.0
         self._last_loss_time: datetime | None = None
+        # Boundary tracking for daily/weekly resets (UTC)
+        self._last_boundary_date: datetime | None = None
 
         # In-memory risk metrics cache (reduces DB queries per tick)
         self.metrics_cache = RiskMetricsCache()
 
+        # Advanced risk components (Phase 9)
+        self.advanced_sizer = AdvancedPositionSizer(
+            base_risk_pct=max_risk_per_trade_pct,
+            kelly_mode=kelly_mode,
+            baseline_atr=atr_baseline,
+            min_lot_size=min_lot_size,
+            max_lot_size=max_lot_size,
+        )
+        self.portfolio_heat = PortfolioHeatManager(max_heat_pct=max_portfolio_heat_pct)
+        self.equity_filter = EquityCurveFilter(
+            ema_period=equity_curve_ema_period,
+            enabled=equity_curve_filter_enabled,
+        )
+
     def set_initial_equity(self, equity: float) -> None:
         """Set starting equity for the day (call at startup)."""
         self._equity_start = equity
-        self._equity_peak = max(self._equity_peak, equity)
+        self._equity_peak = equity
+        self._last_boundary_date = datetime.now(timezone.utc).date()
         logger.info("Risk manager initialized: equity=%.2f", equity)
+
+    def reset_daily_peak(self, current_equity: float) -> None:
+        """Reset the daily equity anchor (start + peak) to current equity.
+
+        Should be called at the UTC day boundary so that daily-loss and
+        drawdown limits do not leak across trading days.
+        """
+        self._equity_start = current_equity
+        self._equity_peak = current_equity
+        logger.info(
+            "Daily equity anchor reset: start=%.2f, peak=%.2f",
+            current_equity, current_equity,
+        )
+
+    async def on_day_boundary(self, current_equity: float) -> None:
+        """Handle a UTC day boundary crossing.
+
+        - Resets the daily equity anchor (start / peak)
+        - Resets daily cache counters (trades_today, daily_pnl)
+        - On Monday, additionally resets the weekly P&L
+
+        Safe to call every tick — internally guarded by last-seen date so
+        the work only runs once per UTC day.
+        """
+        today = datetime.now(timezone.utc).date()
+        if self._last_boundary_date is not None and today <= self._last_boundary_date:
+            return
+
+        previous = self._last_boundary_date
+        self._last_boundary_date = today
+
+        self.reset_daily_peak(current_equity)
+        await self.metrics_cache.reset_daily()
+
+        # Monday == weekday 0 in Python. Reset weekly P&L at the first tick
+        # of a new UTC week (or whenever we cross into a Monday).
+        if today.weekday() == 0 and (previous is None or previous.weekday() != 0):
+            await self.metrics_cache.reset_weekly()
 
     def update_equity_peak(self, current_equity: float) -> None:
         """Update equity peak for drawdown calculation."""
@@ -188,6 +278,58 @@ class RiskManager:
             return 0.0
         return abs(pnl / self._equity_start) * 100.0
 
+    # -------------------------------------------------------------------------
+    # Advanced risk methods (Phase 9)
+    # -------------------------------------------------------------------------
+
+    def update_trade_stats(self, win_rate: float, avg_win: float, avg_loss: float) -> None:
+        """Update Kelly fraction from recent trade performance. Call periodically.
+
+        Args:
+            win_rate: Fraction of trades that are winners (0.0 to 1.0).
+            avg_win:  Average winning trade magnitude (pips or currency).
+            avg_loss: Average losing trade magnitude (positive).
+        """
+        self.advanced_sizer.set_trade_stats(win_rate, avg_win, avg_loss)
+        logger.info(
+            "Trade stats updated: win_rate=%.2f, avg_win=%.2f, avg_loss=%.2f",
+            win_rate, avg_win, avg_loss,
+        )
+
+    def get_portfolio_heat(self) -> float:
+        """Phase 10 interface: current portfolio heat percentage."""
+        return self.portfolio_heat.get_heat(self._equity_peak or 10000.0)
+
+    def is_trading_allowed(self) -> bool:
+        """Phase 10 interface: False if equity curve filter blocks trading or kill switch active."""
+        if self.kill_switch.is_active:
+            return False
+        return self.equity_filter.is_trading_allowed()
+
+    def on_position_opened(self, risk_amount: float, account_balance: float) -> None:
+        """Track new position for portfolio heat.
+
+        Args:
+            risk_amount:     Dollar risk of the new position (SL distance * lot_size).
+            account_balance: Current account balance.
+        """
+        self.portfolio_heat.add_position(risk_amount, account_balance)
+
+    def on_position_closed(self, risk_amount: float, account_balance: float, equity: float) -> None:
+        """Update heat and equity curve on close.
+
+        Args:
+            risk_amount:     Dollar risk of the closed position.
+            account_balance: Current account balance.
+            equity:          Current equity (used for equity curve filter).
+        """
+        self.portfolio_heat.remove_position(risk_amount, account_balance)
+        self.equity_filter.update(equity)
+
+    # -------------------------------------------------------------------------
+    # Core approve_trade method (extended with advanced checks)
+    # -------------------------------------------------------------------------
+
     async def approve_trade(
         self,
         direction: str,
@@ -201,13 +343,33 @@ class RiskManager:
         current_spread: float,
         has_open_same_direction: bool,
         weekly_loss_pct: float = 0.0,
+        confidence: float = 0.7,
+        atr: float = 3.0,
     ) -> RiskApproval:
         """Evaluate whether a trade should be executed.
 
         This is the SINGLE GATE that every trade must pass through.
-        All 11 checks must pass for a trade to be approved.
+        All 11 core checks plus 2 advanced checks (heat + equity curve) must pass.
+
+        Args:
+            direction:              Trade direction ("BUY" or "SELL").
+            entry_price:            Planned entry price.
+            stop_loss:              Planned stop loss price.
+            current_equity:         Current account balance.
+            available_margin:       Available margin.
+            open_positions:         Count of currently open positions.
+            trades_today:           Count of trades placed today.
+            consecutive_losses:     Number of consecutive losing trades.
+            current_spread:         Current market spread.
+            has_open_same_direction: True if a position in same direction is open.
+            weekly_loss_pct:        Current weekly loss as percentage.
+            confidence:             ML model confidence (0.0--1.0) for Kelly tier.
+            atr:                    Current ATR for volatility-based sizing.
         """
         now = datetime.now(timezone.utc)
+
+        # Daily / weekly rollover (idempotent — runs once per UTC day)
+        await self.on_day_boundary(current_equity)
 
         # Update drawdown tracking
         self.update_equity_peak(current_equity)
@@ -217,12 +379,15 @@ class RiskManager:
         # Check if kill switch should trigger
         self.kill_switch.check_drawdown(current_drawdown)
 
-        # Estimate required margin (rough: entry_price * lot_size * margin_factor)
-        # For now, use a simplified check
-        preliminary_lot = self.sizer.calculate(current_equity, entry_price, stop_loss)
-        estimated_margin = entry_price * preliminary_lot * 0.05  # ~5% margin for Gold CFD
+        # Calculate the FINAL lot size first — the margin/leverage checks must
+        # validate the actual trade we will place, not an intermediate estimate
+        # (was a circular dependency: margin computed from a lot_size that was
+        # then recomputed further down).
+        lot_size = self.sizer.calculate(current_equity, entry_price, stop_loss)
+        estimated_margin = entry_price * lot_size * 0.05  # ~5% margin for Gold CFD
+        notional_value = entry_price * lot_size
 
-        # Run all 11 pre-trade checks
+        # Run all 11 pre-trade checks (now includes leverage cap)
         checks = self.checker.run_all(
             kill_switch_active=self.kill_switch.is_active,
             current_time=now,
@@ -237,9 +402,11 @@ class RiskManager:
             required_margin=estimated_margin,
             has_open_same_direction=has_open_same_direction,
             current_drawdown_pct=current_drawdown,
+            notional_value=notional_value,
+            equity=current_equity,
         )
 
-        # Evaluate results
+        # Evaluate results of 11 checks
         failed = [c for c in checks if not c.passed]
 
         if failed:
@@ -252,19 +419,79 @@ class RiskManager:
                 checks=checks,
             )
 
-        # All checks passed — calculate final lot size
-        lot_size = self.sizer.calculate(current_equity, entry_price, stop_loss)
+        # Check 12: Portfolio heat limit
+        sl_distance = abs(entry_price - stop_loss)
+        estimated_risk = sl_distance * lot_size
+        if not self.portfolio_heat.can_add_position(estimated_risk, current_equity):
+            current_heat = self.portfolio_heat.get_heat(current_equity)
+            heat_msg = (
+                f"[portfolio_heat] Heat {current_heat:.1f}% would exceed "
+                f"{self.portfolio_heat.max_heat_pct:.1f}% limit"
+            )
+            logger.warning("Trade REJECTED: %s", heat_msg)
+            heat_check = CheckResult(
+                check_name="portfolio_heat",
+                passed=False,
+                message=heat_msg,
+            )
+            return RiskApproval(
+                approved=False,
+                lot_size=0.0,
+                reason=heat_msg,
+                checks=checks + [heat_check],
+            )
+
+        # Check 13: Equity curve filter
+        if not self.equity_filter.is_trading_allowed():
+            equity_vs_ema = self.equity_filter.get_equity_vs_ema()
+            equity_msg = (
+                f"[equity_curve_filter] Trading blocked: equity {equity_vs_ema} EMA"
+            )
+            logger.warning("Trade REJECTED: %s", equity_msg)
+            equity_check = CheckResult(
+                check_name="equity_curve_filter",
+                passed=False,
+                message=equity_msg,
+            )
+            return RiskApproval(
+                approved=False,
+                lot_size=0.0,
+                reason=equity_msg,
+                checks=checks + [equity_check],
+            )
+
+        # Use advanced sizer if Kelly fraction has been set (trade history available)
+        sizing_reasoning = f"fixed_fractional risk={self.sizer.risk_per_trade_pct:.1f}%"
+        if self.advanced_sizer._kelly_fraction > 0.0:
+            sizing_result = self.advanced_sizer.get_position_size(
+                confidence=confidence,
+                atr=atr,
+                account_balance=current_equity,
+            )
+            lot_size = sizing_result["lot_size"]
+            sizing_reasoning = sizing_result["reasoning"]
+            logger.info(
+                "Advanced sizing applied: lot=%.2f, kelly=%.4f, tier=%s, atr_factor=%.2f",
+                lot_size,
+                sizing_result["kelly_fraction"],
+                sizing_result["confidence_tier"],
+                sizing_result["atr_factor"],
+            )
+        else:
+            logger.info(
+                "No Kelly data yet -- using fixed fractional sizing: lot=%.2f",
+                lot_size,
+            )
 
         logger.info(
-            "Trade APPROVED: %s @ %.2f, SL=%.2f, lot=%.2f (risk=%.1f%%)",
-            direction, entry_price, stop_loss, lot_size,
-            self.sizer.risk_per_trade_pct,
+            "Trade APPROVED: %s @ %.2f, SL=%.2f, lot=%.2f [%s]",
+            direction, entry_price, stop_loss, lot_size, sizing_reasoning,
         )
 
         return RiskApproval(
             approved=True,
             lot_size=lot_size,
-            reason="All 11 checks passed",
+            reason=f"All 13 checks passed. Sizing: {sizing_reasoning}",
             checks=checks,
         )
 
@@ -287,4 +514,7 @@ class RiskManager:
             "equity_peak": self._equity_peak,
             "last_loss_time": self._last_loss_time.isoformat() if self._last_loss_time else None,
             "metrics_cache": self.metrics_cache.summary(),
+            "portfolio_heat": self.portfolio_heat.get_heat(self._equity_peak or 10000.0),
+            "equity_curve_filter": self.equity_filter.get_equity_vs_ema(),
+            "kelly_fraction": self.advanced_sizer._kelly_fraction,
         }

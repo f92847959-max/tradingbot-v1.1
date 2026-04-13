@@ -230,6 +230,36 @@ def init_position_sizer(settings) -> AdvancedPositionSizer:
     return _instance
 
 
+def get_portfolio_heat() -> float:
+    """Phase 10 interface stub.
+
+    The actual implementation routes through RiskManager.
+    Use risk_manager.get_portfolio_heat() directly.
+
+    Raises:
+        RuntimeError: Always -- requires RiskManager instance.
+    """
+    raise RuntimeError(
+        "get_portfolio_heat() requires RiskManager. "
+        "Use risk_manager.get_portfolio_heat() directly."
+    )
+
+
+def is_trading_allowed() -> bool:
+    """Phase 10 interface stub.
+
+    The actual implementation routes through RiskManager.
+    Use risk_manager.is_trading_allowed() directly.
+
+    Raises:
+        RuntimeError: Always -- requires RiskManager instance.
+    """
+    raise RuntimeError(
+        "is_trading_allowed() requires RiskManager. "
+        "Use risk_manager.is_trading_allowed() directly."
+    )
+
+
 def get_position_size(
     confidence: float,
     atr: float,
