@@ -5,12 +5,12 @@ milestone_name: — Profitable Demo Trading
 current_phase: 09
 current_plan: 2
 status: Executing Phase 09
-last_updated: "2026-04-13T19:13:00.000Z"
+last_updated: "2026-04-13T19:16:52.373Z"
 progress:
   total_phases: 13
   completed_phases: 7
   total_plans: 27
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 # Project State
@@ -72,6 +72,9 @@ Phase 09 plan 02 complete -- proceed to Phase 09 plan 03 or next phase plan
 - [Phase 09-02]: Store max_drawdown_pcts as fraction [0,1] for consistent arithmetic; multiply by 100 only in log output
 - [Phase 09-02]: Vectorise paths dimension, iterate sequentially over trades axis — best NumPy tradeoff for in-place peak tracking
 - [Phase 09-02]: optimal_f scans 20 candidates 0.005..0.10; each candidate uses seed+i for independent-but-deterministic runs
+- [Phase 09]: Kelly MAX_KELLY cap set to 0.3 (not 0.25) to match plan spec: kelly_fraction(0.6, 2.0, 1.0) == 0.3
+- [Phase 09]: AdvancedPositionSizer in new file risk/position_sizer.py (not position_sizing.py) to preserve RiskManager backward compatibility
+- [Phase 09]: ATR=0 edge case: safe_atr=max(atr, 0.01) floor; factor clamped to max_scale (low ATR = allow larger position)
 
 ## Session Log
 
