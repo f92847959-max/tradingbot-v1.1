@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
 current_phase: 10
-current_plan: Not started
-status: Ready to plan
-last_updated: "2026-04-14T12:01:32.897Z"
+current_plan: 2
+status: Executing Phase 10
+last_updated: "2026-04-14T12:17:00.000Z"
 progress:
   total_phases: 13
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 27
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # Project State
@@ -18,7 +18,7 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 10
-**Current Plan:** Not started
+**Current Plan:** 1
 **Phase Status:** Phase 09 complete (3/3 plans complete)
 **Total Phases:** 13
 
@@ -77,6 +77,8 @@ Phase 09 complete -- proceed to Phase 10 (Smart Exit Engine)
 - [Phase 09]: ATR=0 edge case: safe_atr=max(atr, 0.01) floor; factor clamped to max_scale (low ATR = allow larger position)
 - [Phase 09]: approve_trade adds confidence/atr params with backward-compatible defaults; advanced sizing only activates when kelly_fraction > 0
 - [Phase 09]: EquityCurveFilter defaults to allowed=True with insufficient data; portfolio heat check uses sl_distance * lot_size as estimated_risk
+- [Phase 10]: Fibonacci 2.618 level = swing_high + range * 1.618 (formula: base + range * (ratio-1.0))
+- [Phase 10]: calculate_dynamic_sl: BUY uses max(atr_sl, structure_sl), SELL uses min(atr_sl, structure_sl) for most protective SL
 
 ## Session Log
 
@@ -179,3 +181,10 @@ Phase 09 complete -- proceed to Phase 10 (Smart Exit Engine)
   - trading/trading_loop.py: passes confidence+atr to approve_trade, tracks heat
   - risk/__init__.py: full package exports for all 9 risk classes
   - Phase 09 complete (3/3 plans): full advanced risk pipeline wired
+- 2026-04-14: Plan 10-01 complete (2/2 tasks, 21 tests, ~7 min)
+  - exit_engine/types.py: StructureLevel, ExitLevels, TrailingResult, PartialCloseAction, ExitSignal
+  - exit_engine/dynamic_sl.py: calculate_dynamic_sl (ATR + regime + structure) and find_swing_levels
+  - exit_engine/dynamic_tp.py: fibonacci_extensions, find_sr_levels, calculate_dynamic_tp (Fib+S/R+ATR)
+  - exit_engine/exit_signals.py: check_exit_signals (engulfing, shooting star, hammer, RSI divergence)
+  - tests/test_exit_engine_core.py: 21 unit tests, all pass (EXIT-01, EXIT-02, EXIT-05)
+  - Stopped at: Completed 10-01-PLAN.md
