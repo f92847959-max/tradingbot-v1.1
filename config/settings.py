@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     max_risk_per_trade_pct: float = 2.0
     max_daily_loss_pct: float = 5.0
     max_weekly_loss_pct: float = 10.0
-    max_open_positions: int = 3
+    max_open_positions: int = 1
     max_trades_per_day: int = 80
     kill_switch_drawdown_pct: float = 20.0
     max_consecutive_losses: int = 5

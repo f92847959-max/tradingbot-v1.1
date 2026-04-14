@@ -89,12 +89,23 @@ class MonitorMixin:
             if pnl < 0:
                 self.risk.record_loss()
 
+            # Phase 9: release portfolio heat + update equity curve filter
+            try:
+                sl = float(trade.stop_loss) if trade.stop_loss is not None else 0.0
+                entry = float(trade.entry_price) if trade.entry_price is not None else 0.0
+                lot = float(trade.lot_size) if trade.lot_size is not None else 0.0
+                risk_amount = abs(entry - sl) * lot
+                account = await asyncio.wait_for(self.broker.get_account(), timeout=15)
+                self.risk.on_position_closed(risk_amount, account.balance, account.balance)
+            except Exception:
+                logger.exception("on_position_closed update failed")
+
             reason = trade.close_reason or "unknown"
             duration_min = 0
             if trade.opened_at and trade.closed_at:
                 duration_min = int((trade.closed_at - trade.opened_at).total_seconds() / 60)
 
-            self.notifications.notify_trade_closed(
+            await self.notifications.notify_trade_closed(
                 direction=trade.direction,
                 entry=float(trade.entry_price),
                 exit_price=float(trade.exit_price) if trade.exit_price else 0.0,
