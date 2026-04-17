@@ -277,3 +277,34 @@ class EconomicEventRecord(Base):
         Index("idx_econ_events_time", "event_time"),
         Index("uq_econ_events", "title", "event_time", unique=True),
     )
+
+
+# ---------------------------------------------------------------------------
+# News Sentiment (Phase 11)
+# ---------------------------------------------------------------------------
+
+class NewsSentiment(Base):
+    __tablename__ = "news_sentiment"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    published_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    headline: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text)
+    url: Mapped[str | None] = mapped_column(Text)
+    entry_id: Mapped[str] = mapped_column(Text, nullable=False)
+    sentiment_score: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False)
+    source_weight: Mapped[float] = mapped_column(Numeric(4, 3), default=1.0, nullable=False)
+    keywords_matched: Mapped[list | None] = mapped_column(JSON_COMPAT)
+    model_used: Mapped[str] = mapped_column(String(20), default="vader", nullable=False)
+
+    __table_args__ = (
+        Index("idx_news_sentiment_published", "published_at"),
+        Index("idx_news_sentiment_source", "source"),
+        Index("uq_news_sentiment_entry_id", "entry_id", unique=True),
+    )
