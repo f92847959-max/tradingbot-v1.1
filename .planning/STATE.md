@@ -2,29 +2,29 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
-current_phase: 10
+current_phase: 11
 current_plan: 2
-status: Executing Phase 10
-last_updated: "2026-04-14T12:17:00.000Z"
+status: Executing Phase 11
+last_updated: "2026-04-17T15:09:59.566Z"
 progress:
-  total_phases: 13
+  total_phases: 14
   completed_phases: 9
-  total_plans: 27
-  completed_plans: 24
+  total_plans: 30
+  completed_plans: 25
 ---
 
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 10
-**Current Plan:** 1
-**Phase Status:** Phase 09 complete (3/3 plans complete)
-**Total Phases:** 13
+**Current Phase:** 11
+**Current Plan:** 2
+**Phase Status:** Phase 11 in progress (1/3 plans complete — 11-01 done)
+**Total Phases:** 14
 
 ## Next Action
 
-Phase 09 complete -- proceed to Phase 10 (Smart Exit Engine)
+Phase 11 Plan 01 complete (foundation) -- proceed to Plan 11-02 (sentiment/ module implementation: news_fetcher, sentiment_analyzer, sentiment_aggregator, sentiment_repository)
 
 ## Decisions
 
@@ -79,6 +79,16 @@ Phase 09 complete -- proceed to Phase 10 (Smart Exit Engine)
 - [Phase 09]: EquityCurveFilter defaults to allowed=True with insufficient data; portfolio heat check uses sl_distance * lot_size as estimated_risk
 - [Phase 10]: Fibonacci 2.618 level = swing_high + range * 1.618 (formula: base + range * (ratio-1.0))
 - [Phase 10]: calculate_dynamic_sl: BUY uses max(atr_sl, structure_sl), SELL uses min(atr_sl, structure_sl) for most protective SL
+- [Phase 11]: entry_id (feedparser-normalised) used as dedup key for news_sentiment (not url with UTM noise)
+- [Phase 11]: sentiment_enabled defaults to False for graceful fallback (mirrors MiroFish Phase 6 opt-in pattern)
+- [Phase 11]: Alembic down_revision=None for 20260416_news_sent migration (first in versions/ directory)
+- [Phase 11]: Test scaffold uses pyproject asyncio_mode=auto instead of pytest_asyncio (not in venv)
+
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 14 added: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates
 
 ## Session Log
 
@@ -188,3 +198,12 @@ Phase 09 complete -- proceed to Phase 10 (Smart Exit Engine)
   - exit_engine/exit_signals.py: check_exit_signals (engulfing, shooting star, hammer, RSI divergence)
   - tests/test_exit_engine_core.py: 21 unit tests, all pass (EXIT-01, EXIT-02, EXIT-05)
   - Stopped at: Completed 10-01-PLAN.md
+- 2026-04-16: Phase 14 added to roadmap — Elliott Wave Theorie Integration (not yet planned)
+- 2026-04-17: Plan 11-01 complete (3/3 tasks, 24 red tests, 15 files, ~3 min)
+  - requirements.txt + pyproject.toml: pinned feedparser==6.0.12, vaderSentiment==3.3.2; added [sentiment-finbert] optional extras
+  - config/settings.py: 9 new sentiment_* fields (opt-in, defaults per CONTEXT D-01..D-07) + sentiment_poll_interval_seconds >= 60 validator
+  - database/models.py: NewsSentiment ORM model with 12 cols, 3 indices (entry_id unique dedup key per D-08)
+  - database/migrations/versions/20260416_add_news_sentiment.py: first Alembic migration (down_revision=None)
+  - tests/sentiment/: 10 files, 24 red tests (pytest.fail bodies) covering SENT-01..SENT-05
+  - Rule 3 deviation: dropped pytest_asyncio import (not in venv); project pyproject asyncio_mode=auto handles async fixtures
+  - Stopped at: Completed 11-01-PLAN.md (Plan 11-02 can proceed)

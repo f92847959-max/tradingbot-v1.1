@@ -175,32 +175,6 @@ Plans:
 
 ---
 
-### Phase 7: Demo Trading Validation
-**Goal:** Bot runs profitably on demo account, proving the system works
-**Requirements:** DEMO-01, DEMO-02, DEMO-03, DEMO-04
-**Plans:** 3 plans
-
-Plans:
-- [ ] 07-01-PLAN.md — Stability hardening (keepalive, heartbeat, reasoning defaults, daily stats)
-- [ ] 07-02-PLAN.md — Operational scripts (preflight check, demo report, PowerShell restart wrapper)
-- [ ] 07-03-PLAN.md — Demo readiness verification and operator checkpoint
-
-**Scope:**
-- Deploy bot on Capital.com demo account
-- Run for 2+ weeks continuously
-- Monitor and log all trades
-- Evaluate profitability
-
-**UAT:**
-- [ ] Bot runs 24+ hours without crashes
-- [ ] Trades open and close automatically
-- [ ] Positive P&L over 2-week period
-- [ ] All trades logged with full details
-
----
-
----
-
 ### Phase 8: Wirtschaftskalender-Integration
 **Goal:** Automatischer Schutz vor Verlusten bei High-Impact Events (NFP, FOMC, CPI) durch Trading-Pausen und Position-Management
 **Requirements:** ECAL-01, ECAL-02, ECAL-03, ECAL-04
@@ -331,6 +305,40 @@ Plans:
 **Total phases:** 13
 **Total requirements:** 58 (31 v1 + 27 new)
 
+### Phase 14: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 13
+**Plans:** 1/3 plans executed
+
+Plans:
+- [ ] TBD (run /gsd:plan-phase 14 to break down)
+
+---
+
+### Phase 15: Demo Trading Validation
+**Goal:** Bot runs profitably on demo account, proving the system works
+**Requirements:** DEMO-01, DEMO-02, DEMO-03, DEMO-04
+**Plans:** 3 plans
+
+Plans:
+- [ ] 15-01-PLAN.md — Stability hardening (keepalive, heartbeat, reasoning defaults, daily stats)
+- [ ] 15-02-PLAN.md — Operational scripts (preflight check, demo report, PowerShell restart wrapper)
+- [ ] 15-03-PLAN.md — Demo readiness verification and operator checkpoint
+
+**Scope:**
+- Deploy bot on Capital.com demo account
+- Run for 2+ weeks continuously
+- Monitor and log all trades
+- Evaluate profitability
+
+**UAT:**
+- [ ] Bot runs 24+ hours without crashes
+- [ ] Trades open and close automatically
+- [ ] Positive P&L over 2-week period
+- [ ] All trades logged with full details
+
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-03-25 — added phases 08-13 (Block A + B)*
+*Last updated: 2026-04-17 — moved demo validation to Phase 15 (deferred until after new features)*

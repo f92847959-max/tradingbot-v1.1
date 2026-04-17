@@ -71,19 +71,19 @@
 
 ### Smart Exit Engine
 
-- [ ] **EXIT-01**: Dynamischer SL berechnet aus ATR + Struktur-Level (nicht fix)
-- [ ] **EXIT-02**: Dynamischer TP anhand Fibonacci Extensions / naechste S/R-Zone
+- [x] **EXIT-01**: Dynamischer SL berechnet aus ATR + Struktur-Level (nicht fix)
+- [x] **EXIT-02**: Dynamischer TP anhand Fibonacci Extensions / naechste S/R-Zone
 - [ ] **EXIT-03**: Trailing Stop aktiviert nach +1R, trailt per ATR
 - [ ] **EXIT-04**: Partial Close schliesst 50% bei TP1, Rest laeuft mit Trailing
-- [ ] **EXIT-05**: Exit-Signale erkennen Reversals (Kerzen, Momentum-Divergenz)
+- [x] **EXIT-05**: Exit-Signale erkennen Reversals (Kerzen, Momentum-Divergenz)
 
 ### News-Sentiment-Analyse
 
-- [ ] **SENT-01**: RSS-Feeds (Reuters, Bloomberg, Investing.com, Kitco) werden alle 5min abgerufen und Gold-relevant gefiltert
-- [ ] **SENT-02**: NLP Sentiment-Score pro Nachricht berechnet (-1.0 bis +1.0, FinBERT/VADER)
-- [ ] **SENT-03**: Aggregierte Sentiment-Werte (1h/4h/24h rollierend) und Sentiment-Momentum verfuegbar
-- [ ] **SENT-04**: Sentiment-Features (score, momentum, divergenz, news_count) als ML-Input nutzbar
-- [ ] **SENT-05**: Historische Sentiment-Daten gespeichert und fuer Backtesting abrufbar
+- [x] **SENT-01**: RSS-Feeds (Reuters, Bloomberg, Investing.com, Kitco) werden alle 5min abgerufen und Gold-relevant gefiltert
+- [x] **SENT-02**: NLP Sentiment-Score pro Nachricht berechnet (-1.0 bis +1.0, FinBERT/VADER)
+- [x] **SENT-03**: Aggregierte Sentiment-Werte (1h/4h/24h rollierend) und Sentiment-Momentum verfuegbar
+- [x] **SENT-04**: Sentiment-Features (score, momentum, divergenz, news_count) als ML-Input nutzbar
+- [x] **SENT-05**: Historische Sentiment-Daten gespeichert und fuer Backtesting abrufbar
 
 ### Korrelations-Engine
 
