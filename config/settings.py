@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     trading_interval_seconds: int = 60
     position_check_seconds: int = 30
     timeframes: list[str] = ["5m", "15m", "1h"]
-    min_confidence: float = 0.35
+    min_confidence: float = 0.55
     min_trade_score: int = 60
     confirmation_timeout_seconds: int = 120
 
@@ -135,6 +135,24 @@ class Settings(BaseSettings):
     calendar_cooldown_minutes_after: int = 15   # Wait N min after high-impact
     calendar_force_close_on_extreme: bool = True  # Close positions on extreme events (NFP, FOMC, CPI)
 
+    # -- News Sentiment Analysis (Phase 11) -----------------------------------
+    sentiment_enabled: bool = False           # Opt-in; False = graceful fallback
+    sentiment_model: Literal["vader", "finbert"] = "vader"  # NLP model selection
+    sentiment_poll_interval_seconds: int = 300  # 5 minutes (SENT-01)
+    sentiment_retention_days: int = 30        # Keep 30 days of headlines
+    sentiment_min_keywords: int = 1           # Min gold keywords to accept article
+    sentiment_seed_update_hours: int = 1      # MiroFish seed refresh cadence
+    sentiment_finbert_cache_path: str = ""    # TRANSFORMERS_CACHE override (Windows-safe)
+    sentiment_halflife_minutes: int = 30      # EWM decay halflife
+    sentiment_source_weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "kitco": 1.0,
+            "investing": 0.9,
+            "marketwatch": 0.8,
+            "goldbroker": 0.7,
+        }
+    )
+
     # -------------------------------------------------------------------------
     # Computed properties
     # -------------------------------------------------------------------------
@@ -194,6 +212,15 @@ class Settings(BaseSettings):
         if v < 10:
             raise ValueError(
                 "trading_interval_seconds must be >= 10 (current: %d)" % v
+            )
+        return v
+
+    @field_validator("sentiment_poll_interval_seconds")
+    @classmethod
+    def validate_sentiment_interval(cls, v: int) -> int:
+        if v < 60:
+            raise ValueError(
+                "sentiment_poll_interval_seconds must be >= 60"
             )
         return v
 
