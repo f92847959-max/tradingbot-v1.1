@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <link>https://example.com</link>
+    <description>Phase 11 test fixture feed</description>
+    <item>
+      <title>Gold surges on Fed pause signal</title>
+      <link>https://example.com/gold-surges?utm_source=rss</link>
+      <description>Gold prices jumped as the Federal Reserve signaled a pause in rate hikes, boosting safe-haven demand.</description>
+      <pubDate>Wed, 16 Apr 2026 10:00:00 GMT</pubDate>
+      <guid>test-gold-surges-001</guid>
+    </item>
+    <item>
+      <title>Apple launches new iPhone</title>
+      <link>https://example.com/iphone</link>
+      <description>Apple announced a new iPhone model today with upgraded camera features.</description>
+      <pubDate>Wed, 16 Apr 2026 10:05:00 GMT</pubDate>
+      <guid>test-iphone-001</guid>
+    </item>
+    <item>
+      <title>Dollar strengthens, gold slides on hawkish Fed</title>
+      <link>https://example.com/gold-slides</link>
+      <description>DXY rallied and gold fell amid hawkish Fed commentary on inflation and interest rates.</description>
+      <pubDate>Wed, 16 Apr 2026 10:10:00 GMT</pubDate>
+      <guid>test-gold-slides-001</guid>
+    </item>
+  </channel>
+</rss>

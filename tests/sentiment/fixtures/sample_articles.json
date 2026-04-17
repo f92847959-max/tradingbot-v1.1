@@ -1,0 +1,62 @@
+[
+  {
+    "source": "kitco",
+    "headline": "Gold rallies above $2100 on Fed dovish pivot",
+    "summary": "Spot gold climbed after Federal Reserve signaled rate cuts.",
+    "url": "https://www.kitco.com/news/2026-04-16/gold-rallies",
+    "entry_id": "kitco-2026-04-16-001",
+    "published_at": "2026-04-16T11:30:00Z",
+    "sentiment_score": 0.72,
+    "source_weight": 1.0
+  },
+  {
+    "source": "investing",
+    "headline": "Gold ticks higher on safe-haven flows",
+    "summary": "Geopolitical tensions support precious metal demand.",
+    "url": "https://www.investing.com/news/2026-04-16/gold-safe-haven",
+    "entry_id": "investing-2026-04-16-001",
+    "published_at": "2026-04-16T11:45:00Z",
+    "sentiment_score": 0.35,
+    "source_weight": 0.9
+  },
+  {
+    "source": "marketwatch",
+    "headline": "Gold falls as dollar strengthens on hawkish Fed",
+    "summary": "DXY hits 105 as Fed minutes signal prolonged tightening.",
+    "url": "https://www.marketwatch.com/story/gold-falls-2026-04-16",
+    "entry_id": "marketwatch-2026-04-16-001",
+    "published_at": "2026-04-16T09:15:00Z",
+    "sentiment_score": -0.48,
+    "source_weight": 0.8
+  },
+  {
+    "source": "goldbroker",
+    "headline": "Central bank buying steady in Q1 2026",
+    "summary": "Global central banks continued accumulating gold reserves.",
+    "url": "https://www.goldbroker.com/news/2026-04-16/central-banks",
+    "entry_id": "goldbroker-2026-04-16-001",
+    "published_at": "2026-04-15T20:00:00Z",
+    "sentiment_score": 0.55,
+    "source_weight": 0.7
+  },
+  {
+    "source": "kitco",
+    "headline": "Gold consolidates after record rally",
+    "summary": "Precious metals pause as traders book profits.",
+    "url": "https://www.kitco.com/news/2026-04-16/gold-consolidates",
+    "entry_id": "kitco-2026-04-16-002",
+    "published_at": "2026-04-16T08:00:00Z",
+    "sentiment_score": 0.05,
+    "source_weight": 1.0
+  },
+  {
+    "source": "investing",
+    "headline": "Gold outlook mixed amid Fed uncertainty",
+    "summary": "Analysts split on near-term direction for bullion prices.",
+    "url": "https://www.investing.com/news/2026-04-15/gold-outlook",
+    "entry_id": "investing-2026-04-15-001",
+    "published_at": "2026-04-15T14:30:00Z",
+    "sentiment_score": -0.12,
+    "source_weight": 0.9
+  }
+]
