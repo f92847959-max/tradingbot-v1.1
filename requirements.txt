@@ -14,6 +14,7 @@ joblib>=1.4.0
 pandas>=2.2.0,<3.0
 pandas-ta>=0.3.14b1
 numpy>=2.2.4
+yfinance==1.1.0  # Phase 12 inter-market correlations (CORR-01)
 requests>=2.32.0
 aiohttp>=3.11.0
 websockets>=14.0

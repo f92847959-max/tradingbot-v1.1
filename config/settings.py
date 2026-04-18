@@ -153,6 +153,11 @@ class Settings(BaseSettings):
         }
     )
 
+    # -- Inter-Market Correlations (Phase 12) ---------------------------------
+    correlation_enabled: bool = False           # Opt-in; False = graceful fallback (snapshot=None)
+    correlation_cache_ttl_seconds: int = 3600    # 1h TTL (RESEARCH Pitfall 3: yfinance rate limits)
+    correlation_lookback_days: int = 200          # Need >=120 for corr_*_120 (RESEARCH Pitfall 2)
+
     # -------------------------------------------------------------------------
     # Computed properties
     # -------------------------------------------------------------------------
