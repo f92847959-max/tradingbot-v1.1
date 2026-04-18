@@ -87,7 +87,7 @@
 
 ### Korrelations-Engine
 
-- [ ] **CORR-01**: Asset-Daten (DXY, US10Y, Silber, VIX, S&P500) werden regelmaessig abgerufen
+- [x] **CORR-01**: Asset-Daten (DXY, US10Y, Silber, VIX, S&P500) werden regelmaessig abgerufen
 - [ ] **CORR-02**: Rolling Correlation ueber mehrere Zeitfenster (20/60/120 Perioden) berechnet
 - [ ] **CORR-03**: Korrelations-Breakdowns und Divergenzen werden erkannt und als Signal gemeldet
 - [ ] **CORR-04**: Korrelations-Features als ML-Input nutzbar (correlation, divergence, lead_lag)

@@ -2,29 +2,29 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
-current_phase: 11
+current_phase: 12
 current_plan: 2
-status: Executing Phase 11
-last_updated: "2026-04-17T15:09:59.566Z"
+status: Executing Phase 12
+last_updated: "2026-04-18T16:00:00.000Z"
 progress:
   total_phases: 14
   completed_phases: 9
-  total_plans: 30
-  completed_plans: 25
+  total_plans: 33
+  completed_plans: 27
 ---
 
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 11
+**Current Phase:** 12
 **Current Plan:** 2
-**Phase Status:** Phase 11 in progress (1/3 plans complete — 11-01 done)
+**Phase Status:** Phase 12 in progress (1/3 plans complete — 12-01 done)
 **Total Phases:** 14
 
 ## Next Action
 
-Phase 11 Plan 01 complete (foundation) -- proceed to Plan 11-02 (sentiment/ module implementation: news_fetcher, sentiment_analyzer, sentiment_aggregator, sentiment_repository)
+Phase 12 Plan 01 complete (correlation/ foundation: yfinance pin, opt-in settings, CorrelationSnapshot, AssetFetcher) -- proceed to Plan 12-02 (correlation_calculator: rolling corr, regime detection, divergence)
 
 ## Decisions
 
@@ -83,6 +83,8 @@ Phase 11 Plan 01 complete (foundation) -- proceed to Plan 11-02 (sentiment/ modu
 - [Phase 11]: sentiment_enabled defaults to False for graceful fallback (mirrors MiroFish Phase 6 opt-in pattern)
 - [Phase 11]: Alembic down_revision=None for 20260416_news_sent migration (first in versions/ directory)
 - [Phase 11]: Test scaffold uses pyproject asyncio_mode=auto instead of pytest_asyncio (not in venv)
+- [Phase 12]: TTL default 3600s aligned between AssetFetcher constructor and correlation_cache_ttl_seconds setting
+- [Phase 12]: Index normalisation uses tz_convert('UTC').tz_localize(None) to preserve UTC semantics
 
 ## Accumulated Context
 
