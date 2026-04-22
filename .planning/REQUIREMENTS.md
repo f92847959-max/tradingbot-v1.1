@@ -73,8 +73,8 @@
 
 - [x] **EXIT-01**: Dynamischer SL berechnet aus ATR + Struktur-Level (nicht fix)
 - [x] **EXIT-02**: Dynamischer TP anhand Fibonacci Extensions / naechste S/R-Zone
-- [ ] **EXIT-03**: Trailing Stop aktiviert nach +1R, trailt per ATR
-- [ ] **EXIT-04**: Partial Close schliesst 50% bei TP1, Rest laeuft mit Trailing
+- [x] **EXIT-03**: Trailing Stop aktiviert nach +1R, trailt per ATR
+- [x] **EXIT-04**: Partial Close schliesst 50% bei TP1, Rest laeuft mit Trailing
 - [x] **EXIT-05**: Exit-Signale erkennen Reversals (Kerzen, Momentum-Divergenz)
 
 ### News-Sentiment-Analyse
@@ -91,6 +91,21 @@
 - [ ] **CORR-02**: Rolling Correlation ueber mehrere Zeitfenster (20/60/120 Perioden) berechnet
 - [ ] **CORR-03**: Korrelations-Breakdowns und Divergenzen werden erkannt und als Signal gemeldet
 - [ ] **CORR-04**: Korrelations-Features als ML-Input nutzbar (correlation, divergence, lead_lag)
+
+### AI Confidence Calibration & Decision Governance
+
+- [ ] **CONF-01**: Modell- und Ensemble-Confidence wird gegen OOS-/Walk-Forward-Trefferquoten kalibriert
+- [ ] **CONF-02**: Buy/Sell/Hold-Thresholds sind versioniert, datenbasiert und optional regime-spezifisch
+- [ ] **CONF-03**: Signal-Gates loggen Confidence, Threshold, Regime, Konfliktquote und Gate-Reason je Entscheidung
+- [ ] **CONF-04**: Champion/Challenger- oder Shadow-Auswertung prueft neue Gates/Modelle vor Rollout
+- [ ] **CONF-05**: Auto-Retraining-Trigger basiert auf kalibrierter Performance-Degradation statt roher Confidence
+
+### AI Indicator Specialist Training
+
+- [ ] **AITRAIN-01**: Specialist-Feature-Block fuer zusaetzlichen Indikator wird reproduzierbar berechnet und versioniert
+- [ ] **AITRAIN-02**: Separates Specialist-AI-Modell wird trainiert, gespeichert und zur Laufzeit geladen
+- [ ] **AITRAIN-03**: Walk-Forward-Vergleich prueft Core-Ensemble gegen Core+Specialist ohne Leakage
+- [ ] **AITRAIN-04**: Ensemble-Governance loggt Core-Score, Specialist-Score, Confidence und finale Gate-Entscheidung
 
 ### Orderbuch-Analyse
 
@@ -124,7 +139,7 @@
 | Feature | Reason |
 |---------|--------|
 | Deep learning models (LSTM/Transformer) | Overfit easily on small datasets, XGBoost/LightGBM better for this |
-| Sentiment analysis | Noisy, unreliable for intraday gold trading |
+| Sentiment-only trading decisions | Sentiment ist nur Zusatz-Feature, keine eigenstaendige Intraday-Gold-Strategie |
 | Multiple trading pairs | Focus on Gold only until profitable |
 | Mobile app | Web interface sufficient |
 | Live trading with real money | Must prove profitability in demo first |
@@ -144,36 +159,72 @@
 | CODE-06 | Phase 1 | Pending |
 | TRAIN-01 | Phase 2 | Pending |
 | TRAIN-02 | Phase 2 | Pending |
-| TRAIN-03 | Phase 3 | Pending |
-| TRAIN-04 | Phase 3 | Pending |
 | TRAIN-05 | Phase 2 | Pending |
 | TRAIN-06 | Phase 2 | Complete |
 | TRAIN-07 | Phase 2 | Pending |
+| TRAIN-03 | Phase 3 | Pending |
+| TRAIN-04 | Phase 3 | Pending |
 | STRAT-01 | Phase 4 | Complete |
 | STRAT-02 | Phase 4 | Pending |
 | STRAT-03 | Phase 4 | Complete |
 | STRAT-04 | Phase 4 | Pending |
-| BACK-01 | Phase 5 | Pending |
-| BACK-02 | Phase 5 | Pending |
-| BACK-03 | Phase 5 | Pending |
-| BACK-04 | Phase 5 | Pending |
+| BACK-01 | Phase 5 | Complete |
+| BACK-02 | Phase 5 | Complete |
+| BACK-03 | Phase 5 | Complete |
+| BACK-04 | Phase 5 | Complete |
 | MIRO-01 | Phase 6 | Complete |
 | MIRO-02 | Phase 6 | Complete |
 | MIRO-03 | Phase 6 | Complete |
 | MIRO-04 | Phase 6 | Complete |
 | MIRO-05 | Phase 6 | Complete |
 | MIRO-06 | Phase 6 | Complete |
-| DEMO-01 | Phase 7 | Pending |
-| DEMO-02 | Phase 7 | Pending |
-| DEMO-03 | Phase 7 | Pending |
-| DEMO-04 | Phase 7 | Pending |
+| ECAL-01 | Phase 8 | Complete |
+| ECAL-02 | Phase 8 | Complete |
+| ECAL-03 | Phase 8 | Complete |
+| ECAL-04 | Phase 8 | Pending |
+| RISK-01 | Phase 9 | Complete |
+| RISK-02 | Phase 9 | Complete |
+| RISK-03 | Phase 9 | Complete |
+| RISK-04 | Phase 9 | Complete |
+| RISK-05 | Phase 9 | Complete |
+| EXIT-01 | Phase 10 | Complete |
+| EXIT-02 | Phase 10 | Complete |
+| EXIT-03 | Phase 10 | Complete |
+| EXIT-04 | Phase 10 | Complete |
+| EXIT-05 | Phase 10 | Complete |
+| SENT-01 | Phase 11 | Complete |
+| SENT-02 | Phase 11 | Complete |
+| SENT-03 | Phase 11 | Complete |
+| SENT-04 | Phase 11 | Complete |
+| SENT-05 | Phase 11 | Complete |
+| CORR-01 | Phase 12 | Complete |
+| CORR-02 | Phase 12 | Pending |
+| CORR-03 | Phase 12 | Pending |
+| CORR-04 | Phase 12 | Pending |
+| CONF-01 | Phase 12.1 | Pending |
+| CONF-02 | Phase 12.1 | Pending |
+| CONF-03 | Phase 12.1 | Pending |
+| CONF-04 | Phase 12.1 | Pending |
+| CONF-05 | Phase 12.1 | Pending |
+| AITRAIN-01 | Phase 12.3 | Pending |
+| AITRAIN-02 | Phase 12.3 | Pending |
+| AITRAIN-03 | Phase 12.3 | Pending |
+| AITRAIN-04 | Phase 12.3 | Pending |
+| FLOW-01 | Phase 13 | Pending |
+| FLOW-02 | Phase 13 | Pending |
+| FLOW-03 | Phase 13 | Pending |
+| FLOW-04 | Phase 13 | Pending |
+| DEMO-01 | Phase 15 | Pending |
+| DEMO-02 | Phase 15 | Pending |
+| DEMO-03 | Phase 15 | Pending |
+| DEMO-04 | Phase 15 | Pending |
 
 
 **Coverage:**
-- v1 requirements: 31 total
-- Mapped to phases: 31
+- Active requirements tracked above: 67 total
+- Mapped to phases: 67
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-03*
-*Last updated: 2026-03-03 after initial definition*
+*Last updated: 2026-04-22 after Phase 12.1 confidence governance and Phase 12.3 specialist training insertion*

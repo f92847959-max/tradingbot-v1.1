@@ -5,9 +5,9 @@ milestone_name: — Profitable Demo Trading
 current_phase: 12
 current_plan: 2
 status: Executing Phase 12
-last_updated: "2026-04-18T16:00:00.000Z"
+last_updated: "2026-04-22T20:15:00.000Z"
 progress:
-  total_phases: 14
+  total_phases: 16
   completed_phases: 9
   total_plans: 33
   completed_plans: 27
@@ -20,7 +20,7 @@ progress:
 **Current Phase:** 12
 **Current Plan:** 2
 **Phase Status:** Phase 12 in progress (1/3 plans complete — 12-01 done)
-**Total Phases:** 14
+**Total Phases:** 16
 
 ## Next Action
 
@@ -89,6 +89,10 @@ Phase 12 Plan 01 complete (correlation/ foundation: yfinance pin, opt-in setting
 ## Accumulated Context
 
 ### Roadmap Evolution
+
+- Phase 12.1 inserted after Phase 12: AI Confidence Calibration & Decision Governance (URGENT)
+
+- Phase 12.3 inserted after Phase 12.1: AI Indicator Specialist Training (additional AI model for a second indicator/feature block)
 
 - Phase 14 added: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates
 

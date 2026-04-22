@@ -195,7 +195,7 @@ Plans:
 - [x] Kalender-Daten werden regelmaessig abgerufen und gefiltert
 - [x] High-Impact Events blockieren neue Trades automatisch
 - [x] Bestehende Positionen werden bei Extrem-Events geschlossen
-- [ ] Historische Events fuer Backtesting verfuegbar
+- [x] Historische Events fuer Backtesting verfuegbar
 
 ---
 
@@ -211,17 +211,23 @@ Plans:
 - Equity Curve Filter (kein Trading bei Drawdown > Threshold)
 
 **UAT:**
-- [ ] Position Size berechnet sich dynamisch nach Kelly/Volatilitaet
-- [ ] Portfolio Heat ueberschreitet nie 5% des Kontostands
-- [ ] Monte Carlo zeigt Drawdown-Verteilung und Confidence Intervals
-- [ ] Equity Curve Filter stoppt Trading bei starkem Drawdown
-- [ ] Alle Sizing-Entscheidungen geloggt mit Begruendung
+- [x] Position Size berechnet sich dynamisch nach Kelly/Volatilitaet
+- [x] Portfolio Heat ueberschreitet nie 5% des Kontostands
+- [x] Monte Carlo zeigt Drawdown-Verteilung und Confidence Intervals
+- [x] Equity Curve Filter stoppt Trading bei starkem Drawdown
+- [x] Alle Sizing-Entscheidungen geloggt mit Begruendung
 
 ---
 
 ### Phase 10: Smart Exit Engine
 **Goal:** Intelligentes dynamisches TP/SL-Management statt fixer Werte — ATR, Struktur und Trailing fuer bessere Exits
 **Requirements:** EXIT-01, EXIT-02, EXIT-03, EXIT-04, EXIT-05
+**Plans:** 3/3 plans complete
+
+Plans:
+- [x] 10-01-PLAN.md — Dynamic SL/TP core and exit signal detector
+- [x] 10-02-PLAN.md — ATR trailing stop with breakeven after +1R
+- [x] 10-03-PLAN.md — TP1 partial close decision manager
 
 **Scope:**
 - Dynamischer SL: ATR-basiert + unter/ueber Struktur-Level
@@ -231,11 +237,11 @@ Plans:
 - Exit-Signale: Reversal-Kerzen, Momentum-Divergenz
 
 **UAT:**
-- [ ] SL wird dynamisch aus ATR + Struktur berechnet, nicht fix
-- [ ] TP passt sich an Marktbedingungen an (Fibonacci/S/R)
-- [ ] Trailing Stop aktiviert sich nach definiertem Gewinn
-- [ ] Partial Close schliesst Teilposition bei TP1
-- [ ] Exit-Signale erkennen Reversals und schliessen frueh
+- [x] SL wird dynamisch aus ATR + Struktur berechnet, nicht fix
+- [x] TP passt sich an Marktbedingungen an (Fibonacci/S/R)
+- [x] Trailing Stop aktiviert sich nach definiertem Gewinn
+- [x] Partial Close schliesst Teilposition bei TP1
+- [x] Exit-Signale erkennen Reversals und schliessen frueh
 
 ---
 
@@ -283,6 +289,57 @@ Plans:
 
 ---
 
+### Phase 12.1 (INSERTED): AI Confidence Calibration & Decision Governance
+**Goal:** Kalibrierte AI-Confidence und datenbasierte Decision-Governance einfuehren, damit Buy/Sell/Hold-Gates nachvollziehbar, versioniert und rolloutsicher sind.
+**Requirements:** CONF-01, CONF-02, CONF-03, CONF-04, CONF-05
+**Depends on:** Phase 12
+**Plans:** 0 planned
+
+Plans:
+- [x] 12.1-RESEARCH.md - Confidence calibration and decision governance researched
+- [ ] TBD (run /gsd:plan-phase 12.1 to break down)
+
+**Scope:**
+- Confidence Calibration fuer Modell- und Ensemble-Scores
+- Datenbasierte Buy/Sell/Hold-Schwellen statt fixer Confidence-Grenzen
+- Regime-spezifische Gate-Logik fuer Signal-Freigabe
+- Decision Logging fuer Confidence, Konflikte und Ablehnungsgruende
+- Vorbereitung fuer Champion/Challenger- und Auto-Retraining-Entscheidungen
+
+**UAT:**
+- [ ] Modell- und Ensemble-Confidence wird gegen reale Trefferquoten kalibriert
+- [ ] Thresholds sind versioniert und datenbasiert ableitbar
+- [ ] Regime-spezifische Gates koennen schwache Signale konsistent blockieren
+- [ ] Live-Entscheidungen loggen Confidence, Threshold und Gate-Reason
+
+---
+
+### Phase 12.3 (INSERTED): AI Indicator Specialist Training
+**Goal:** Zusaetzliches Specialist-AI-Modell fuer einen zweiten Indikator-/Feature-Block trainieren und als separate Stimme in das Ensemble laden.
+**Requirements:** AITRAIN-01, AITRAIN-02, AITRAIN-03, AITRAIN-04
+**Depends on:** Phase 12.1
+**Plans:** 0 planned
+
+Plans:
+- [x] 12.3-RESEARCH.md - Market-structure/liquidity specialist architecture researched
+- [ ] TBD (run /gsd:plan-phase 12.3)
+
+**Scope:**
+- Zweites AI-Modell als Specialist laden, getrennt von XGBoost/LightGBM Core-Ensemble
+- Kandidat-Indikator: Market-Structure/Liquidity-Sweep/Fair-Value-Gap-Features als Gold-spezifischer Signalblock
+- Eigene Trainingspipeline fuer den Specialist mit Walk-Forward-Validation und Feature-Leakage-Schutz
+- Specialist-Output als `specialist_score`, `specialist_confidence`, `specialist_reason` ins Ensemble geben
+- Governance aus Phase 12.1 nutzen: Specialist darf Signale bestaetigen, abschwaechen oder vetoen, aber nicht ungeprueft alleine traden
+- Vergleich gegen Baseline: Core-Ensemble vs. Core+Specialist mit Profit Factor, Drawdown, Calibration und Trade Count
+
+**UAT:**
+- [ ] Specialist-Feature-Block wird berechnet und versioniert
+- [ ] Specialist-AI-Modell wird separat trainiert und geladen
+- [ ] Walk-Forward-Vergleich zeigt messbaren Mehrwert oder blockiert Rollout
+- [ ] Ensemble loggt Core-Score, Specialist-Score und finale Governance-Entscheidung
+
+---
+
 ### Phase 13: Orderbuch-Analyse
 **Goal:** Order Flow / DOM Analyse zur Erkennung institutioneller Aktivitaet und grosser Bewegungen
 **Requirements:** FLOW-01, FLOW-02, FLOW-03, FLOW-04
@@ -302,8 +359,8 @@ Plans:
 
 ---
 
-**Total phases:** 13
-**Total requirements:** 58 (31 v1 + 27 new)
+**Total phases:** 16
+**Total requirements:** 67 (31 v1 + 36 new)
 
 ### Phase 14: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates
 
