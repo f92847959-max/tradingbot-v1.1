@@ -5,11 +5,11 @@ milestone_name: — Profitable Demo Trading
 current_phase: 12
 current_plan: 2
 status: Executing Phase 12
-last_updated: "2026-04-22T20:15:00.000Z"
+last_updated: "2026-04-23T15:25:00.000Z"
 progress:
   total_phases: 16
   completed_phases: 9
-  total_plans: 33
+  total_plans: 36
   completed_plans: 27
 ---
 
@@ -85,6 +85,7 @@ Phase 12 Plan 01 complete (correlation/ foundation: yfinance pin, opt-in setting
 - [Phase 11]: Test scaffold uses pyproject asyncio_mode=auto instead of pytest_asyncio (not in venv)
 - [Phase 12]: TTL default 3600s aligned between AssetFetcher constructor and correlation_cache_ttl_seconds setting
 - [Phase 12]: Index normalisation uses tz_convert('UTC').tz_localize(None) to preserve UTC semantics
+- [Phase 12.1]: Planning split fixed into 3 waves: calibration artifacts -> runtime governance -> persistence and challenger monitoring
 
 ## Accumulated Context
 
@@ -213,3 +214,7 @@ Phase 12 Plan 01 complete (correlation/ foundation: yfinance pin, opt-in setting
   - tests/sentiment/: 10 files, 24 red tests (pytest.fail bodies) covering SENT-01..SENT-05
   - Rule 3 deviation: dropped pytest_asyncio import (not in venv); project pyproject asyncio_mode=auto handles async fixtures
   - Stopped at: Completed 11-01-PLAN.md (Plan 11-02 can proceed)
+- 2026-04-23: Phase 12.1 planned (3 plans, ready once Phase 12 dependency is complete)
+  - 12.1-01: calibration artifacts, threshold tuning, and walk-forward integration
+  - 12.1-02: DecisionGovernor runtime integration in EnsemblePredictor
+  - 12.1-03: governance audit logging, champion/challenger, and retraining triggers

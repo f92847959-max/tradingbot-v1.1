@@ -293,11 +293,12 @@ Plans:
 **Goal:** Kalibrierte AI-Confidence und datenbasierte Decision-Governance einfuehren, damit Buy/Sell/Hold-Gates nachvollziehbar, versioniert und rolloutsicher sind.
 **Requirements:** CONF-01, CONF-02, CONF-03, CONF-04, CONF-05
 **Depends on:** Phase 12
-**Plans:** 0 planned
+**Plans:** 3 plans
 
 Plans:
-- [x] 12.1-RESEARCH.md - Confidence calibration and decision governance researched
-- [ ] TBD (run /gsd:plan-phase 12.1 to break down)
+- [ ] 12.1-01-PLAN.md - Calibration artifacts, threshold tuning, and walk-forward integration
+- [ ] 12.1-02-PLAN.md - DecisionGovernor runtime integration in EnsemblePredictor
+- [ ] 12.1-03-PLAN.md - Governance audit logging, champion/challenger, retraining triggers
 
 **Scope:**
 - Confidence Calibration fuer Modell- und Ensemble-Scores
