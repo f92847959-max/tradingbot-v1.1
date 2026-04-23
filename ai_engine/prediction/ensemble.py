@@ -14,10 +14,14 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from ..calibration.artifacts import load_calibration_artifact, load_threshold_artifact
+from ..calibration.calibrator import apply_calibrator, load_calibrator
 from ..features.feature_engineer import FeatureEngineer
 from ..features.feature_scaler import FeatureScaler
+from ..governance.decision_governor import DecisionGovernor
 from ..models.xgboost_model import XGBoostModel
 from ..models.lightgbm_model import LightGBMModel
+from strategy.regime_detector import RegimeDetector
 
 logger = logging.getLogger(__name__)
 
@@ -90,14 +94,16 @@ class EnsemblePredictor:
         self,
         saved_models_dir: str = "ai_engine/saved_models",
         weights: dict[str, float] | None = None,
-        min_confidence: float = 0.70,
-        min_agreement: int = 2,
+        min_confidence: float = 0.55,
+        min_agreement: int = 1,
         risk_reward_ratio: float = 2.0,
         pip_size: float | None = None,
         timeframe_weights: dict[str, float] | None = None,
-        model_weight: float = 0.70,
-        indicator_weight: float = 0.30,
-        decision_threshold: float = 0.25,
+        model_weight: float = 0.50,
+        indicator_weight: float = 0.20,
+        sentiment_weight: float = 0.15,
+        mirofish_weight: float = 0.15,
+        decision_threshold: float = 0.15,
         max_conflict_ratio: float = 0.60,
         strict_high_tf_alignment: bool = True,
     ) -> None:
@@ -117,6 +123,8 @@ class EnsemblePredictor:
         self.pip_size = pip_size
 
         self.timeframe_weights = self._build_timeframe_weights(timeframe_weights)
+        
+        # Basis-Gewichte speichern (werden dynamisch normalisiert pro Vorhersage)
         self.model_weight = float(np.clip(model_weight, 0.0, 1.0))
         self.indicator_weight = float(np.clip(indicator_weight, 0.0, 1.0))
         total_weight = self.model_weight + self.indicator_weight
@@ -126,6 +134,8 @@ class EnsemblePredictor:
             total_weight = 1.0
         self.model_weight /= total_weight
         self.indicator_weight /= total_weight
+        self.sentiment_weight = float(np.clip(sentiment_weight, 0.0, 1.0))
+        self.mirofish_weight = float(np.clip(mirofish_weight, 0.0, 1.0))
 
         self.decision_threshold = float(max(0.01, decision_threshold))
         self.max_conflict_ratio = float(np.clip(max_conflict_ratio, 0.0, 1.0))
@@ -135,8 +145,39 @@ class EnsemblePredictor:
         self._lightgbm = LightGBMModel()
         self._scaler = FeatureScaler()
         self._feature_engineer = FeatureEngineer()
+        self._regime_detector = RegimeDetector()
+        self._decision_governor = DecisionGovernor(
+            default_min_confidence=self.min_confidence,
+            default_max_conflict_ratio=self.max_conflict_ratio,
+        )
+        self._model_calibrators: dict[str, Any] = {}
+        self._threshold_artifact = (
+            self._decision_governor.build_default_threshold_artifact()
+        )
 
         self._models_loaded = False
+
+        # Persistent thread pool for parallel timeframe analysis.
+        # Avoids creating/destroying a pool on every predict() call.
+        self._executor = ThreadPoolExecutor(
+            max_workers=4, thread_name_prefix="ensemble-tf"
+        )
+
+    def close(self) -> None:
+        """Shutdown the persistent thread pool. Call on system shutdown."""
+        executor = getattr(self, "_executor", None)
+        if executor is not None:
+            try:
+                executor.shutdown(wait=False)
+            except Exception:
+                pass
+            self._executor = None
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def load_models(self) -> bool:
         """Laedt alle gespeicherten Modelle. Returns True wenn mindestens eins geladen."""
@@ -168,14 +209,129 @@ class EnsemblePredictor:
             except (OSError, ValueError) as exc:
                 logger.error("Scaler laden fehlgeschlagen: %s", exc)
 
+        self._load_governance_artifacts()
+
         self._models_loaded = loaded_count > 0
         logger.info("%d/2 Modelle geladen", loaded_count)
         return self._models_loaded
+
+    def _load_governance_artifacts(self) -> None:
+        self._model_calibrators = {}
+        self._threshold_artifact = (
+            self._decision_governor.build_default_threshold_artifact()
+        )
+
+        calibration_path = os.path.join(self.saved_models_dir, "calibration.json")
+        if os.path.exists(calibration_path):
+            try:
+                calibration_artifact = load_calibration_artifact(calibration_path)
+                for model_name, payload in calibration_artifact.get(
+                    "models", {}
+                ).items():
+                    calibrator_name = payload.get("calibrator_path")
+                    if not calibrator_name:
+                        continue
+                    calibrator_path = os.path.join(
+                        self.saved_models_dir,
+                        os.path.basename(str(calibrator_name)),
+                    )
+                    if os.path.exists(calibrator_path):
+                        self._model_calibrators[model_name] = load_calibrator(
+                            calibrator_path
+                        )
+                logger.info(
+                    "Governance calibration loaded for %d model(s)",
+                    len(self._model_calibrators),
+                )
+            except (OSError, ValueError, TypeError) as exc:
+                logger.warning("Calibration artifact load failed: %s", exc)
+
+        threshold_path = os.path.join(self.saved_models_dir, "thresholds.json")
+        if os.path.exists(threshold_path):
+            try:
+                threshold_artifact = load_threshold_artifact(threshold_path)
+                self._threshold_artifact = self._merge_threshold_models(
+                    threshold_artifact
+                )
+                logger.info("Threshold artifact loaded")
+            except (OSError, ValueError, TypeError, KeyError) as exc:
+                logger.warning("Threshold artifact load failed: %s", exc)
+
+    def _merge_threshold_models(self, artifact: dict[str, Any]) -> dict[str, Any]:
+        if "thresholds" in artifact:
+            merged = dict(artifact)
+            merged.setdefault("defaults", {})
+            merged["defaults"].setdefault(
+                "max_conflict_ratio",
+                self.max_conflict_ratio,
+            )
+            return merged
+
+        models = artifact.get("models", {})
+        if not models:
+            return self._decision_governor.build_default_threshold_artifact()
+
+        merged = self._decision_governor.build_default_threshold_artifact()
+        merged["source"] = {
+            "model_name": "merged-runtime-thresholds",
+            "model_count": len(models),
+        }
+
+        for action in ("SELL", "BUY", "HOLD"):
+            entries = [
+                model_payload.get("defaults", {}).get(action)
+                for model_payload in models.values()
+                if model_payload.get("defaults", {}).get(action)
+            ]
+            if entries:
+                merged["defaults"][action] = {
+                    "action": action,
+                    "min_confidence": float(
+                        np.mean(
+                            [entry.get("min_confidence", 0.0) for entry in entries]
+                        )
+                    ),
+                    "min_margin": float(
+                        np.mean([entry.get("min_margin", 0.0) for entry in entries])
+                    ),
+                }
+
+        regime_keys = {
+            regime
+            for model_payload in models.values()
+            for regime in model_payload.get("thresholds", {}).keys()
+        }
+        for regime in regime_keys:
+            regime_table: dict[str, Any] = {}
+            for action in ("SELL", "BUY"):
+                entries = [
+                    model_payload.get("thresholds", {}).get(regime, {}).get(action)
+                    for model_payload in models.values()
+                    if model_payload.get("thresholds", {}).get(regime, {}).get(action)
+                ]
+                if entries:
+                    regime_table[action] = {
+                        "action": action,
+                        "min_confidence": float(
+                            np.mean(
+                                [entry.get("min_confidence", 0.0) for entry in entries]
+                            )
+                        ),
+                        "min_margin": float(
+                            np.mean([entry.get("min_margin", 0.0) for entry in entries])
+                        ),
+                    }
+            if regime_table:
+                merged["thresholds"][regime] = regime_table
+
+        return merged
 
     def predict(
         self,
         candle_data: dict[str, pd.DataFrame],
         primary_timeframe: str = "5m",
+        sentiment_data: dict[str, float] | None = None,
+        mirofish_signal: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Erzeugt ein finales Signal aus sequentieller Multi-Timeframe-Analyse."""
         if not self._models_loaded:
@@ -200,26 +356,90 @@ class EnsemblePredictor:
                 timeframe=tf, tf_df=tf_df, candle_data=candle_data,
             )
 
+        failed_timeframes: list[str] = []
+
         if len(analyzable) > 1:
-            with ThreadPoolExecutor(max_workers=min(len(analyzable), 4)) as pool:
-                futures = {pool.submit(_analyze, item): item[0] for item in analyzable}
-                for future in futures:
-                    tf = futures[future]
-                    try:
-                        analyses.append(future.result())
-                    except Exception as exc:
-                        logger.warning("Analyse fehlgeschlagen fuer %s: %s", tf, exc)
+            # Use persistent executor (created in __init__) to avoid pool churn.
+            executor = getattr(self, "_executor", None)
+            if executor is None:
+                # Defensive fallback if close() was called previously.
+                self._executor = ThreadPoolExecutor(
+                    max_workers=4, thread_name_prefix="ensemble-tf"
+                )
+                executor = self._executor
+
+            futures = {executor.submit(_analyze, item): item[0] for item in analyzable}
+            for future in futures:
+                tf = futures[future]
+                try:
+                    analyses.append(future.result())
+                except Exception as exc:
+                    logger.warning("Analyse fehlgeschlagen fuer %s: %s", tf, exc)
+                    failed_timeframes.append(tf)
+                    # Explicit NaN marker so aggregation can account for the gap
+                    # instead of silently dropping the timeframe.
+                    analyses.append({
+                        "timeframe": tf,
+                        "failed": True,
+                        "error": str(exc),
+                        "action": "HOLD",
+                        "confidence": float("nan"),
+                        "model_score": float("nan"),
+                        "indicator_score": float("nan"),
+                        "model_votes": {},
+                        "feature_names": [],
+                        "_latest_features": None,
+                    })
         else:
             for item in analyzable:
                 try:
                     analyses.append(_analyze(item))
                 except Exception as exc:
                     logger.warning("Analyse fehlgeschlagen fuer %s: %s", item[0], exc)
+                    failed_timeframes.append(item[0])
+                    analyses.append({
+                        "timeframe": item[0],
+                        "failed": True,
+                        "error": str(exc),
+                        "action": "HOLD",
+                        "confidence": float("nan"),
+                        "model_score": float("nan"),
+                        "indicator_score": float("nan"),
+                        "model_votes": {},
+                        "feature_names": [],
+                        "_latest_features": None,
+                    })
+
+        # If every timeframe failed, abort early so the caller sees the error.
+        if failed_timeframes and len(failed_timeframes) == len(analyzable):
+            return self._empty_signal(
+                f"Alle Timeframes fehlgeschlagen: {', '.join(failed_timeframes)}"
+            )
+
+        # Higher-timeframe failure: log warning but continue with available data
+        # instead of aborting entirely. This prevents the system from blocking
+        # all trades when a single higher TF is temporarily unavailable.
+        critical_failed = [
+            tf for tf in failed_timeframes if tf in self.HIGHER_TIMEFRAMES
+        ]
+        if critical_failed:
+            logger.warning(
+                "Higher-TF-Analyse fehlgeschlagen fuer: %s -- weiter mit verfuegbaren Daten",
+                ", ".join(critical_failed),
+            )
+
+        # Drop NaN-only entries before aggregation; aggregation operates on
+        # successful analyses but `failed_timeframes` is reflected in metadata.
+        analyses = [a for a in analyses if not a.get("failed")]
 
         if not analyses:
             return self._empty_signal("Keine analysierbaren Timeframes")
 
-        aggregation = self._aggregate_timeframe_decisions(analyses)
+        aggregation = self._aggregate_decisions(
+            analyses,
+            sentiment_data,
+            mirofish_signal,
+        )
 
         final_action = aggregation["action"]
         final_confidence = float(aggregation["confidence"])
@@ -262,6 +482,7 @@ class EnsemblePredictor:
 
         public_analysis = [self._public_timeframe_analysis(a) for a in analyses]
 
+        
         signal = {
             "action": final_action,
             "confidence": final_confidence,
@@ -281,7 +502,13 @@ class EnsemblePredictor:
                 "conflict_ratio": aggregation["conflict_ratio"],
                 "timeframe_weights": aggregation["timeframe_weights"],
                 "gate_reasons": aggregation["gate_reasons"],
+                "threshold_source": aggregation.get("threshold_source", "defaults"),
+                "gate_decision": aggregation.get("gate_decision", "pass"),
+                "regime": aggregation.get("regime", "ranging"),
+                "decision_audit": aggregation.get("decision_audit", {}),
                 "timeframe_order": timeframe_order,
+                "sentiment_impact": aggregation.get("sentiment_impact", 0.0),
+                "mirofish_impact": aggregation.get("mirofish_impact", 0.0),
             },
         }
 
@@ -346,6 +573,7 @@ class EnsemblePredictor:
         if df.empty:
             raise RuntimeError(f"Keine Features fuer {timeframe}")
 
+        regime_state = self._regime_detector.detect(df)
         feature_names = self._feature_engineer.get_feature_names()
 
         if self._scaler.is_fitted:
@@ -371,6 +599,9 @@ class EnsemblePredictor:
                 continue
             try:
                 probs = model.predict(X_latest)[0]
+                calibrator = self._model_calibrators.get(model_name)
+                if calibrator is not None:
+                    probs = apply_calibrator(calibrator, np.asarray([probs]))[0]
                 action_idx = int(np.argmax(probs))
                 model_votes[model_name] = {
                     "action": self.ACTION_MAP[action_idx],
@@ -392,8 +623,12 @@ class EnsemblePredictor:
         agreement_count = sum(
             1 for vote in model_votes.values() if vote.get("action") == model_action
         )
+        disagreement_reason: str | None = None
         if model_action != "HOLD" and len(model_votes) >= 2 and agreement_count < self.min_agreement:
-            model_action = "HOLD"
+            disagreement_reason = (
+                f"model_disagreement {agreement_count} < min_agreement {self.min_agreement}"
+            )
+            logger.debug("Model disagreement on %s: forcing HOLD", timeframe)
 
         indicator_score, indicator_components, indicator_snapshot = self._calculate_indicator_score(df)
 
@@ -405,12 +640,18 @@ class EnsemblePredictor:
         tf_threshold = max(0.08, self.decision_threshold * 0.5)
         action = self._score_to_action(combined_score, threshold=tf_threshold)
         confidence = float(min(1.0, abs(combined_score)))
+        if disagreement_reason is not None:
+            combined_score = 0.0
+            action = "HOLD"
+            confidence = 0.0
 
-        reasoning = self._generate_reasoning(
+        reasoning = self._generate_tf_reasoning(
             features=df.iloc[-1],
             votes=model_votes,
             final_action=action,
         )
+        if disagreement_reason is not None:
+            reasoning.insert(0, disagreement_reason)
 
         return {
             "timeframe": timeframe,
@@ -426,6 +667,8 @@ class EnsemblePredictor:
             "action": action,
             "confidence": round(confidence, 6),
             "agreement_count": int(agreement_count),
+            "regime": regime_state.regime.value,
+            "regime_confidence": round(float(regime_state.confidence), 6),
             "ensemble_probabilities": {
                 "SELL": float(ensemble_probs[0]),
                 "HOLD": float(ensemble_probs[1]),
@@ -435,6 +678,23 @@ class EnsemblePredictor:
             "feature_names": feature_names,
             "_latest_features": df.iloc[-1],
         }
+
+    def _aggregate_timeframe_decisions(self, analyses: list[dict[str, Any]]) -> dict[str, Any]:
+        """Backward-compatible wrapper for tests and older call sites."""
+        normalized: list[dict[str, Any]] = []
+        for analysis in analyses:
+            model_action = str(analysis.get("model_action") or analysis.get("action") or "HOLD")
+            model_confidence = analysis.get("model_confidence")
+            if model_confidence is None:
+                model_confidence = abs(float(analysis.get("combined_score", 0.0)))
+            normalized.append({
+                "timeframe": analysis.get("timeframe", "unknown"),
+                "model_action": model_action,
+                "model_confidence": float(model_confidence),
+                "indicator_score": float(analysis.get("indicator_score", 0.0)),
+                "regime": str(analysis.get("regime", "ranging")),
+            })
+        return self._aggregate_decisions(normalized, sentiment_data=None, mirofish_signal=None)
 
     def _calculate_indicator_score(
         self,
@@ -522,57 +782,163 @@ class EnsemblePredictor:
 
         return indicator_score, {k: round(float(v), 6) for k, v in components.items()}, snapshot
 
-    def _aggregate_timeframe_decisions(
+    def _aggregate_decisions(
         self,
         analyses: list[dict[str, Any]],
+        sentiment_data: dict[str, float] | None,
+        mirofish_signal: dict[str, Any] | None,
     ) -> dict[str, Any]:
+        """
+        Aggregiert Technicals (Multi-TF), Sentiment und MiroFish (Schwarm).
+        """
+        # 1. Technical Score über alle Timeframes
         weight_map = self._normalize_timeframe_weights([a["timeframe"] for a in analyses])
 
-        global_score = 0.0
+        technical_score = 0.0
+        # Weighted mean of signed model confidences across TFs -- used as the
+        # ensemble's own confidence signal (independent of indicator contribution).
+        weighted_model_signal = 0.0
+
         for analysis in analyses:
             tf = analysis["timeframe"]
             tf_weight = weight_map.get(tf, 0.0)
-            global_score += tf_weight * float(analysis.get("combined_score", 0.0))
 
+            mod_action = analysis["model_action"]
+            mod_conf = analysis["model_confidence"]
+            mod_score = self._action_to_sign(mod_action) * mod_conf
+            ind_score = analysis["indicator_score"]
+
+            # Use the same model/indicator split that was configured on __init__,
+            # not hardcoded 0.6/0.4 -- otherwise per-TF and aggregate weights
+            # disagree and confidence gets arbitrarily diluted.
+            tf_score = (self.model_weight * mod_score) + (self.indicator_weight * ind_score)
+            technical_score += tf_weight * tf_score
+            weighted_model_signal += tf_weight * mod_score
+
+        # 2. Sentiment Score (News + Fear/Greed)
+        sentiment_score = 0.0
+        has_sentiment = False
+        if sentiment_data:
+            # Erwartet: "news_score" (-1 bis 1), "fear_greed_index" (0 bis 100)
+            # Fear & Greed bei Gold: Hohe Angst (niedriger Index) oft Bullish für Gold (Safe Haven)
+            news = float(sentiment_data.get("news_score", 0.0))
+            fg_index = float(sentiment_data.get("fear_greed_index", 50.0))
+            
+            # Normalize FG: 0-20 (Fear) -> +1.0, 80-100 (Greed) -> -0.5 (Mean Reversion?)
+            # Annahme für Gold: Angst treibt Preis.
+            fg_score = 0.0
+            if fg_index < 25:
+                fg_score = 0.8   # Extreme Fear -> Buy Gold
+            elif fg_index > 75:
+                fg_score = -0.3  # Extreme Greed -> Caution/Sell
+            
+            sentiment_score = (0.7 * news) + (0.3 * fg_score)
+            has_sentiment = True
+
+        # 3. MiroFish Score (Schwarm)
+        mirofish_score = 0.0
+        has_mirofish = False
+        if mirofish_signal:
+            mf_action = mirofish_signal.get("action", "HOLD")
+            mf_conf = float(mirofish_signal.get("confidence", 0.0))
+            mirofish_score = self._action_to_sign(mf_action) * mf_conf
+            has_mirofish = True
+
+        # 4. Globale Gewichtung & Normalisierung
+        active_weights = {
+            "technical": self.model_weight + self.indicator_weight, # Basis Technicals
+            "sentiment": self.sentiment_weight if has_sentiment else 0.0,
+            "mirofish": self.mirofish_weight if has_mirofish else 0.0
+        }
+        total_w = sum(active_weights.values())
+        if total_w <= 0:
+            total_w = 1.0
+        
+        norm_w = {k: v / total_w for k, v in active_weights.items()}
+        
+        global_score = (
+            (norm_w["technical"] * technical_score) +
+            (norm_w["sentiment"] * sentiment_score) +
+            (norm_w["mirofish"] * mirofish_score)
+        )
+
+        # Entscheidung
         preliminary_action = self._score_to_action(global_score, self.decision_threshold)
         conflict_ratio = self._compute_conflict_ratio(analyses)
 
-        gate_reasons: list[str] = []
-        final_action = preliminary_action
+        # Compute base confidence first, then apply soft penalties
+        if preliminary_action == "HOLD":
+            confidence = float(min(1.0, abs(global_score)))
+        else:
+            target_sign = self._action_to_sign(preliminary_action)
+            directional = max(0.0, target_sign * weighted_model_signal)
+            confidence = float(min(1.0, max(directional, abs(global_score))))
 
-        if final_action != "HOLD" and conflict_ratio > self.max_conflict_ratio:
-            final_action = "HOLD"
-            gate_reasons.append(
-                f"conflict_ratio {conflict_ratio:.2f} > max {self.max_conflict_ratio:.2f}"
+        logger.info(
+            "Gate-Debug: preliminary=%s, score=%.4f, base_confidence=%.4f, "
+            "model_signal=%.4f, conflict=%.4f",
+            preliminary_action, global_score, confidence,
+            weighted_model_signal, conflict_ratio,
+        )
+
+        governance_regime = self._resolve_governance_regime(analyses, weight_map)
+        higher_tf_aligned = True
+        higher_tf_detail = "alignment_disabled"
+        if preliminary_action != "HOLD" and self.strict_high_tf_alignment:
+            higher_tf_aligned, higher_tf_detail = self._check_higher_tf_alignment(
+                analyses,
+                preliminary_action,
             )
 
-        if final_action != "HOLD" and self.strict_high_tf_alignment:
-            aligned, detail = self._check_higher_tf_alignment(analyses, final_action)
-            if not aligned:
-                final_action = "HOLD"
-                gate_reasons.append(detail)
-
-        confidence = float(min(1.0, abs(global_score)))
-        if final_action != "HOLD" and confidence < self.min_confidence:
-            final_action = "HOLD"
-            gate_reasons.append(
-                f"global_confidence {confidence:.2f} < min {self.min_confidence:.2f}"
-            )
+        audit = self._decision_governor.evaluate(
+            preliminary_action=preliminary_action,
+            confidence=confidence,
+            global_score=global_score,
+            conflict_ratio=conflict_ratio,
+            regime=governance_regime,
+            threshold_artifact=self._threshold_artifact,
+            higher_tf_aligned=higher_tf_aligned,
+            higher_tf_detail=higher_tf_detail,
+            specialist_signal=None,
+        )
 
         probabilities = self._global_score_to_probabilities(
             global_score,
-            hold_bias=(final_action == "HOLD"),
+            hold_bias=(audit.final_action == "HOLD"),
         )
 
         return {
-            "action": final_action,
-            "confidence": confidence,
+            "action": audit.final_action,
+            "confidence": audit.final_confidence,
             "global_score": round(float(global_score), 6),
             "conflict_ratio": round(float(conflict_ratio), 6),
+            "regime": governance_regime,
             "timeframe_weights": {k: round(float(v), 6) for k, v in weight_map.items()},
-            "gate_reasons": gate_reasons,
+            "sentiment_impact": round(norm_w["sentiment"] * sentiment_score, 4),
+            "mirofish_impact": round(norm_w["mirofish"] * mirofish_score, 4),
+            "gate_reasons": audit.gate_reasons,
+            "threshold_source": audit.threshold_source,
+            "gate_decision": audit.gate_decision.value,
+            "decision_audit": audit.to_dict(),
             "ensemble_probabilities": probabilities,
         }
+
+    def _resolve_governance_regime(
+        self,
+        analyses: list[dict[str, Any]],
+        weight_map: dict[str, float],
+    ) -> str:
+        regime_weights: dict[str, float] = {}
+        for analysis in analyses:
+            regime = str(analysis.get("regime", "ranging"))
+            timeframe = str(analysis.get("timeframe", ""))
+            regime_weights[regime] = regime_weights.get(regime, 0.0) + weight_map.get(
+                timeframe,
+                0.0,
+            )
+        if not regime_weights:
+            return "ranging"
+        return max(regime_weights.items(), key=lambda item: item[1])[0]
 
     def _normalize_timeframe_weights(self, timeframes: list[str]) -> dict[str, float]:
         raw: dict[str, float] = {}
@@ -671,6 +1037,7 @@ class EnsemblePredictor:
             "action": analysis.get("action"),
             "confidence": analysis.get("confidence"),
             "combined_score": analysis.get("combined_score"),
+            "regime": analysis.get("regime"),
             "model_action": analysis.get("model_action"),
             "model_confidence": analysis.get("model_confidence"),
             "agreement_count": analysis.get("agreement_count"),
@@ -691,6 +1058,12 @@ class EnsemblePredictor:
         reasons.append(
             f"Multi-TF Score={aggregation['global_score']:.3f}, Konflikt={aggregation['conflict_ratio']:.2f}"
         )
+        
+        if abs(aggregation.get("sentiment_impact", 0)) > 0.05:
+            reasons.append(f"Sentiment Impact: {aggregation['sentiment_impact']:+.2f}")
+        
+        if abs(aggregation.get("mirofish_impact", 0)) > 0.05:
+            reasons.append(f"MiroFish Impact: {aggregation['mirofish_impact']:+.2f}")
 
         tf_summaries = []
         for analysis in analyses[:5]:
@@ -757,7 +1130,7 @@ class EnsemblePredictor:
         rr = tp_distance / sl_distance if sl_distance > 0 else 0
         return round(sl, 2), round(tp, 2), round(rr, 2)
 
-    def _generate_reasoning(
+    def _generate_tf_reasoning(
         self,
         features: pd.Series | None,
         votes: dict[str, dict],
@@ -886,6 +1259,10 @@ class EnsemblePredictor:
                 "conflict_ratio": 0.0,
                 "timeframe_weights": {},
                 "gate_reasons": [],
+                "threshold_source": "defaults",
+                "gate_decision": "pass",
+                "regime": "ranging",
+                "decision_audit": {},
                 "timeframe_order": [],
             },
         }
