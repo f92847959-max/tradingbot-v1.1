@@ -293,12 +293,12 @@ Plans:
 **Goal:** Kalibrierte AI-Confidence und datenbasierte Decision-Governance einfuehren, damit Buy/Sell/Hold-Gates nachvollziehbar, versioniert und rolloutsicher sind.
 **Requirements:** CONF-01, CONF-02, CONF-03, CONF-04, CONF-05
 **Depends on:** Phase 12
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 12.1-01-PLAN.md - Calibration artifacts, threshold tuning, and walk-forward integration
-- [ ] 12.1-02-PLAN.md - DecisionGovernor runtime integration in EnsemblePredictor
-- [ ] 12.1-03-PLAN.md - Governance audit logging, champion/challenger, retraining triggers
+- [x] 12.1-01-PLAN.md - Calibration artifacts, threshold tuning, and walk-forward integration
+- [x] 12.1-02-PLAN.md - DecisionGovernor runtime integration in EnsemblePredictor
+- [x] 12.1-03-PLAN.md - Governance audit logging, champion/challenger, retraining triggers
 
 **Scope:**
 - Confidence Calibration fuer Modell- und Ensemble-Scores
@@ -308,10 +308,10 @@ Plans:
 - Vorbereitung fuer Champion/Challenger- und Auto-Retraining-Entscheidungen
 
 **UAT:**
-- [ ] Modell- und Ensemble-Confidence wird gegen reale Trefferquoten kalibriert
-- [ ] Thresholds sind versioniert und datenbasiert ableitbar
-- [ ] Regime-spezifische Gates koennen schwache Signale konsistent blockieren
-- [ ] Live-Entscheidungen loggen Confidence, Threshold und Gate-Reason
+- [x] Modell- und Ensemble-Confidence wird gegen reale Trefferquoten kalibriert
+- [x] Thresholds sind versioniert und datenbasiert ableitbar
+- [x] Regime-spezifische Gates koennen schwache Signale konsistent blockieren
+- [x] Live-Entscheidungen loggen Confidence, Threshold und Gate-Reason
 
 ---
 
@@ -400,4 +400,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-04-17 — moved demo validation to Phase 15 (deferred until after new features)*
+*Last updated: 2026-04-23 — Phase 12.1 complete, Phase 12.3 unblocked*

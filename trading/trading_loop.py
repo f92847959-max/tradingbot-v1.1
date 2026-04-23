@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from database.connection import get_session
+from database.repositories.governance_repo import GovernanceDecisionRepository
 from market_data.broker_client import BrokerError
 from shared.constants import TIMEFRAME_CANDLE_COUNTS
 from shared.exceptions import (
@@ -100,18 +103,6 @@ class TradingLoopMixin:
         if self.risk.kill_switch.is_active:
             return
 
-        # Optional: log during high-impact calendar windows (Phase 8)
-        _calendar_high_impact = False
-        try:
-            from calendar.event_service import is_high_impact_window
-            _calendar_high_impact = is_high_impact_window()
-        except ImportError:
-            pass  # Phase 8 not installed yet -- skip
-        if _calendar_high_impact:
-            logger.warning(
-                "High-impact calendar window active -- position sizing will be conservative"
-            )
-
         # Phase 8: Force-close on extreme events
         if self._event_service is not None and self._event_service.should_force_close():
             event = self._event_service.get_blocking_event()
@@ -125,6 +116,18 @@ class TradingLoopMixin:
                 closed = await self.orders.close_all()
                 logger.info("Force-closed %d position(s) before '%s'", closed, event_name)
             return  # Skip tick entirely during extreme events
+
+        # Optional: log during high-impact calendar windows (Phase 8)
+        _calendar_high_impact = False
+        try:
+            from calendar.event_service import is_high_impact_window
+            _calendar_high_impact = is_high_impact_window()
+        except ImportError:
+            pass  # Phase 8 not installed yet -- skip
+        if _calendar_high_impact:
+            logger.warning(
+                "High-impact calendar window active -- position sizing will be conservative"
+            )
 
         # Phase 8: Block new trades during high-impact window
         if self._event_service is not None and self._event_service.is_high_impact_window():
@@ -151,11 +154,22 @@ class TradingLoopMixin:
         # 3. Generate AI signal (Ensemble only)
         raw_signal = await self._generate_signal(df, mtf_data=mtf_data)
         if raw_signal is None or raw_signal.get("action") == "HOLD":
+            if raw_signal is not None:
+                await self._persist_governance_decision(
+                    raw_signal,
+                    executed=False,
+                    rejection_reason="AI_HOLD",
+                )
             return
 
         signal = self.strategy.evaluate(raw_signal, mtf_data=mtf_data)
         if signal is None:
             logger.debug("Signal filtered by StrategyManager")
+            await self._persist_governance_decision(
+                raw_signal,
+                executed=False,
+                rejection_reason="STRATEGY_FILTERED",
+            )
             return
 
         # 4. Extract signal values (FIX BUG #1: confidence was undefined)
@@ -228,6 +242,11 @@ class TradingLoopMixin:
 
         if not approval.approved:
             logger.info("Trade rejected by risk: %s", approval.reason)
+            await self._persist_governance_decision(
+                signal,
+                executed=False,
+                rejection_reason=approval.reason,
+            )
             await self._save_signal(signal, executed=False, rejection_reason=approval.reason)
             return
 
@@ -236,6 +255,11 @@ class TradingLoopMixin:
             approved, reason = await self._confirmation_handler.request_confirmation(signal)
             if not approved:
                 logger.info("Trade rejected by user: %s", reason)
+                await self._persist_governance_decision(
+                    signal,
+                    executed=False,
+                    rejection_reason=reason,
+                )
                 await self._save_signal(signal, executed=False, rejection_reason=reason)
                 return
 
@@ -258,10 +282,12 @@ class TradingLoopMixin:
         )
 
         if trade:
+            await self._persist_governance_decision(signal, executed=True)
             await self._save_signal(signal, executed=True)
             await self.risk.metrics_cache.on_trade_opened()
-            # Track portfolio heat for new position
-            risk_amount = abs(entry_price - stop_loss) * approval.lot_size
+            # Track portfolio heat for new position (use actual fill price, not intended)
+            actual_entry = float(trade.entry_price) if trade.entry_price else entry_price
+            risk_amount = abs(actual_entry - stop_loss) * approval.lot_size
             self.risk.on_position_opened(risk_amount, account.balance)
             logger.info("Trade #%s opened successfully", trade.deal_id)
             try:
@@ -278,10 +304,113 @@ class TradingLoopMixin:
                 logger.exception("Trade-opened notification failed")
         else:
             logger.warning("Trade execution failed (broker error or lock timeout)")
+            await self._persist_governance_decision(
+                signal,
+                executed=False,
+                rejection_reason="BROKER_FAILED: Order execution returned None",
+            )
             await self._save_signal(
                 signal, executed=False,
                 rejection_reason="BROKER_FAILED: Order execution returned None",
             )
+
+    def _extract_governance_audit(self: TradingSystem, signal: dict[str, Any]) -> dict[str, Any]:
+        final_aggregation = signal.get("final_aggregation") or {}
+        audit = final_aggregation.get("decision_audit") or signal.get("decision_audit") or {}
+        final_action = str(audit.get("final_action") or signal.get("action") or "HOLD")
+        preliminary_action = str(audit.get("preliminary_action") or final_action)
+        gate_reasons = audit.get("gate_reasons") or final_aggregation.get("gate_reasons") or []
+        return {
+            "preliminary_action": preliminary_action,
+            "final_action": final_action,
+            "gate_decision": str(
+                audit.get("gate_decision")
+                or final_aggregation.get("gate_decision")
+                or ("pass" if final_action != "HOLD" else "block")
+            ),
+            "regime": str(
+                audit.get("regime")
+                or final_aggregation.get("regime")
+                or signal.get("regime")
+                or "ranging"
+            ),
+            "gate_reasons": list(gate_reasons),
+            "threshold_source": str(
+                audit.get("threshold_source")
+                or final_aggregation.get("threshold_source")
+                or "defaults"
+            ),
+            "threshold_confidence": float(
+                audit.get("threshold_confidence", signal.get("confidence", 0.0))
+            ),
+            "threshold_margin": float(audit.get("threshold_margin", 0.0)),
+            "conflict_ratio": float(
+                audit.get("conflict_ratio", final_aggregation.get("conflict_ratio", 0.0))
+            ),
+            "confidence_before": float(
+                audit.get("confidence_before", signal.get("confidence", 0.0))
+            ),
+            "final_confidence": float(
+                audit.get("final_confidence", signal.get("confidence", 0.0))
+            ),
+            "global_score": float(
+                audit.get("global_score", final_aggregation.get("global_score", 0.0))
+            ),
+        }
+
+    def _resolve_governance_artifact_version(self: TradingSystem) -> str | None:
+        override = getattr(self, "_governance_artifact_version_override", None)
+        if override:
+            return str(override)
+
+        predictor = getattr(self, "_ai_predictor", None)
+        ensemble = getattr(predictor, "_predictor", None)
+        saved_models_dir = getattr(
+            ensemble,
+            "saved_models_dir",
+            os.path.join("ai_engine", "saved_models"),
+        )
+
+        production_path = os.path.join(saved_models_dir, "production.json")
+        if os.path.exists(production_path):
+            try:
+                with open(production_path, "r", encoding="utf-8") as handle:
+                    payload = json.load(handle)
+                version_dir = payload.get("version_dir")
+                if version_dir:
+                    return str(version_dir)
+                model_path = payload.get("path")
+                if model_path:
+                    return str(model_path)
+            except (OSError, TypeError, ValueError):
+                logger.debug("Failed to load governance production pointer", exc_info=True)
+
+        return None
+
+    async def _persist_governance_decision(
+        self: TradingSystem,
+        signal: dict[str, Any] | None,
+        *,
+        executed: bool,
+        rejection_reason: str | None = None,
+        evaluation_summary: dict[str, Any] | None = None,
+    ) -> None:
+        if not signal:
+            return
+
+        try:
+            audit = self._extract_governance_audit(signal)
+            async with get_session() as session:
+                repo = GovernanceDecisionRepository(session)
+                await repo.add_decision(
+                    audit=audit,
+                    was_executed=executed,
+                    rejection_reason=rejection_reason,
+                    artifact_version=self._resolve_governance_artifact_version(),
+                    evaluation_summary=evaluation_summary,
+                )
+        except Exception as exc:
+            logger.error("Failed to save governance decision to DB: %s", exc)
 
     async def _fetch_mtf_parallel(self: TradingSystem) -> dict:
         """Fetch multi-timeframe data in parallel using asyncio.gather."""

@@ -79,6 +79,36 @@ class Signal(Base):
     )
 
 
+class GovernanceDecision(Base):
+    __tablename__ = "governance_decisions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    preliminary_action: Mapped[str] = mapped_column(String(4), nullable=False)
+    final_action: Mapped[str] = mapped_column(String(4), nullable=False)
+    gate_decision: Mapped[str] = mapped_column(String(10), nullable=False)
+    regime: Mapped[str | None] = mapped_column(String(20))
+    confidence_before: Mapped[float | None] = mapped_column(Numeric(6, 4))
+    final_confidence: Mapped[float | None] = mapped_column(Numeric(6, 4))
+    conflict_ratio: Mapped[float | None] = mapped_column(Numeric(6, 4))
+    global_score: Mapped[float | None] = mapped_column(Numeric(6, 4))
+    gate_reasons: Mapped[list | None] = mapped_column(JSON_COMPAT)
+    threshold_source: Mapped[str | None] = mapped_column(String(80))
+    threshold_confidence: Mapped[float | None] = mapped_column(Numeric(6, 4))
+    threshold_margin: Mapped[float | None] = mapped_column(Numeric(6, 4))
+    artifact_version: Mapped[str | None] = mapped_column(String(120))
+    was_executed: Mapped[bool] = mapped_column(Boolean, default=False)
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    evaluation_summary: Mapped[dict | None] = mapped_column(JSON_COMPAT)
+
+    __table_args__ = (
+        Index("idx_governance_decisions_ts", timestamp.desc()),
+        Index("idx_governance_decisions_gate_ts", "gate_decision", "timestamp"),
+    )
+
+
 class ModelMetadata(Base):
     __tablename__ = "model_metadata"
 
