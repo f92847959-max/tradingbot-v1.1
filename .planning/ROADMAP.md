@@ -319,11 +319,12 @@ Plans:
 **Goal:** Zusaetzliches Specialist-AI-Modell fuer einen zweiten Indikator-/Feature-Block trainieren und als separate Stimme in das Ensemble laden.
 **Requirements:** AITRAIN-01, AITRAIN-02, AITRAIN-03, AITRAIN-04
 **Depends on:** Phase 12.1
-**Plans:** 0 planned
+**Plans:** 3 plans
 
 Plans:
-- [x] 12.3-RESEARCH.md - Market-structure/liquidity specialist architecture researched
-- [ ] TBD (run /gsd:plan-phase 12.3)
+- [ ] 12.3-01-PLAN.md - Specialist feature block and leakage-safe feature-engineering integration
+- [ ] 12.3-02-PLAN.md - Specialist training pipeline, storage, and walk-forward uplift comparison
+- [ ] 12.3-03-PLAN.md - Runtime specialist overlay and governance-compatible logging
 
 **Scope:**
 - Zweites AI-Modell als Specialist laden, getrennt von XGBoost/LightGBM Core-Ensemble

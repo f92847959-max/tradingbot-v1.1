@@ -5,11 +5,11 @@ milestone_name: — Profitable Demo Trading
 current_phase: 12
 current_plan: 2
 status: Executing Phase 12
-last_updated: "2026-04-23T15:25:00.000Z"
+last_updated: "2026-04-23T16:05:00.000Z"
 progress:
   total_phases: 16
   completed_phases: 9
-  total_plans: 36
+  total_plans: 39
   completed_plans: 27
 ---
 
@@ -86,6 +86,7 @@ Phase 12 Plan 01 complete (correlation/ foundation: yfinance pin, opt-in setting
 - [Phase 12]: TTL default 3600s aligned between AssetFetcher constructor and correlation_cache_ttl_seconds setting
 - [Phase 12]: Index normalisation uses tz_convert('UTC').tz_localize(None) to preserve UTC semantics
 - [Phase 12.1]: Planning split fixed into 3 waves: calibration artifacts -> runtime governance -> persistence and challenger monitoring
+- [Phase 12.3]: Planning split fixed into 3 waves: specialist feature block -> separate specialist training/comparison -> runtime overlay with governance-safe logging
 
 ## Accumulated Context
 
@@ -218,3 +219,7 @@ Phase 12 Plan 01 complete (correlation/ foundation: yfinance pin, opt-in setting
   - 12.1-01: calibration artifacts, threshold tuning, and walk-forward integration
   - 12.1-02: DecisionGovernor runtime integration in EnsemblePredictor
   - 12.1-03: governance audit logging, champion/challenger, and retraining triggers
+- 2026-04-23: Phase 12.3 planned (3 plans, execution blocked by dependency on Phase 12.1 governance)
+  - 12.3-01: specialist feature block and leakage-safe feature-engineering integration
+  - 12.3-02: specialist training pipeline, storage, and walk-forward uplift comparison
+  - 12.3-03: runtime specialist overlay and governance-compatible logging
