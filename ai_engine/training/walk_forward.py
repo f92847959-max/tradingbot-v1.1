@@ -10,7 +10,6 @@ each window while test periods are non-overlapping.
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List
@@ -18,6 +17,9 @@ from typing import TYPE_CHECKING, Any, Dict, List
 import numpy as np
 import pandas as pd
 
+from ..calibration.calibrator import apply_calibrator, fit_calibrator
+from ..calibration.metrics import compute_calibration_metrics
+from ..calibration.threshold_tuner import tune_thresholds
 from ..features.feature_scaler import FeatureScaler
 from .shap_importance import compute_shap_importance
 from .trade_filter import probs_to_trade_signals, tune_trade_filter
@@ -367,6 +369,9 @@ class WalkForwardValidator:
         eval_results = []
         model_predictions = {}
         trade_filters: Dict[str, Dict[str, Any]] = {}
+        calibrators: Dict[str, Any] = {}
+        calibration_artifacts: Dict[str, Dict[str, Any]] = {}
+        threshold_artifacts: Dict[str, Dict[str, Any]] = {}
 
         for name, model in [
             ("XGBoost", trainer._xgboost),
@@ -375,8 +380,37 @@ class WalkForwardValidator:
             if not model.is_trained:
                 continue
             try:
-                y_probs_test = model.predict(X_test_scaled)
-                y_probs_val = model.predict(X_val_scaled)
+                y_probs_test_raw = model.predict(X_test_scaled)
+                y_probs_val_raw = model.predict(X_val_scaled)
+
+                calibrator = fit_calibrator(
+                    y_probs_val_raw,
+                    y_val,
+                    model_name=name.lower(),
+                )
+                y_probs_val = apply_calibrator(calibrator, y_probs_val_raw)
+                y_probs_test = apply_calibrator(calibrator, y_probs_test_raw)
+
+                calibration_summary = {
+                    "model_name": name.lower(),
+                    "method": calibrator.method,
+                    "class_labels": list(calibrator.class_labels),
+                    "class_support": dict(calibrator.class_support),
+                    "validation_metrics": {
+                        "before": compute_calibration_metrics(y_val, y_probs_val_raw),
+                        "after": compute_calibration_metrics(y_val, y_probs_val),
+                    },
+                    "test_metrics": compute_calibration_metrics(y_test, y_probs_test),
+                }
+                calibrators[name.lower()] = calibrator
+                calibration_artifacts[name.lower()] = calibration_summary
+
+                threshold_artifact = tune_thresholds(
+                    y_true=y_val,
+                    y_probs=y_probs_val,
+                    model_name=name.lower(),
+                )
+                threshold_artifacts[name.lower()] = threshold_artifact
 
                 # ML evaluation on test
                 eval_result = trainer._evaluator.evaluate_probabilities(
@@ -385,8 +419,10 @@ class WalkForwardValidator:
                     label_space="signal",
                     model_name=f"{name}_W{wid}",
                 )
+                eval_result["calibration"] = calibration_summary["test_metrics"]
                 eval_results.append(eval_result)
                 result[f"{name.lower()}_eval"] = eval_result
+                result[f"{name.lower()}_calibration"] = calibration_summary
 
                 # Trade filter tuning on val
                 trade_filter = tune_trade_filter(
@@ -439,6 +475,17 @@ class WalkForwardValidator:
         result["trade_filters"] = trade_filters
         result["selected_features"] = selected_features
         result["scaler"] = scaler
+        result["calibrators"] = calibrators
+        result["calibration_artifacts"] = {
+            "schema_version": 1,
+            "class_labels": ["SELL", "HOLD", "BUY"],
+            "models": calibration_artifacts,
+        }
+        result["threshold_artifacts"] = {
+            "schema_version": 1,
+            "class_labels": ["SELL", "HOLD", "BUY"],
+            "models": threshold_artifacts,
+        }
 
         return result
 
@@ -470,7 +517,7 @@ class WalkForwardValidator:
         logger.info(f"\n{'='*60}")
         logger.info(f"Walk-Forward Validation: {len(windows)} windows")
         logger.info(f"  Purge gap: {self.purge_gap} candles")
-        logger.info(f"  Window type: expanding (anchored)")
+        logger.info("  Window type: expanding (anchored)")
         for w in windows:
             logger.info(
                 f"  W{w.window_id}: train[0:{w.train_end}]({w.train_size}) "
@@ -495,6 +542,13 @@ class WalkForwardValidator:
             "final_feature_names": last.get("selected_features", feature_names),
             "final_eval_results": last.get("eval_results", []),
             "final_shap_importance": last.get("shap_importance", {}),
+            "final_calibrators": last.get("calibrators", {}),
+            "final_calibration_artifacts": last.get(
+                "calibration_artifacts", {}
+            ),
+            "final_threshold_artifacts": last.get(
+                "threshold_artifacts", {}
+            ),
         }
 
 

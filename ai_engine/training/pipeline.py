@@ -13,11 +13,15 @@ import logging
 import os
 import time
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict
 
-import numpy as np
 import pandas as pd
 
+from ..calibration.artifacts import (
+    write_calibration_artifact,
+    write_threshold_artifact,
+)
+from ..calibration.calibrator import save_calibrator
 from .model_versioning import (
     create_version_dir,
     write_version_json,
@@ -25,7 +29,6 @@ from .model_versioning import (
     cleanup_old_versions,
 )
 from .shap_importance import save_feature_importance_chart
-from .trade_filter import probs_to_trade_signals, tune_trade_filter
 from .walk_forward import (
     WalkForwardValidator,
     generate_training_report,
@@ -88,7 +91,7 @@ class TrainingPipeline:
         # ================================================================
         # Step 2: Compute features (on full dataset -- safe for lookback indicators)
         # ================================================================
-        logger.info(f"\n2/7 Computing features...")
+        logger.info("\n2/7 Computing features...")
         df = self._t._feature_engineer.create_features(df, timeframe=timeframe)
         feature_names = self._t._feature_engineer.get_feature_names()
         logger.info(f"  -> {len(feature_names)} features created")
@@ -107,21 +110,18 @@ class TrainingPipeline:
         # ================================================================
         # Step 4: Remove warmup period
         # ================================================================
-        logger.info(f"\n4/7 Removing warmup period...")
+        logger.info("\n4/7 Removing warmup period...")
         df = self._t._data_prep.remove_warmup_period(df, warmup_candles=200)
-        label_tail = int(
-            getattr(self._t._label_generator, "max_candles", 0) or 0
-        )
-        if label_tail > 0 and len(df) > label_tail:
-            df = df.iloc[:-label_tail].copy()
-            logger.info(f"  -> Label horizon tail removed: {label_tail} candles")
+        # NOTE: Do NOT trim the label-horizon tail here. `generate_labels()`
+        # already handles horizon boundary conditions, and trimming again
+        # breaks walking-forward alignment (double tail removal).
         label_stats = self._t._label_generator.get_label_stats(df["label"])
         results["label_stats"] = label_stats
 
         # ================================================================
         # Step 5: Separate features and labels
         # ================================================================
-        logger.info(f"\n5/7 Separating features and labels...")
+        logger.info("\n5/7 Separating features and labels...")
         X, y = self._t._data_prep.prepare_features_labels(
             df, feature_names, "label"
         )
@@ -130,7 +130,7 @@ class TrainingPipeline:
         # ================================================================
         # Step 6: Walk-forward validation
         # ================================================================
-        logger.info(f"\n6/7 Running walk-forward validation...")
+        logger.info("\n6/7 Running walk-forward validation...")
 
         # Compute dynamic purge gap ONCE before the loop
         max_label_horizon = int(
@@ -156,6 +156,13 @@ class TrainingPipeline:
         final_feature_names = wf_results["final_feature_names"]
         final_eval_results = wf_results["final_eval_results"]
         final_shap_importance = wf_results.get("final_shap_importance", {})
+        final_calibrators = wf_results.get("final_calibrators", {})
+        final_calibration_artifacts = wf_results.get(
+            "final_calibration_artifacts", {}
+        )
+        final_threshold_artifacts = wf_results.get(
+            "final_threshold_artifacts", {}
+        )
 
         results["walk_forward_windows"] = window_results
         results["n_windows"] = wf_results["n_windows"]
@@ -196,7 +203,7 @@ class TrainingPipeline:
         # ================================================================
         # Step 7: Save models with versioning
         # ================================================================
-        logger.info(f"\n7/7 Saving models with versioning...")
+        logger.info("\n7/7 Saving models with versioning...")
 
         # Update trainer's scaler reference for backward compat
         if final_scaler is not None:
@@ -218,6 +225,30 @@ class TrainingPipeline:
         # Save the LAST WINDOW's scaler (production scaler)
         if final_scaler is not None:
             final_scaler.save(os.path.join(version_dir, "feature_scaler.pkl"))
+
+        calibration_path = ""
+        threshold_path = ""
+        if final_calibration_artifacts:
+            calibration_payload = dict(final_calibration_artifacts)
+            model_entries = dict(calibration_payload.get("models", {}))
+            for model_key, calibrator in final_calibrators.items():
+                file_name = f"{model_key.lower()}_calibrator.pkl"
+                save_calibrator(calibrator, os.path.join(version_dir, file_name))
+                model_payload = dict(model_entries.get(model_key.lower(), {}))
+                model_payload["calibrator_path"] = file_name
+                model_entries[model_key.lower()] = model_payload
+            calibration_payload["models"] = model_entries
+            calibration_path = write_calibration_artifact(
+                version_dir,
+                calibration_payload,
+            )
+
+        if final_threshold_artifacts:
+            threshold_payload = dict(final_threshold_artifacts)
+            threshold_path = write_threshold_artifact(
+                version_dir,
+                threshold_payload,
+            )
 
         # Build version data (extends existing metadata format)
         duration = time.time() - start_time
@@ -249,11 +280,25 @@ class TrainingPipeline:
             )
             logger.info(f"Feature importance chart saved to: {chart_path}")
 
+        # Build index of window boundaries from walk-forward results
+        # (window_results contains test_start/test_end but report["per_window"] does not)
+        window_boundaries: Dict[int, Dict[str, int]] = {
+            wr["window_id"]: {
+                "test_start": wr.get("test_start", 0),
+                "test_end": wr.get("test_end", 0),
+            }
+            for wr in window_results
+        }
+
         # Use report's per-window entries for version.json
         wf_window_summaries = []
         for pw in report["per_window"]:
+            wid = pw["window_id"]
+            bounds = window_boundaries.get(wid, {"test_start": 0, "test_end": 0})
             wf_window_summaries.append({
-                "window_id": pw["window_id"],
+                "window_id": wid,
+                "test_start": bounds["test_start"],
+                "test_end": bounds["test_end"],
                 "train_samples": pw["train_samples"],
                 "test_samples": pw["test_samples"],
                 "metrics": {
@@ -308,6 +353,13 @@ class TrainingPipeline:
             # NEW Phase 3: Chart reference
             "feature_importance_chart": os.path.basename(chart_path) if chart_path else None,
         }
+
+        if calibration_path:
+            version_data["calibration_artifact"] = os.path.basename(calibration_path)
+            version_data["calibration"] = final_calibration_artifacts
+        if threshold_path:
+            version_data["threshold_artifact"] = os.path.basename(threshold_path)
+            version_data["decision_thresholds"] = final_threshold_artifacts
 
         # Add last-window flat metrics for backward compatibility
         for eval_r in final_eval_results:

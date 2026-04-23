@@ -13,8 +13,8 @@ import logging
 import os
 import re
 import shutil
-from datetime import datetime
-from typing import Any, Dict, List
+from datetime import datetime, timezone
+from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def create_version_dir(base_dir: str) -> str:
     else:
         next_num = 1
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     version_name = f"v{next_num:03d}_{timestamp}"
     version_dir = os.path.join(base_dir, version_name)
     os.makedirs(version_dir, exist_ok=True)
@@ -81,9 +81,9 @@ def write_version_json(version_dir: str, version_data: dict) -> str:
 def update_production_pointer(base_dir: str, version_dir: str) -> None:
     """Update the production pointer to a new version.
 
-    Writes production.json to base_dir, copies model files (xgboost_gold.pkl,
-    lightgbm_gold.pkl, feature_scaler.pkl) from version_dir to base_dir for
-    backward compatibility, and copies version.json as model_metadata.json.
+    Writes production.json to base_dir, copies model files and governance
+    artifacts from version_dir to base_dir for backward compatibility, and
+    copies version.json as model_metadata.json.
 
     Args:
         base_dir: Base directory for saved models.
@@ -93,7 +93,7 @@ def update_production_pointer(base_dir: str, version_dir: str) -> None:
     pointer_path = os.path.join(base_dir, "production.json")
     pointer = {
         "version_dir": os.path.basename(version_dir),
-        "updated": datetime.now().isoformat(),
+        "updated": datetime.now(timezone.utc).isoformat(),
         "path": version_dir,
     }
     with open(pointer_path, "w", encoding="utf-8") as f:
@@ -104,7 +104,15 @@ def update_production_pointer(base_dir: str, version_dir: str) -> None:
     )
 
     # Copy model files to base dir for backward compatibility
-    model_files = ["xgboost_gold.pkl", "lightgbm_gold.pkl", "feature_scaler.pkl"]
+    model_files = [
+        "xgboost_gold.pkl",
+        "lightgbm_gold.pkl",
+        "feature_scaler.pkl",
+        "xgboost_calibrator.pkl",
+        "lightgbm_calibrator.pkl",
+        "calibration.json",
+        "thresholds.json",
+    ]
     for filename in model_files:
         src = os.path.join(version_dir, filename)
         dst = os.path.join(base_dir, filename)
