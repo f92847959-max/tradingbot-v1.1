@@ -7,7 +7,7 @@ into a unified feature set of ~60 features.
 
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -18,7 +18,11 @@ from .technical_features import TechnicalFeatures
 from .price_features import PriceFeatures
 from .time_features import TimeFeatures
 from .gold_specific import GoldSpecificFeatures
+from .market_structure_liquidity import MarketStructureLiquidityFeatures
 from .microstructure_features import MicrostructureFeatures
+from .support_resistance import SupportResistanceFeatures
+from .correlation_features import CorrelationFeatures
+from correlation.snapshot import CorrelationSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +117,9 @@ class FeatureEngineer:
         self._time = TimeFeatures()
         self._gold = GoldSpecificFeatures()
         self._micro = MicrostructureFeatures()
+        self._sr = SupportResistanceFeatures()
+        self._correlation = CorrelationFeatures()
+        self._specialist = MarketStructureLiquidityFeatures()
 
         # Combined feature list
         self._feature_names: List[str] = (
@@ -121,6 +128,11 @@ class FeatureEngineer:
             + self._time.get_feature_names()
             + self._gold.get_feature_names()
             + self._micro.get_feature_names()
+            + self._sr.get_feature_names()
+            + self._correlation.get_feature_names()
+        )
+        self._specialist_feature_names: List[str] = (
+            self._specialist.get_feature_names()
         )
 
         # Feature cache for avoiding redundant recalculation
@@ -133,6 +145,8 @@ class FeatureEngineer:
         df: pd.DataFrame,
         timeframe: str = "5m",
         multi_tf_data: Optional[Dict[str, pd.DataFrame]] = None,
+        correlation_snapshot: Optional[CorrelationSnapshot] = None,
+        include_specialist: bool = False,
     ) -> pd.DataFrame:
         """
         Create ALL features from a DataFrame with OHLCV + indicators.
@@ -143,6 +157,8 @@ class FeatureEngineer:
             timeframe: The timeframe of the data (e.g. '1m', '5m', '15m')
             multi_tf_data: Optional dict with multi-timeframe data
                 e.g. {"1m": df_1m, "5m": df_5m, "15m": df_15m}
+            correlation_snapshot: Optional inter-market snapshot to broadcast
+                into the feature matrix for this call.
 
         Returns:
             DataFrame with ~60 additional feature columns.
@@ -150,7 +166,12 @@ class FeatureEngineer:
             All bool values are converted to int (0/1).
         """
         # Check cache first (skip recalculation if OHLCV unchanged)
-        if self._cache.is_valid(df, timeframe) and multi_tf_data is None:
+        if (
+            self._cache.is_valid(df, timeframe)
+            and multi_tf_data is None
+            and correlation_snapshot is None
+            and not include_specialist
+        ):
             logger.debug(
                 "Feature cache HIT for %s (hit rate: %.1f%%)",
                 timeframe, self._cache.hit_rate,
@@ -178,19 +199,24 @@ class FeatureEngineer:
         # 4. Gold-specific features
         df = self._gold.calculate(df)
         df = self._micro.calculate(df)
+        df = self._sr.calculate(df)
+        df = self._correlation.calculate(df, correlation_snapshot)
+        if include_specialist:
+            df = self._specialist.calculate(df)
 
         # 5. Multi-timeframe features (if available)
         if multi_tf_data:
             df = self._add_multi_tf_features(df, multi_tf_data)
 
         # 6. Cleanup: NaN -> 0.0, bool -> int
-        df = self._cleanup_features(df)
+        feature_names = self.get_feature_names(include_specialist=include_specialist)
+        df = self._cleanup_features(df, feature_names)
 
-        feature_count = len([c for c in self._feature_names if c in df.columns])
+        feature_count = len([c for c in feature_names if c in df.columns])
         logger.info(f"{feature_count} features created for {timeframe}")
 
         # Update cache (only for single-timeframe to avoid MTF staleness)
-        if multi_tf_data is None:
+        if multi_tf_data is None and correlation_snapshot is None:
             self._cache.update(df, df, timeframe)
             logger.debug(
                 "Feature cache updated (hit rate: %.1f%%)", self._cache.hit_rate,
@@ -265,7 +291,11 @@ class FeatureEngineer:
         logger.debug(f"Multi-TF features added: {mt_feature_names}")
         return df
 
-    def _cleanup_features(self, df: pd.DataFrame) -> pd.DataFrame:
+    def _cleanup_features(
+        self,
+        df: pd.DataFrame,
+        feature_names: List[str],
+    ) -> pd.DataFrame:
         """
         Clean up the feature DataFrame.
 
@@ -285,19 +315,26 @@ class FeatureEngineer:
             df[col] = df[col].astype(int)
 
         # Centralized Inf -> NaN -> 0 cleanup for feature columns
-        feature_cols = [c for c in self._feature_names if c in df.columns]
+        feature_cols = [c for c in feature_names if c in df.columns]
         df = cleanup_dataframe_features(df, feature_cols)
 
         return df
 
-    def get_feature_names(self) -> List[str]:
+    def get_feature_names(self, include_specialist: bool = False) -> List[str]:
         """
         Return the list of all feature column names.
 
         Returns:
             List of feature names (used for feature importance)
         """
-        return self._feature_names.copy()
+        names = self._feature_names.copy()
+        if include_specialist:
+            names += self._specialist_feature_names
+        return names
+
+    def get_specialist_feature_names(self) -> List[str]:
+        """Return the opt-in specialist feature list."""
+        return self._specialist_feature_names.copy()
 
     @property
     def cache(self) -> FeatureCache:
@@ -317,6 +354,9 @@ class FeatureEngineer:
             "time": self._time.get_feature_names(),
             "gold_specific": self._gold.get_feature_names(),
             "microstructure": self._micro.get_feature_names(),
+            "support_resistance": self._sr.get_feature_names(),
+            "correlation": self._correlation.get_feature_names(),
+            "market_structure_liquidity": self._specialist.get_feature_names(),
         }
 
 
