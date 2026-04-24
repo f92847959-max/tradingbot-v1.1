@@ -107,6 +107,17 @@
 - [ ] **AITRAIN-03**: Walk-Forward-Vergleich prueft Core-Ensemble gegen Core+Specialist ohne Leakage
 - [ ] **AITRAIN-04**: Ensemble-Governance loggt Core-Score, Specialist-Score, Confidence und finale Gate-Entscheidung
 
+### Exit AI Training & Runtime Governance
+
+- [ ] **EXITAI-01**: Trade-Lifecycle-Snapshots und Smart-Exit-Signale werden kausal in Exit-AI-Trainingssamples ueberfuehrt
+- [ ] **EXITAI-02**: Ein separates Exit-AI-Modell wird trainiert, versioniert und getrennt vom Core-Ensemble gespeichert
+- [ ] **EXITAI-03**: Walk-Forward- und Baseline-Vergleich messen Drawdown-Schutz, Upside-Retention und Early-Exit-Kosten leakage-sicher
+- [ ] **EXITAI-04**: Exit-AI-Action-Scores und Confidence werden kalibriert und duerfen nur mit dokumentiertem Promotion-Gate ausgerollt werden
+- [ ] **EXITAI-05**: Runtime-Exit-AI darf nur Risiko reduzieren (SL tighten, Partial Close, Early Exit) und niemals Risiko vergroessern oder Trades eroeffnen
+- [ ] **EXITAI-06**: Live-Integration nutzt bestehende Modify-/Close-/Partial-Close-Pfade mit no-op Fallback bei fehlenden Artefakten
+- [ ] **EXITAI-07**: Exit-AI-Entscheidungen loggen Baseline-Exit-Kontext, gewaehlte Aktion, Confidence und Broker-Ergebnis fuer Audit und Retraining
+- [ ] **EXITAI-08**: Monitoring und Reconciliation erkennen Drift zwischen Exit-AI-Empfehlung, Smart-Exit-Baseline und realem Trade-Verlauf
+
 ### Orderbuch-Analyse
 
 - [ ] **FLOW-01**: Order Flow / Level 2 Daten werden abgerufen und verarbeitet
@@ -210,6 +221,14 @@
 | AITRAIN-02 | Phase 12.3 | Pending |
 | AITRAIN-03 | Phase 12.3 | Pending |
 | AITRAIN-04 | Phase 12.3 | Pending |
+| EXITAI-01 | Phase 12.4 | Pending |
+| EXITAI-02 | Phase 12.4 | Pending |
+| EXITAI-03 | Phase 12.4 | Pending |
+| EXITAI-04 | Phase 12.4 | Pending |
+| EXITAI-05 | Phase 12.5 | Pending |
+| EXITAI-06 | Phase 12.5 | Pending |
+| EXITAI-07 | Phase 12.5 | Pending |
+| EXITAI-08 | Phase 12.5 | Pending |
 | FLOW-01 | Phase 13 | Pending |
 | FLOW-02 | Phase 13 | Pending |
 | FLOW-03 | Phase 13 | Pending |
@@ -221,8 +240,8 @@
 
 
 **Coverage:**
-- Active requirements tracked above: 67 total
-- Mapped to phases: 67
+- Active requirements tracked above: 75 total
+- Mapped to phases: 75
 - Unmapped: 0
 
 ---

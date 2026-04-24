@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
-current_phase: 13
-current_plan: 0
-status: Ready for Phase 13 planning
-last_updated: "2026-04-24T11:28:25.000Z"
+current_phase: 12.4
+current_plan: 1
+status: Ready for Phase 12.4 execution
+last_updated: "2026-04-24T12:03:26.000Z"
 progress:
-  total_phases: 16
+  total_phases: 18
   completed_phases: 11
-  total_plans: 39
+  total_plans: 45
   completed_plans: 33
 ---
 
@@ -17,14 +17,14 @@ progress:
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 13
-**Current Plan:** 0
-**Phase Status:** Phase 12.3 complete (3/3 plans complete); Phase 13 research exists and needs planning
-**Total Phases:** 16
+**Current Phase:** 12.4
+**Current Plan:** 1
+**Phase Status:** Phase 12.3 complete; Phases 12.4 and 12.5 planned; Phase 12.4 ready for execution
+**Total Phases:** 18
 
 ## Next Action
 
-Phase 12.3 complete -- proceed to Phase 13 planning (Orderbuch-Analyse)
+Execute Phase 12.4 (Exit AI Training & Baseline Evaluation)
 
 ## Decisions
 
@@ -92,6 +92,9 @@ Phase 12.3 complete -- proceed to Phase 13 planning (Orderbuch-Analyse)
 - [Phase 12.3]: Specialist artifacts live under ai_engine/saved_models/specialists/market_structure_liquidity with a specialist-local production pointer and no core-root overwrite
 - [Phase 12.3]: Core vs Core+Specialist comparison reuses shared walk-forward windows and per-window train-only scaling to keep uplift claims leakage-safe
 - [Phase 12.3]: Runtime specialist overlay stays no-op when artifacts are absent and can confirm, weaken, or veto a core signal but never create a standalone trade
+- [Phase 12.4]: Exit AI is a separate trade-management specialist trained from Smart Exit Engine context, not a replacement for deterministic exits
+- [Phase 12.4]: Exit action space is constrained to HOLD, TIGHTEN_SL, PARTIAL_CLOSE, FULL_EXIT with causal snapshot generation and baseline comparison
+- [Phase 12.5]: Runtime Exit AI may only reduce risk through existing modify/close/partial-close paths and must remain strict no-op when disabled or artifacts are absent
 
 ## Accumulated Context
 
@@ -100,6 +103,10 @@ Phase 12.3 complete -- proceed to Phase 13 planning (Orderbuch-Analyse)
 - Phase 12.1 inserted after Phase 12: AI Confidence Calibration & Decision Governance (URGENT)
 
 - Phase 12.3 inserted after Phase 12.1: AI Indicator Specialist Training (additional AI model for a second indicator/feature block)
+
+- Phase 12.4 inserted after Phase 12.3: Exit AI Training & Baseline Evaluation (Smart-Exit-Engine-based specialist for trade-management decisions)
+
+- Phase 12.5 inserted after Phase 12.4: Exit AI Runtime Integration & Governance (governed overlay for tighten/partial/full-exit actions)
 
 - Phase 14 added: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates
 
@@ -236,3 +243,11 @@ Phase 12.3 complete -- proceed to Phase 13 planning (Orderbuch-Analyse)
   - 12.3-01: specialist feature block and leakage-safe feature-engineering integration
   - 12.3-02: specialist training pipeline, storage, isolated versioning, and walk-forward uplift comparison
   - 12.3-03: runtime specialist overlay with governance-safe logging and no-trade-alone guardrails
+- 2026-04-24: Phase 12.4 planned (3 plans, Exit AI training and baseline evaluation)
+  - 12.4-01: exit snapshot dataset, action labels, and leakage-safe sample builder
+  - 12.4-02: exit AI training pipeline, specialist storage, and walk-forward baseline comparison
+  - 12.4-03: exit AI calibration, promotion gate, and training/reporting entrypoints
+- 2026-04-24: Phase 12.5 planned (3 plans, governed Exit AI runtime integration)
+  - 12.5-01: runtime loader, advisor contract, and no-risk-widening guardrails
+  - 12.5-02: order-manager integration for tighten-SL, partial-close, and full-exit actions
+  - 12.5-03: audit logging, drift monitoring, and reconciliation checks

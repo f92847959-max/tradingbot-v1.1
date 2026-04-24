@@ -342,6 +342,56 @@ Plans:
 
 ---
 
+### Phase 12.4 (INSERTED): Exit AI Training & Baseline Evaluation
+**Goal:** Exit-AI als separates Modell aus Smart-Exit-Engine- und Trade-Lifecycle-Daten trainieren, leakage-sicher gegen die bestehende Exit-Logik vergleichen und fuer einen spaeteren Runtime-Rollout vorbereiten.
+**Requirements:** EXITAI-01, EXITAI-02, EXITAI-03, EXITAI-04
+**Depends on:** Phase 10, Phase 12.1
+**Plans:** 3 plans
+
+Plans:
+- [ ] 12.4-01-PLAN.md - Exit snapshot dataset, action labels, and leakage-safe sample builder
+- [ ] 12.4-02-PLAN.md - Exit AI training pipeline, specialist storage, and walk-forward baseline comparison
+- [ ] 12.4-03-PLAN.md - Exit AI calibration, promotion gate, and training/reporting entrypoints
+
+**Scope:**
+- Kausale Exit-Snapshots aus offenen Trades, Candle-Kontext und Smart-Exit-Empfehlungen erzeugen
+- Exit-Action-Space definieren: `HOLD`, `TIGHTEN_SL`, `PARTIAL_CLOSE`, `FULL_EXIT`
+- Separates Exit-AI-Modell trainieren, versionieren und gegen die Smart-Exit-Baseline vergleichen
+- Promotion-/Calibration-Gate fuer Exit-AI vorbereiten
+
+**UAT:**
+- [ ] Trade-Lifecycle-Snapshots und Smart-Exit-Signale werden kausal in Trainingssamples ueberfuehrt
+- [ ] Exit-AI-Modell wird separat trainiert und versioniert
+- [ ] Walk-Forward-/Baseline-Vergleich misst Schutz vs. Upside sauber
+- [ ] Promotion-Gate blockiert schwache oder leakage-verdaechtige Kandidaten
+
+---
+
+### Phase 12.5 (INSERTED): Exit AI Runtime Integration & Governance
+**Goal:** Exit-AI als governter Overlay-Entscheider in das Live-Trade-Management integrieren, ohne Risiko zu vergroessern oder neue Entries zu erzeugen.
+**Requirements:** EXITAI-05, EXITAI-06, EXITAI-07, EXITAI-08
+**Depends on:** Phase 12.4
+**Plans:** 3 plans
+
+Plans:
+- [ ] 12.5-01-PLAN.md - Exit AI runtime loader, advisor contract, and no-risk-widening guardrails
+- [ ] 12.5-02-PLAN.md - Order manager integration for tighten-SL, partial-close, and full-exit actions
+- [ ] 12.5-03-PLAN.md - Exit AI audit logging, drift monitoring, and reconciliation checks
+
+**Scope:**
+- Runtime-Loader und Advisor-Contract fuer Exit-AI-Artefakte
+- Governte Anwendung ueber bestehende `modify_position`, `close_trade` und Partial-Close-Pfade
+- Audit Logging, Monitoring und Drift/Reconciliation fuer Exit-AI-Entscheidungen
+- Harte no-op Fallbacks, wenn Exit-AI deaktiviert oder nicht verfuegbar ist
+
+**UAT:**
+- [ ] Runtime-Exit-AI reduziert nur Risiko und eroefnet keine Trades
+- [ ] Live-Integration nutzt bestehende Modify-/Close-/Partial-Close-Pfade
+- [ ] Exit-AI-Entscheidungen werden mit Baseline-Kontext und Ergebnis geloggt
+- [ ] Drift/Reconciliation zwischen Empfehlung und Outcome ist nachvollziehbar
+
+---
+
 ### Phase 13: Orderbuch-Analyse
 **Goal:** Order Flow / DOM Analyse zur Erkennung institutioneller Aktivitaet und grosser Bewegungen
 **Requirements:** FLOW-01, FLOW-02, FLOW-03, FLOW-04
@@ -361,8 +411,8 @@ Plans:
 
 ---
 
-**Total phases:** 16
-**Total requirements:** 67 (31 v1 + 36 new)
+**Total phases:** 18
+**Total requirements:** 75 (31 v1 + 44 new)
 
 ### Phase 14: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates
 
@@ -400,4 +450,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-04-24 — Phase 12.3 complete*
+*Last updated: 2026-04-24 — Exit AI phases 12.4 and 12.5 planned*
