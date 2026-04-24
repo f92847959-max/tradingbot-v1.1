@@ -146,8 +146,13 @@ def load_from_file(
 
     if "timeframe" in df.columns:
         filtered = df[df["timeframe"].astype(str) == timeframe].copy()
-        if not filtered.empty:
-            df = filtered
+        if filtered.empty:
+            available = sorted(df["timeframe"].dropna().astype(str).unique().tolist())
+            raise DataSourceError(
+                f"Keine Daten fuer Timeframe '{timeframe}' in Datei gefunden. "
+                f"Verfuegbar: {available or ['<leer>']}"
+            )
+        df = filtered
 
     df = _normalize_dataframe(df, with_indicators=with_indicators)
     details = summarize_dataframe(df, source="file", timeframe=timeframe)
@@ -243,7 +248,11 @@ def _normalize_dataframe(df: pd.DataFrame, with_indicators: bool) -> pd.DataFram
             raise DataSourceError(f"Pflichtspalte '{col}' fehlt.")
         out[col] = pd.to_numeric(out[col], errors="coerce")
 
-    out = out.dropna(subset=["open", "high", "low", "close"]).copy()
+    invalid_ohlc_nan = out[["open", "high", "low", "close"]].isna().any(axis=1)
+    if invalid_ohlc_nan.any():
+        raise DataSourceError(
+            f"Ungueltige OHLC-Daten: {int(invalid_ohlc_nan.sum())} Zeile(n) mit NaN-Werten."
+        )
     out["volume"] = out["volume"].fillna(0.0)
 
     # OHLC-Konsistenz
@@ -251,7 +260,9 @@ def _normalize_dataframe(df: pd.DataFrame, with_indicators: bool) -> pd.DataFram
         out["close"] < out["low"]
     ) | (out["close"] > out["high"])
     if invalid_mask.any():
-        out = out.loc[~invalid_mask].copy()
+        raise DataSourceError(
+            f"Ungueltige OHLC-Beziehung in {int(invalid_mask.sum())} Zeile(n) erkannt."
+        )
 
     out = out.sort_values("timestamp").drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
     out.index = pd.to_datetime(out["timestamp"], utc=True)
