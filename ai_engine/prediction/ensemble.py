@@ -19,8 +19,10 @@ from ..calibration.calibrator import apply_calibrator, load_calibrator
 from ..features.feature_engineer import FeatureEngineer
 from ..features.feature_scaler import FeatureScaler
 from ..governance.decision_governor import DecisionGovernor
+from ..governance.types import SpecialistSignal
 from ..models.xgboost_model import XGBoostModel
 from ..models.lightgbm_model import LightGBMModel
+from .specialist import SpecialistRuntime
 from strategy.regime_detector import RegimeDetector
 
 logger = logging.getLogger(__name__)
@@ -106,6 +108,7 @@ class EnsemblePredictor:
         decision_threshold: float = 0.15,
         max_conflict_ratio: float = 0.60,
         strict_high_tf_alignment: bool = True,
+        specialist_enabled: bool = True,
     ) -> None:
         if pip_size is None:
             from config.settings import get_settings
@@ -146,6 +149,10 @@ class EnsemblePredictor:
         self._scaler = FeatureScaler()
         self._feature_engineer = FeatureEngineer()
         self._regime_detector = RegimeDetector()
+        self._specialist_runtime = SpecialistRuntime(
+            saved_models_dir=saved_models_dir,
+            enabled=specialist_enabled,
+        )
         self._decision_governor = DecisionGovernor(
             default_min_confidence=self.min_confidence,
             default_max_conflict_ratio=self.max_conflict_ratio,
@@ -210,6 +217,7 @@ class EnsemblePredictor:
                 logger.error("Scaler laden fehlgeschlagen: %s", exc)
 
         self._load_governance_artifacts()
+        self._specialist_runtime.load()
 
         self._models_loaded = loaded_count > 0
         logger.info("%d/2 Modelle geladen", loaded_count)
@@ -435,20 +443,29 @@ class EnsemblePredictor:
         if not analyses:
             return self._empty_signal("Keine analysierbaren Timeframes")
 
-        aggregation = self._aggregate_decisions(
-            analyses,
-            sentiment_data,
-            mirofish_signal,
-        )
-
-        final_action = aggregation["action"]
-        final_confidence = float(aggregation["confidence"])
-
         primary_tf_for_output = (
             primary_timeframe
             if primary_timeframe in candle_data and isinstance(candle_data.get(primary_timeframe), pd.DataFrame)
             else analyses[0]["timeframe"]
         )
+        primary_analysis = next(
+            (a for a in analyses if a["timeframe"] == primary_tf_for_output),
+            analyses[0],
+        )
+        specialist_prediction = primary_analysis.get("specialist_prediction")
+        specialist_signal = self._build_specialist_signal(specialist_prediction)
+
+        aggregation = self._aggregate_decisions(
+            analyses,
+            sentiment_data,
+            mirofish_signal,
+            specialist_signal=specialist_signal,
+            specialist_prediction=specialist_prediction,
+        )
+
+        final_action = aggregation["action"]
+        final_confidence = float(aggregation["confidence"])
+
         primary_df = candle_data.get(primary_tf_for_output)
         if not isinstance(primary_df, pd.DataFrame) or primary_df.empty:
             primary_df = candle_data.get(analyses[0]["timeframe"])
@@ -459,11 +476,6 @@ class EnsemblePredictor:
         else:
             entry_price = 0.0
             stop_loss, take_profit, rr_ratio = 0.0, 0.0, 0.0
-
-        primary_analysis = next(
-            (a for a in analyses if a["timeframe"] == primary_tf_for_output),
-            analyses[0],
-        )
 
         latest_features = primary_analysis.get("_latest_features")
         feature_names = primary_analysis.get("feature_names", [])
@@ -511,6 +523,17 @@ class EnsemblePredictor:
                 "mirofish_impact": aggregation.get("mirofish_impact", 0.0),
             },
         }
+        if "core_action" in aggregation:
+            signal["final_aggregation"].update(
+                {
+                    "core_action": aggregation["core_action"],
+                    "core_confidence": aggregation["core_confidence"],
+                    "specialist_score": aggregation["specialist_score"],
+                    "specialist_confidence": aggregation["specialist_confidence"],
+                    "specialist_reason": aggregation["specialist_reason"],
+                    "specialist_effect": aggregation["specialist_effect"],
+                }
+            )
 
         logger.info(
             "Signal: %s (Konfidenz: %.1f%%, Score: %.3f, TF=%d)",
@@ -568,6 +591,7 @@ class EnsemblePredictor:
             tf_df,
             timeframe=timeframe,
             multi_tf_data=candle_data,
+            include_specialist=self._specialist_runtime.enabled,
         )
 
         if df.empty:
@@ -653,7 +677,7 @@ class EnsemblePredictor:
         if disagreement_reason is not None:
             reasoning.insert(0, disagreement_reason)
 
-        return {
+        result = {
             "timeframe": timeframe,
             "samples": int(len(tf_df)),
             "latest_price": float(tf_df["close"].iloc[-1]) if "close" in tf_df.columns else 0.0,
@@ -678,6 +702,11 @@ class EnsemblePredictor:
             "feature_names": feature_names,
             "_latest_features": df.iloc[-1],
         }
+        specialist_prediction = self._specialist_runtime.predict_from_feature_frame(df)
+        if specialist_prediction.available:
+            result["specialist_prediction"] = specialist_prediction.to_dict()
+
+        return result
 
     def _aggregate_timeframe_decisions(self, analyses: list[dict[str, Any]]) -> dict[str, Any]:
         """Backward-compatible wrapper for tests and older call sites."""
@@ -694,7 +723,11 @@ class EnsemblePredictor:
                 "indicator_score": float(analysis.get("indicator_score", 0.0)),
                 "regime": str(analysis.get("regime", "ranging")),
             })
-        return self._aggregate_decisions(normalized, sentiment_data=None, mirofish_signal=None)
+        return self._aggregate_decisions(
+            normalized,
+            sentiment_data=None,
+            mirofish_signal=None,
+        )
 
     def _calculate_indicator_score(
         self,
@@ -787,6 +820,8 @@ class EnsemblePredictor:
         analyses: list[dict[str, Any]],
         sentiment_data: dict[str, float] | None,
         mirofish_signal: dict[str, Any] | None,
+        specialist_signal: SpecialistSignal | None = None,
+        specialist_prediction: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Aggregiert Technicals (Multi-TF), Sentiment und MiroFish (Schwarm).
@@ -899,7 +934,7 @@ class EnsemblePredictor:
             threshold_artifact=self._threshold_artifact,
             higher_tf_aligned=higher_tf_aligned,
             higher_tf_detail=higher_tf_detail,
-            specialist_signal=None,
+            specialist_signal=specialist_signal,
         )
 
         probabilities = self._global_score_to_probabilities(
@@ -907,7 +942,7 @@ class EnsemblePredictor:
             hold_bias=(audit.final_action == "HOLD"),
         )
 
-        return {
+        result = {
             "action": audit.final_action,
             "confidence": audit.final_confidence,
             "global_score": round(float(global_score), 6),
@@ -922,6 +957,44 @@ class EnsemblePredictor:
             "decision_audit": audit.to_dict(),
             "ensemble_probabilities": probabilities,
         }
+        if specialist_prediction and specialist_prediction.get("available"):
+            result.update(
+                {
+                    "core_action": preliminary_action,
+                    "core_confidence": round(float(confidence), 6),
+                    "specialist_score": round(
+                        float(specialist_prediction.get("score", 0.0)),
+                        6,
+                    ),
+                    "specialist_confidence": round(
+                        float(specialist_prediction.get("confidence", 0.0)),
+                        6,
+                    ),
+                    "specialist_reason": str(
+                        specialist_prediction.get("reason", "")
+                    ),
+                    "specialist_effect": audit.specialist_effect,
+                }
+            )
+        return result
+
+    def _build_specialist_signal(
+        self,
+        specialist_prediction: dict[str, Any] | None,
+    ) -> SpecialistSignal | None:
+        if not specialist_prediction:
+            return None
+        if not specialist_prediction.get("available"):
+            return None
+        action = str(specialist_prediction.get("action", "HOLD"))
+        if action == "HOLD":
+            return None
+        return SpecialistSignal(
+            name=str(specialist_prediction.get("name", "specialist")),
+            action=action,
+            confidence=float(specialist_prediction.get("confidence", 0.0)),
+            reason=str(specialist_prediction.get("reason", "")),
+        )
 
     def _resolve_governance_regime(
         self,

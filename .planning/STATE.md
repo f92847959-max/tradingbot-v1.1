@@ -2,29 +2,29 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
-current_phase: 12.3
-current_plan: 1
-status: Executing Phase 12.3
-last_updated: "2026-04-23T22:12:00.000Z"
+current_phase: 13
+current_plan: 0
+status: Ready for Phase 13 planning
+last_updated: "2026-04-24T11:28:25.000Z"
 progress:
   total_phases: 16
-  completed_phases: 10
+  completed_phases: 11
   total_plans: 39
-  completed_plans: 30
+  completed_plans: 33
 ---
 
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 12.3
-**Current Plan:** 1
-**Phase Status:** Phase 12.3 ready to execute (0/3 plans complete); dependency on Phase 12.1 resolved
+**Current Phase:** 13
+**Current Plan:** 0
+**Phase Status:** Phase 12.3 complete (3/3 plans complete); Phase 13 research exists and needs planning
 **Total Phases:** 16
 
 ## Next Action
 
-Phase 12.1 complete -- proceed to Phase 12.3 Plan 01 (specialist feature block and leakage-safe feature-engineering integration)
+Phase 12.3 complete -- proceed to Phase 13 planning (Orderbuch-Analyse)
 
 ## Decisions
 
@@ -89,6 +89,9 @@ Phase 12.1 complete -- proceed to Phase 12.3 Plan 01 (specialist feature block a
 - [Phase 12.1]: Governance decisions are persisted even for HOLD and blocked outcomes; artifact versions are sanitized to basename-only values
 - [Phase 12.1]: Challenger promotion and retraining decisions use calibrated evidence (Brier/log-loss, drawdown, PF, trade count) instead of raw confidence alone
 - [Phase 12.3]: Planning split fixed into 3 waves: specialist feature block -> separate specialist training/comparison -> runtime overlay with governance-safe logging
+- [Phase 12.3]: Specialist artifacts live under ai_engine/saved_models/specialists/market_structure_liquidity with a specialist-local production pointer and no core-root overwrite
+- [Phase 12.3]: Core vs Core+Specialist comparison reuses shared walk-forward windows and per-window train-only scaling to keep uplift claims leakage-safe
+- [Phase 12.3]: Runtime specialist overlay stays no-op when artifacts are absent and can confirm, weaken, or veto a core signal but never create a standalone trade
 
 ## Accumulated Context
 
@@ -229,3 +232,7 @@ Phase 12.1 complete -- proceed to Phase 12.3 Plan 01 (specialist feature block a
   - 12.3-01: specialist feature block and leakage-safe feature-engineering integration
   - 12.3-02: specialist training pipeline, storage, and walk-forward uplift comparison
   - 12.3-03: runtime specialist overlay and governance-compatible logging
+- 2026-04-24: Phase 12.3 complete (3/3 plans, 14 targeted tests passing)
+  - 12.3-01: specialist feature block and leakage-safe feature-engineering integration
+  - 12.3-02: specialist training pipeline, storage, isolated versioning, and walk-forward uplift comparison
+  - 12.3-03: runtime specialist overlay with governance-safe logging and no-trade-alone guardrails
