@@ -9,7 +9,15 @@ import time
 from typing import Optional
 
 import pandas as pd
-import yfinance as yf
+
+try:
+    import yfinance as yf
+except ModuleNotFoundError:
+    class _MissingYFinance:
+        def download(self, *args, **kwargs):
+            raise ModuleNotFoundError("No module named 'yfinance'")
+
+    yf = _MissingYFinance()
 
 
 TICKERS = {
@@ -34,11 +42,16 @@ class AssetFetcher:
         self._cache_ttl = cache_ttl_seconds
         self._cached_df: Optional[pd.DataFrame] = None
         self._cache_ts: float = 0.0
+        self._cache_lookback_days: Optional[int] = None
 
     def fetch_daily_closes(self, lookback_days: int = 200) -> pd.DataFrame:
         """Return DataFrame[date, dxy, us10y, silver, vix, sp500, gold] in naive UTC."""
         age = time.monotonic() - self._cache_ts
-        if self._cached_df is not None and age < self._cache_ttl:
+        if (
+            self._cached_df is not None
+            and self._cache_lookback_days == lookback_days
+            and age < self._cache_ttl
+        ):
             return self._cached_df
 
         raw = yf.download(
@@ -61,4 +74,5 @@ class AssetFetcher:
 
         self._cached_df = closes
         self._cache_ts = time.monotonic()
+        self._cache_lookback_days = lookback_days
         return closes
