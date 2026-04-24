@@ -24,6 +24,6 @@ apscheduler>=3.10.0
 aiosqlite>=0.18.0
 shap==0.51.0
 matplotlib>=3.8.0
-math >=0.1.0
+pytest-asyncio>=1.0.0
 feedparser==6.0.12
 vaderSentiment==3.3.2
