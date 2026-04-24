@@ -14,9 +14,17 @@ import os
 import re
 import shutil
 from datetime import datetime, timezone
-from typing import List
+from typing import Iterable, List
 
 logger = logging.getLogger(__name__)
+
+
+SPECIALIST_ROOT_DIR = "specialists"
+
+
+def _sanitize_artifact_name(name: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9_.-]+", "_", name.strip())
+    return cleaned.strip("_") or "specialist"
 
 
 def create_version_dir(base_dir: str) -> str:
@@ -167,3 +175,68 @@ def cleanup_old_versions(base_dir: str, keep: int = 5) -> List[str]:
         logger.debug("No old versions to clean up")
 
     return deleted
+
+
+def get_specialist_root(base_dir: str, specialist_name: str) -> str:
+    """Return the isolated artifact root for a specialist model."""
+    slug = _sanitize_artifact_name(specialist_name)
+    return os.path.join(base_dir, SPECIALIST_ROOT_DIR, slug)
+
+
+def create_specialist_version_dir(base_dir: str, specialist_name: str) -> str:
+    """Create a specialist-only version directory under the isolated root."""
+    specialist_root = get_specialist_root(base_dir, specialist_name)
+    os.makedirs(specialist_root, exist_ok=True)
+    return create_version_dir(specialist_root)
+
+
+def update_specialist_production_pointer(
+    base_dir: str,
+    specialist_name: str,
+    version_dir: str,
+    artifact_files: Iterable[str] | None = None,
+) -> str:
+    """Promote a specialist version without touching the core model root."""
+    specialist_root = get_specialist_root(base_dir, specialist_name)
+    os.makedirs(specialist_root, exist_ok=True)
+
+    pointer_path = os.path.join(specialist_root, "production.json")
+    pointer = {
+        "specialist_name": specialist_name,
+        "version_dir": os.path.basename(version_dir),
+        "updated": datetime.now(timezone.utc).isoformat(),
+        "path": version_dir,
+    }
+    with open(pointer_path, "w", encoding="utf-8") as f:
+        json.dump(pointer, f, indent=2)
+
+    logger.info(
+        "Specialist production pointer updated: %s -> %s",
+        specialist_name,
+        os.path.basename(version_dir),
+    )
+
+    files_to_copy = list(artifact_files or [])
+    if not files_to_copy:
+        files_to_copy = [
+            "specialist_lightgbm.pkl",
+            "specialist_scaler.pkl",
+            "specialist_version.json",
+            "feature_block.json",
+            "version.json",
+        ]
+
+    for filename in files_to_copy:
+        src = os.path.join(version_dir, filename)
+        dst = os.path.join(specialist_root, os.path.basename(filename))
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+            logger.info("  Copied specialist artifact %s", os.path.basename(filename))
+
+    version_json_src = os.path.join(version_dir, "version.json")
+    metadata_dst = os.path.join(specialist_root, "specialist_model_metadata.json")
+    if os.path.exists(version_json_src):
+        shutil.copy2(version_json_src, metadata_dst)
+        logger.info("  Copied version.json as specialist_model_metadata.json")
+
+    return pointer_path

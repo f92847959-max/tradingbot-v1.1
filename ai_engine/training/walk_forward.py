@@ -100,6 +100,25 @@ def calculate_walk_forward_windows(
     return windows
 
 
+def serialize_window_spec(
+    window: WindowSpec,
+    purge_gap: int | None = None,
+) -> Dict[str, int]:
+    """Serialize a window into a stable dict for reports and comparisons."""
+    payload = {
+        "window_id": int(window.window_id),
+        "train_start": int(window.train_start),
+        "train_end": int(window.train_end),
+        "train_size": int(window.train_size),
+        "test_start": int(window.test_start),
+        "test_end": int(window.test_end),
+        "test_size": int(window.test_size),
+    }
+    if purge_gap is not None:
+        payload["purge_gap"] = int(purge_gap)
+    return payload
+
+
 class WalkForwardValidator:
     """Execute walk-forward validation across expanding windows."""
 
