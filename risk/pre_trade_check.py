@@ -2,11 +2,22 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, time
-
-from shared.utils import is_trading_hours
+from datetime import datetime, time, timezone
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    """Defensive: coerce naive datetimes to UTC so weekday()/time() are stable.
+
+    The risk_manager always passes datetime.now(timezone.utc), but downstream
+    code (tests, future callers) may forget. Naive datetimes are interpreted as
+    UTC rather than the local timezone — local interpretation can flip the
+    weekday across DST or near midnight.
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 @dataclass
@@ -32,6 +43,7 @@ class PreTradeChecker:
         cooldown_minutes: int = 30,
         max_spread: float = 5.0,
         kill_switch_drawdown_pct: float = 20.0,
+        max_leverage: float = 10.0,
         trading_start: time = time(8, 0),
         trading_end: time = time(22, 0),
     ) -> None:
@@ -43,6 +55,7 @@ class PreTradeChecker:
         self.cooldown_minutes = cooldown_minutes
         self.max_spread = max_spread
         self.kill_switch_drawdown_pct = kill_switch_drawdown_pct
+        self.max_leverage = max_leverage
         self.trading_start = trading_start
         self.trading_end = trading_end
 
@@ -61,8 +74,10 @@ class PreTradeChecker:
         required_margin: float,
         has_open_same_direction: bool,
         current_drawdown_pct: float,
+        notional_value: float = 0.0,
+        equity: float = 0.0,
     ) -> list[CheckResult]:
-        """Run all 11 pre-trade checks. Returns list of results."""
+        """Run all pre-trade checks. Returns list of results."""
         results = []
 
         # 1. Kill Switch
@@ -98,6 +113,9 @@ class PreTradeChecker:
         # 11. Drawdown
         results.append(self._check_drawdown(current_drawdown_pct))
 
+        # 12. Leverage cap (notional / equity)
+        results.append(self._check_leverage(notional_value, equity))
+
         return results
 
     def _check_kill_switch(self, active: bool) -> CheckResult:
@@ -106,12 +124,39 @@ class PreTradeChecker:
         return CheckResult(True, "kill_switch", "OK")
 
     def _check_trading_hours(self, now: datetime) -> CheckResult:
-        if not is_trading_hours(now):
-            if now.weekday() >= 5:
-                return CheckResult(False, "trading_hours", f"Weekend — no trading (day={now.strftime('%A')})")
+        # Always evaluate weekday/time in UTC — a naive or local-tz datetime
+        # could otherwise mis-classify the trading day across midnight/DST.
+        #
+        # Honor the CONFIGURED trading window (self.trading_start / self.trading_end)
+        # rather than a hard-coded London/NY window. This restores the contract that
+        # changing `trading_start`/`trading_end` actually changes the allowed session.
+        now_utc = _ensure_utc(now)
+
+        # Weekend gate (Mon=0 .. Sun=6; 5,6 = Sat/Sun).
+        if now_utc.weekday() >= 5:
             return CheckResult(
-                False, "trading_hours",
-                f"Outside trading hours, current: {now.strftime('%H:%M')}"
+                False,
+                "trading_hours",
+                f"Weekend — no trading (day={now_utc.strftime('%A')})",
+            )
+
+        current_time = now_utc.time()
+        start = self.trading_start
+        end = self.trading_end
+        # Support windows that cross midnight (start > end, e.g. 22:00-06:00).
+        if start <= end:
+            in_window = start <= current_time < end
+        else:
+            in_window = current_time >= start or current_time < end
+
+        if not in_window:
+            return CheckResult(
+                False,
+                "trading_hours",
+                (
+                    f"Outside trading hours, current: {now_utc.strftime('%H:%M')} UTC "
+                    f"(allowed {start.strftime('%H:%M')}-{end.strftime('%H:%M')} UTC)"
+                ),
             )
         return CheckResult(True, "trading_hours", "OK")
 
@@ -153,7 +198,10 @@ class PreTradeChecker:
         if consecutive_losses >= self.max_consecutive_losses:
             # Check if cooldown has passed
             if last_loss_time:
-                elapsed = (now - last_loss_time).total_seconds() / 60
+                # Both sides must be tz-aware to subtract — normalize defensively.
+                now_utc = _ensure_utc(now)
+                last_utc = _ensure_utc(last_loss_time)
+                elapsed = (now_utc - last_utc).total_seconds() / 60
                 if elapsed < self.cooldown_minutes:
                     remaining = self.cooldown_minutes - elapsed
                     return CheckResult(
@@ -180,6 +228,32 @@ class PreTradeChecker:
                 f"Insufficient margin: {available:.2f} < {required:.2f}"
             )
         return CheckResult(True, "margin", f"OK (available: {available:.2f})")
+
+    def _check_leverage(self, notional_value: float, equity: float) -> CheckResult:
+        """Reject trades whose notional exposure would exceed the leverage cap.
+
+        actual_leverage = notional_value / equity
+        """
+        if equity <= 0:
+            return CheckResult(
+                False, "leverage_exceeded",
+                "Cannot evaluate leverage: equity is zero or negative",
+            )
+        if notional_value <= 0:
+            # No exposure data provided — treat as informational pass.
+            return CheckResult(True, "leverage_exceeded", "OK (no notional provided)")
+
+        actual_leverage = notional_value / equity
+        if actual_leverage > self.max_leverage:
+            return CheckResult(
+                False, "leverage_exceeded",
+                f"Leverage too high: {actual_leverage:.2f}x > {self.max_leverage:.2f}x "
+                f"(notional={notional_value:.2f}, equity={equity:.2f})",
+            )
+        return CheckResult(
+            True, "leverage_exceeded",
+            f"OK ({actual_leverage:.2f}x / {self.max_leverage:.2f}x)",
+        )
 
     def _check_duplicate(self, has_open_same_direction: bool) -> CheckResult:
         if has_open_same_direction:
