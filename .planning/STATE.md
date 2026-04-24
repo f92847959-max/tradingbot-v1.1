@@ -5,11 +5,11 @@ milestone_name: — Profitable Demo Trading
 current_phase: 12.4
 current_plan: 1
 status: Ready for Phase 12.4 execution
-last_updated: "2026-04-24T12:03:26.000Z"
+last_updated: "2026-04-25T01:11:47.5985451+02:00"
 progress:
-  total_phases: 18
+  total_phases: 19
   completed_phases: 11
-  total_plans: 45
+  total_plans: 48
   completed_plans: 33
 ---
 
@@ -19,8 +19,8 @@ progress:
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 12.4
 **Current Plan:** 1
-**Phase Status:** Phase 12.3 complete; Phases 12.4 and 12.5 planned; Phase 12.4 ready for execution
-**Total Phases:** 18
+**Phase Status:** Phase 12.3 complete; Phases 12.4, 12.5 and 12.6 planned; Phase 12.4 ready for execution
+**Total Phases:** 19
 
 ## Next Action
 
@@ -95,6 +95,8 @@ Execute Phase 12.4 (Exit AI Training & Baseline Evaluation)
 - [Phase 12.4]: Exit AI is a separate trade-management specialist trained from Smart Exit Engine context, not a replacement for deterministic exits
 - [Phase 12.4]: Exit action space is constrained to HOLD, TIGHTEN_SL, PARTIAL_CLOSE, FULL_EXIT with causal snapshot generation and baseline comparison
 - [Phase 12.5]: Runtime Exit AI may only reduce risk through existing modify/close/partial-close paths and must remain strict no-op when disabled or artifacts are absent
+- [Phase 12.6]: Existing deterministic systems remain runtime teachers and hard guards while autonomy is distilled into the current AI stack
+- [Phase 12.6]: Autonomy head stays within `BUY/HOLD/SELL` and may not bypass `DecisionGovernor`, `StrategyManager`, calendar blocks, or `RiskManager`
 
 ## Accumulated Context
 
@@ -251,3 +253,7 @@ Execute Phase 12.4 (Exit AI Training & Baseline Evaluation)
   - 12.5-01: runtime loader, advisor contract, and no-risk-widening guardrails
   - 12.5-02: order-manager integration for tighten-SL, partial-close, and full-exit actions
   - 12.5-03: audit logging, drift monitoring, and reconciliation checks
+- 2026-04-25: Phase 12.6 planned (3 plans, existing AI autonomy distillation)
+  - 12.6-01: teacher snapshot capture, hierarchical labels, and distillation dataset manifest
+  - 12.6-02: learned decision head, calibration reuse, and walk-forward promotion gate
+  - 12.6-03: shadow rollout, challenger logging, and guarded runtime selection

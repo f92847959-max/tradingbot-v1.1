@@ -392,6 +392,31 @@ Plans:
 
 ---
 
+### Phase 12.6 (INSERTED): Existing AI Autonomy Distillation
+**Goal:** Die bestehende KI-Kette live-nah autonomer machen, indem Entscheidungslogik aus Ensemble-, Governance-, Strategie-, Kalender- und Risk-Systemen kausal distilliert wird, waehrend harte Runtime-Guards bestehen bleiben.
+**Requirements:** AUTOAI-01, AUTOAI-02, AUTOAI-03, AUTOAI-04, AUTOAI-05, AUTOAI-06
+**Depends on:** Phase 12.1, Phase 12.3, Phase 12.5
+**Plans:** 3 plans
+
+Plans:
+- [ ] 12.6-01-PLAN.md - Teacher snapshot capture, hierarchical labels, and distillation dataset manifest
+- [ ] 12.6-02-PLAN.md - Learned decision head, calibration reuse, and walk-forward promotion gate
+- [ ] 12.6-03-PLAN.md - Shadow rollout, challenger logging, and guarded runtime selection
+
+**Scope:**
+- Kausale Decision-Snapshots pro Tick aus bestehender Teacher-Kette erfassen
+- Hierarchisches Label-Schema fuer `preliminary_action`, `policy_action`, `final_action` und `block_stage`
+- Gelernter Decision-Head innerhalb des bestehenden Ensemble-Pfads, kein neuer Service
+- Shadow-Mode und spaetere Runtime-Auswahl mit Champion/Challenger, ohne Kill-Switch-, Kalender-, Strategie- oder Risk-Guards zu umgehen
+
+**UAT:**
+- [ ] Teacher-Snapshots enthalten Ensemble-, Governance-, Strategie-, Kalender-, Risk- und Execution-Kontext ohne Lookahead
+- [ ] Distillation-Dataset trennt echte HOLDs von geblockten HOLDs ueber strukturiertes `block_stage` / `block_codes`
+- [ ] Decision-Head wird versioniert, kalibriert und walk-forward gegen den bestehenden Champion verglichen
+- [ ] Shadow-/Primary-Rollout laesst bestehende Runtime-Guards unangetastet und loggt Disagreements strukturiert
+
+---
+
 ### Phase 13: Orderbuch-Analyse
 **Goal:** Order Flow / DOM Analyse zur Erkennung institutioneller Aktivitaet und grosser Bewegungen
 **Requirements:** FLOW-01, FLOW-02, FLOW-03, FLOW-04
@@ -411,8 +436,8 @@ Plans:
 
 ---
 
-**Total phases:** 18
-**Total requirements:** 75 (31 v1 + 44 new)
+**Total phases:** 19
+**Total requirements:** 81 (31 v1 + 50 new)
 
 ### Phase 14: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates
 
@@ -450,4 +475,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-04-24 — Exit AI phases 12.4 and 12.5 planned*
+*Last updated: 2026-04-25 — Existing AI Autonomy Distillation phase 12.6 planned*

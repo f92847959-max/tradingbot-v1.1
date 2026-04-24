@@ -118,6 +118,15 @@
 - [ ] **EXITAI-07**: Exit-AI-Entscheidungen loggen Baseline-Exit-Kontext, gewaehlte Aktion, Confidence und Broker-Ergebnis fuer Audit und Retraining
 - [ ] **EXITAI-08**: Monitoring und Reconciliation erkennen Drift zwischen Exit-AI-Empfehlung, Smart-Exit-Baseline und realem Trade-Verlauf
 
+### Existing AI Autonomy Distillation
+
+- [ ] **AUTOAI-01**: Decision-Snapshots erfassen pro Tick die bestehende Teacher-Kette kausal mit Ensemble-, Governance-, Strategie-, Kalender-, Risk- und spaeterem Execution-Kontext
+- [ ] **AUTOAI-02**: Distillation-Dataset trennt `preliminary_action`, `policy_action`, `final_action`, `block_stage` und `block_codes`, statt geblockte Entscheidungen pauschal zu `HOLD` zu kollabieren
+- [ ] **AUTOAI-03**: Ein gelernter Decision-Head wird auf Decision-State-Features trainiert, versioniert und mit bestehender Calibration-/Threshold-Infrastruktur kompatibel gespeichert
+- [ ] **AUTOAI-04**: Walk-Forward- und Promotion-Gates vergleichen Champion gegen Candidate auf Profit Factor, Drawdown, Calibration und Non-HOLD-Qualitaet statt nur auf Accuracy
+- [ ] **AUTOAI-05**: Runtime-Rollout erfolgt als `shadow` -> `agreement_guarded` -> `primary_with_challenger`, ohne bestehende Kill-Switch-, Kalender-, Strategie- oder Risk-Guards zu umgehen
+- [ ] **AUTOAI-06**: Governance- und Monitoring-Persistenz loggen Champion/Candidate-Auswahl, Disagreements, Guard-Blocks und Promotionsmetriken strukturiert fuer Operator Review und Retraining
+
 ### Orderbuch-Analyse
 
 - [ ] **FLOW-01**: Order Flow / Level 2 Daten werden abgerufen und verarbeitet
@@ -229,6 +238,12 @@
 | EXITAI-06 | Phase 12.5 | Pending |
 | EXITAI-07 | Phase 12.5 | Pending |
 | EXITAI-08 | Phase 12.5 | Pending |
+| AUTOAI-01 | Phase 12.6 | Pending |
+| AUTOAI-02 | Phase 12.6 | Pending |
+| AUTOAI-03 | Phase 12.6 | Pending |
+| AUTOAI-04 | Phase 12.6 | Pending |
+| AUTOAI-05 | Phase 12.6 | Pending |
+| AUTOAI-06 | Phase 12.6 | Pending |
 | FLOW-01 | Phase 13 | Pending |
 | FLOW-02 | Phase 13 | Pending |
 | FLOW-03 | Phase 13 | Pending |
@@ -240,10 +255,10 @@
 
 
 **Coverage:**
-- Active requirements tracked above: 75 total
-- Mapped to phases: 75
+- Active requirements tracked above: 81 total
+- Mapped to phases: 81
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-03*
-*Last updated: 2026-04-22 after Phase 12.1 confidence governance and Phase 12.3 specialist training insertion*
+*Last updated: 2026-04-25 after planning Phase 12.6 existing AI autonomy distillation*
