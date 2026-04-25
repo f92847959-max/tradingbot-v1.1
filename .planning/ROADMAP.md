@@ -417,6 +417,34 @@ Plans:
 
 ---
 
+### Phase 12.7 (INSERTED): AI Training Pipeline Hardening
+**Goal:** Die AI-Trainingspipeline so haerten, dass nur Modelle mit belastbarer historischer Datenabdeckung, kausalen Labels, Walk-Forward-Uplift, Kalibrierung und Promotion-Gates in Shadow- oder Runtime-Nutzung gelangen.
+**Requirements:** AITRAIN2-01, AITRAIN2-02, AITRAIN2-03, AITRAIN2-04, AITRAIN2-05
+**Depends on:** Phase 2, Phase 12.1, Phase 12.3, Phase 12.6
+**Plans:** 3 plans
+
+Plans:
+- [ ] 12.7-01-PLAN.md - Historical data coverage preflight, row-loss telemetry, and dataset manifest
+- [ ] 12.7-02-PLAN.md - Causal label builder, specialist feature sets, and leakage-safe training splits
+- [ ] 12.7-03-PLAN.md - Walk-forward promotion gate, calibration report, and shadow-training workflow
+
+**Scope:**
+- DB-backed historical data as the primary backfill path; broker fetches only for fresh incremental data
+- Preflight checks for actual trainable time span before expensive training starts
+- Row-loss telemetry across received candles, saved candles, feature-ready rows, and label-ready samples
+- Causal labels for entry, hold/abstain, exit, confidence, and risk-aware decisions without future leakage
+- Reusable training manifest with data source, feature set, label version, split windows, metrics, and artifact paths
+- Promotion gate requiring net-of-cost walk-forward uplift, calibration stability, drawdown limits, and shadow-readiness
+
+**UAT:**
+- [ ] Training aborts before fitting when trainable historical span is below the configured threshold
+- [ ] Training report shows received, saved, feature-ready, label-ready, and dropped-row counts with reasons
+- [ ] Walk-forward validation compares candidate vs current champion on identical time windows
+- [ ] Promotion is blocked unless calibration, drawdown, profit factor, and confidence-bucket gates pass
+- [ ] Shadow-training output can be logged without changing live trading decisions
+
+---
+
 ### Phase 13: Orderbuch-Analyse
 **Goal:** Order Flow / DOM Analyse zur Erkennung institutioneller Aktivitaet und grosser Bewegungen
 **Requirements:** FLOW-01, FLOW-02, FLOW-03, FLOW-04
@@ -436,7 +464,7 @@ Plans:
 
 ---
 
-**Total phases:** 19
+**Total phases:** 20
 **Total requirements:** 81 (31 v1 + 50 new)
 
 ### Phase 14: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates

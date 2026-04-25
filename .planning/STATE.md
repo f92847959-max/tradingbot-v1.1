@@ -4,13 +4,14 @@ milestone: v1.0
 milestone_name: — Profitable Demo Trading
 current_phase: 12.4
 current_plan: 1
-status: Ready for Phase 12.4 execution
-last_updated: "2026-04-25T01:11:47.5985451+02:00"
+status: Executing Phase 12.4
+last_updated: "2026-04-25T08:27:23.144Z"
 progress:
-  total_phases: 19
-  completed_phases: 11
-  total_plans: 48
-  completed_plans: 33
+  total_phases: 14
+  completed_phases: 9
+  total_plans: 35
+  completed_plans: 28
+  percent: 80
 ---
 
 # Project State
@@ -109,6 +110,8 @@ Execute Phase 12.4 (Exit AI Training & Baseline Evaluation)
 - Phase 12.4 inserted after Phase 12.3: Exit AI Training & Baseline Evaluation (Smart-Exit-Engine-based specialist for trade-management decisions)
 
 - Phase 12.5 inserted after Phase 12.4: Exit AI Runtime Integration & Governance (governed overlay for tighten/partial/full-exit actions)
+
+- Phase 12.7 inserted after Phase 12.6: AI Training Pipeline Hardening (URGENT)
 
 - Phase 14 added: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates
 

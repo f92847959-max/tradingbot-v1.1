@@ -127,6 +127,14 @@
 - [ ] **AUTOAI-05**: Runtime-Rollout erfolgt als `shadow` -> `agreement_guarded` -> `primary_with_challenger`, ohne bestehende Kill-Switch-, Kalender-, Strategie- oder Risk-Guards zu umgehen
 - [ ] **AUTOAI-06**: Governance- und Monitoring-Persistenz loggen Champion/Candidate-Auswahl, Disagreements, Guard-Blocks und Promotionsmetriken strukturiert fuer Operator Review und Retraining
 
+### AI Training Pipeline Hardening
+
+- [ ] **AITRAIN2-01**: Trainingslaeufe pruefen vor dem Fitten die tatsaechlich trainierbare historische Zeitspanne und brechen mit einer konkreten Datenabdeckungsdiagnose ab, wenn der Mindestzeitraum nicht erreicht wird
+- [ ] **AITRAIN2-02**: Trainingsreports unterscheiden empfangene, gespeicherte, feature-ready und label-ready Samples inklusive Dropped-Row-Gruenden
+- [ ] **AITRAIN2-03**: Causale Label-Builder erzeugen Entry-, HOLD/Abstain-, Exit-, Confidence- und Risk-aware Labels ohne Future-Leakage
+- [ ] **AITRAIN2-04**: Candidate-Modelle werden walk-forward gegen den aktuellen Champion auf identischen Fenstern und nach Kosten verglichen
+- [ ] **AITRAIN2-05**: Promotion in Shadow oder Runtime wird durch Kalibrierung, Drawdown, Profit Factor, Confidence-Bucket-Qualitaet und dokumentierte Manifest-Artefakte gegated
+
 ### Orderbuch-Analyse
 
 - [ ] **FLOW-01**: Order Flow / Level 2 Daten werden abgerufen und verarbeitet
@@ -244,6 +252,11 @@
 | AUTOAI-04 | Phase 12.6 | Pending |
 | AUTOAI-05 | Phase 12.6 | Pending |
 | AUTOAI-06 | Phase 12.6 | Pending |
+| AITRAIN2-01 | Phase 12.7 | Pending |
+| AITRAIN2-02 | Phase 12.7 | Pending |
+| AITRAIN2-03 | Phase 12.7 | Pending |
+| AITRAIN2-04 | Phase 12.7 | Pending |
+| AITRAIN2-05 | Phase 12.7 | Pending |
 | FLOW-01 | Phase 13 | Pending |
 | FLOW-02 | Phase 13 | Pending |
 | FLOW-03 | Phase 13 | Pending |

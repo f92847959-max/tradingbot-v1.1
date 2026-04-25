@@ -1,0 +1,91 @@
+News-Sentiment-Analyse - Planaufteilung
+========================================
+
+Feature: Echtzeit-Nachrichtenanalyse fuer Gold-relevante Events
+Ziel: Sentiment-Score als ML-Feature + MiroFish-Integration
+Modul: sentiment/
+
+
+PLAN 1: Setup + RSS-Feed Parser
+-------------------------------
+- Dependencies installieren: feedparser, transformers, nltk
+- Modul-Struktur erstellen: sentiment/__init__.py
+- sentiment/news_fetcher.py erstellen:
+  - RSS-Feed-Liste: Reuters, Bloomberg, Investing.com, Kitco Gold News
+  - Gold-Keywords filtern: Fed, Inflation, Zinsen, Krieg, Dollar, Sanctions, Central Bank, Gold Reserves
+  - Polling-Intervall: 5 Minuten
+  - Fehlerbehandlung pro Feed (Timeout, Parse-Fehler)
+  - Rueckgabe: Liste von News-Dicts (headline, source, timestamp, raw_text)
+- Tests: Feed-Parsing, Keyword-Filter, Fehlerbehandlung
+
+
+PLAN 2: Sentiment-Scoring (NLP)
+-------------------------------
+- sentiment/sentiment_analyzer.py erstellen:
+  - FinBERT als primaeres Modell (transformers Pipeline)
+  - Fallback: VADER mit Finance-Lexikon
+  - Score pro Nachricht: -1.0 (bearish) bis +1.0 (bullish)
+  - Quellen-Gewichtung (Reuters=1.0, Bloomberg=0.9, Investing.com=0.7, Kitco=0.8, andere=0.5)
+  - Aktualitaets-Gewichtung (exponentieller Decay, Halbwertszeit 4h)
+- Tests: Score-Bereich, Gewichtung, bekannte Headlines testen
+
+
+PLAN 3: Datenbank-Integration
+-----------------------------
+- sentiment/sentiment_repository.py erstellen:
+  - Tabelle: news_sentiment
+  - Felder: id, timestamp, source, headline, sentiment_score, keywords, impact_level, raw_text
+  - SQLite als Storage (gleich wie restliches Projekt)
+  - CRUD: insert_sentiment, get_sentiments_by_timerange, get_latest_sentiments
+  - Duplikat-Erkennung (gleiche Headline + Source = skip)
+- Tests: Insert, Query, Duplikat-Check
+
+
+PLAN 4: Sentiment-Aggregation
+-----------------------------
+- sentiment/sentiment_aggregator.py erstellen:
+  - Rollierender Durchschnitt: 1h, 4h, 24h Zeitfenster
+  - Sentiment-Momentum: Aenderungsrate (delta zwischen 1h und 4h Durchschnitt)
+  - Sentiment-Divergenz: Sentiment vs. Preisentwicklung (Korrelation)
+  - News-Count pro Stunde als Volatilitaets-Indikator
+  - Rueckgabe: Dict mit sentiment_1h, sentiment_4h, sentiment_24h, sentiment_momentum, sentiment_divergence, news_count
+- Tests: Aggregation mit bekannten Daten, Edge-Cases (keine News)
+
+
+PLAN 5: ML-Feature-Integration
+-------------------------------
+- Sentiment-Features in Feature-Pipeline einbauen:
+  - sentiment_score_1h, sentiment_score_4h, sentiment_score_24h
+  - sentiment_momentum
+  - sentiment_divergence
+  - news_count_1h
+- Features in ai_engine/ Feature-Berechnung integrieren
+- Sicherstellen: Features fuer Backtesting aus historischen Daten berechenbar
+- SHAP-kompatibel (numerische Features)
+- Tests: Feature-Berechnung, NaN-Handling wenn keine News
+
+
+PLAN 6: MiroFish-Integration + Background Service
+--------------------------------------------------
+- Sentiment-Daten als Input fuer MiroFish Seed-Templates
+  - Gold-Sentiment-Summary als Markdown fuer Agenten-Simulation
+  - Aktuelle Top-Headlines + Gesamt-Sentiment in Template einbauen
+- Background-Service: sentiment/sentiment_service.py
+  - Polling-Loop: alle 5 Min Feeds abrufen, scoren, speichern, aggregieren
+  - Start/Stop ueber Trading-Bot Lifecycle
+  - Logging: neue News, Score-Updates
+- Integration in signal_generator.py:
+  - Sentiment-Features bei Signal-Berechnung einbeziehen
+- Tests: Service-Start/Stop, End-to-End Flow
+
+
+Abhaengigkeiten
+================
+Plan 1 -> Plan 2 -> Plan 3 -> Plan 4 -> Plan 5
+Plan 6 haengt ab von Plan 4 + Phase 6 (MiroFish)
+
+Wave-Struktur (parallel moeglich):
+  Wave 1: Plan 1
+  Wave 2: Plan 2 + Plan 3 (parallel)
+  Wave 3: Plan 4
+  Wave 4: Plan 5 + Plan 6 (parallel, wenn MiroFish fertig)
