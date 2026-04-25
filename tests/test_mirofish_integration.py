@@ -133,11 +133,15 @@ def _make_mock_system(
     mock_data = MagicMock()
     mock_data.get_multi_timeframe_data = AsyncMock(return_value={"5m": _make_df()})
 
+    # _apply_autonomy_rollout is called by SignalGeneratorMixin._generate_signal;
+    # for these tests it should be a passthrough since autonomy gating is not
+    # under test.
     return types.SimpleNamespace(
         settings=_make_settings(mirofish_enabled=mirofish_enabled),
         _ai_predictor=_make_mock_predictor(signal_return),
         _mirofish_client=mirofish_client,
         data=mock_data,
+        _apply_autonomy_rollout=lambda signal: signal,
     )
 
 
