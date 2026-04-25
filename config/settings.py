@@ -158,6 +158,14 @@ class Settings(BaseSettings):
     correlation_cache_ttl_seconds: int = 3600    # 1h TTL (RESEARCH Pitfall 3: yfinance rate limits)
     correlation_lookback_days: int = 200          # Need >=120 for corr_*_120 (RESEARCH Pitfall 2)
 
+    # -- Order Flow / Orderbuch Analysis (Phase 13) ---------------------------
+    orderflow_enabled: bool = False              # Opt-in; False = graceful OHLCV-only fallback
+    orderflow_quote_enrichment_enabled: bool = False  # Optional Capital.com L1 quote quantities
+    orderflow_profile_window: int = 200          # Candles for rolling POC/VAH/VAL profile
+    orderflow_profile_bins: int = 40             # Price bins used by volume-profile approximation
+    orderflow_liquidity_window: int = 20         # Lookback for liquidity-zone distances
+    orderflow_absorption_window: int = 20        # Lookback for absorption and volume z-scores
+
     # -------------------------------------------------------------------------
     # Computed properties
     # -------------------------------------------------------------------------
