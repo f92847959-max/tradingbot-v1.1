@@ -451,9 +451,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 13-01-PLAN.md - OHLCV-derived order-flow feature core
-- [ ] 13-02-PLAN.md - Optional Capital.com L1 quote-flow enrichment
-- [ ] 13-03-PLAN.md - FeatureEngineer/ML integration and UAT gate
+- [x] 13-01-PLAN.md - OHLCV-derived order-flow feature core
+- [x] 13-02-PLAN.md - Optional Capital.com L1 quote-flow enrichment
+- [x] 13-03-PLAN.md - FeatureEngineer/ML integration and UAT gate
 
 **Scope:**
 - Bid/Ask Walls erkennen (grosse Orders im Orderbuch)
@@ -463,10 +463,10 @@ Plans:
 - Order Flow Features fuer ML-Modell
 
 **UAT:**
-- [ ] Order Flow Daten werden abgerufen und verarbeitet
-- [ ] Delta (Kauf/Verkaufsdruck) pro Kerze berechnet
-- [ ] Liquiditaets-Zonen und Bid/Ask Walls erkannt
-- [ ] Order Flow Features im ML-Modell nutzbar
+- [x] Order Flow Daten werden abgerufen und verarbeitet
+- [x] Delta (Kauf/Verkaufsdruck) pro Kerze berechnet
+- [x] Liquiditaets-Zonen und Bid/Ask Walls erkannt
+- [x] Order Flow Features im ML-Modell nutzbar
 
 ---
 
@@ -509,4 +509,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-04-25 — Phase 13 planned*
+*Last updated: 2026-04-25 — Phase 13 executed and verified*

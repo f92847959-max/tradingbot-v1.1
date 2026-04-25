@@ -2,30 +2,30 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
-current_phase: 13
+current_phase: 12.7
 current_plan: 1
-status: Executing Phase 13
-last_updated: "2026-04-25T21:48:32.777Z"
+status: Phase 13 complete
+last_updated: "2026-04-25T21:57:59.515Z"
 progress:
-  total_phases: 14
-  completed_phases: 9
-  total_plans: 38
-  completed_plans: 28
-  percent: 74
+  total_phases: 20
+  completed_phases: 13
+  total_plans: 50
+  completed_plans: 40
+  percent: 80
 ---
 
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 13
+**Current Phase:** 12.7
 **Current Plan:** 1
-**Phase Status:** Phase 13 planned with 3 executable plans; Phase 12.7 remains ready for execution
+**Phase Status:** Phase 13 complete; Phase 12.7 remains ready for execution
 **Total Phases:** 20
 
 ## Next Action
 
-Execute Phase 13 (Orderbuch-Analyse)
+Execute Phase 12.7 (AI Training Pipeline Hardening)
 
 ## Decisions
 
@@ -271,3 +271,7 @@ Execute Phase 13 (Orderbuch-Analyse)
   - 13-01: OHLCV-derived `flow_*` feature core for delta, volume profile, liquidity zones, FVG, and absorption
   - 13-02: optional Capital.com L1 quote-flow enrichment with neutral fallback
   - 13-03: FeatureEngineer/ML integration and UAT gate for FLOW-01 through FLOW-04
+- 2026-04-25: Phase 13 complete (3/3 plans, 29 targeted/regression tests passing)
+  - 13-01: `OrderFlowFeatures` adds finite OHLCV-derived `flow_*` features
+  - 13-02: `QuoteFlowAggregator` adds optional Capital.com L1 quote-flow enrichment with neutral fallback
+  - 13-03: `FeatureEngineer` exposes the `orderflow` group as ML inputs

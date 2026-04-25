@@ -137,10 +137,10 @@
 
 ### Orderbuch-Analyse
 
-- [ ] **FLOW-01**: Order Flow / Level 2 Daten werden abgerufen und verarbeitet
-- [ ] **FLOW-02**: Delta (Kauf- vs. Verkaufsdruck) pro Kerze berechnet
-- [ ] **FLOW-03**: Liquiditaets-Zonen und Bid/Ask Walls automatisch erkannt
-- [ ] **FLOW-04**: Order Flow Features (delta, absorption, liquidity) als ML-Input nutzbar
+- [x] **FLOW-01**: Order Flow / Level 2 Daten werden abgerufen und verarbeitet
+- [x] **FLOW-02**: Delta (Kauf- vs. Verkaufsdruck) pro Kerze berechnet
+- [x] **FLOW-03**: Liquiditaets-Zonen und Bid/Ask Walls automatisch erkannt
+- [x] **FLOW-04**: Order Flow Features (delta, absorption, liquidity) als ML-Input nutzbar
 
 ## v2 Requirements
 
@@ -257,10 +257,10 @@
 | AITRAIN2-03 | Phase 12.7 | Pending |
 | AITRAIN2-04 | Phase 12.7 | Pending |
 | AITRAIN2-05 | Phase 12.7 | Pending |
-| FLOW-01 | Phase 13 | Pending |
-| FLOW-02 | Phase 13 | Pending |
-| FLOW-03 | Phase 13 | Pending |
-| FLOW-04 | Phase 13 | Pending |
+| FLOW-01 | Phase 13 | Complete |
+| FLOW-02 | Phase 13 | Complete |
+| FLOW-03 | Phase 13 | Complete |
+| FLOW-04 | Phase 13 | Complete |
 | DEMO-01 | Phase 15 | Pending |
 | DEMO-02 | Phase 15 | Pending |
 | DEMO-03 | Phase 15 | Pending |
