@@ -20,6 +20,7 @@ from .time_features import TimeFeatures
 from .gold_specific import GoldSpecificFeatures
 from .market_structure_liquidity import MarketStructureLiquidityFeatures
 from .microstructure_features import MicrostructureFeatures
+from .orderflow_features import OrderFlowFeatures
 from .support_resistance import SupportResistanceFeatures
 from .correlation_features import CorrelationFeatures
 from correlation.snapshot import CorrelationSnapshot
@@ -117,6 +118,7 @@ class FeatureEngineer:
         self._time = TimeFeatures()
         self._gold = GoldSpecificFeatures()
         self._micro = MicrostructureFeatures()
+        self._orderflow = OrderFlowFeatures()
         self._sr = SupportResistanceFeatures()
         self._correlation = CorrelationFeatures()
         self._specialist = MarketStructureLiquidityFeatures()
@@ -128,6 +130,7 @@ class FeatureEngineer:
             + self._time.get_feature_names()
             + self._gold.get_feature_names()
             + self._micro.get_feature_names()
+            + self._orderflow.get_feature_names()
             + self._sr.get_feature_names()
             + self._correlation.get_feature_names()
         )
@@ -199,6 +202,7 @@ class FeatureEngineer:
         # 4. Gold-specific features
         df = self._gold.calculate(df)
         df = self._micro.calculate(df)
+        df = self._orderflow.calculate(df)
         df = self._sr.calculate(df)
         df = self._correlation.calculate(df, correlation_snapshot)
         if include_specialist:
@@ -354,6 +358,7 @@ class FeatureEngineer:
             "time": self._time.get_feature_names(),
             "gold_specific": self._gold.get_feature_names(),
             "microstructure": self._micro.get_feature_names(),
+            "orderflow": self._orderflow.get_feature_names(),
             "support_resistance": self._sr.get_feature_names(),
             "correlation": self._correlation.get_feature_names(),
             "market_structure_liquidity": self._specialist.get_feature_names(),
