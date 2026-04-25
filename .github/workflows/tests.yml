@@ -1,0 +1,54 @@
+name: tests
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements.lock
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+
+      - name: Run tests
+        env:
+          GOLD_ENV_PATH: ${{ github.workspace }}/.env.ci
+        run: |
+          # Provide a minimal .env so config validation passes in CI
+          cat > .env.ci <<'EOF'
+          CAPITAL_EMAIL=ci@example.com
+          CAPITAL_PASSWORD=ci-stub
+          CAPITAL_API_KEY=ci-stub
+          POSTGRES_PASSWORD=ci-stub
+          SQLITE_FALLBACK=true
+          EOF
+
+          python -m pytest tests/ \
+            --ignore=tests/sentiment \
+            -p no:cacheprovider \
+            --tb=short \
+            -q
+
+      - name: Sentiment placeholder tests (allowed to fail)
+        if: always()
+        continue-on-error: true
+        run: python -m pytest tests/sentiment -p no:cacheprovider -q || true

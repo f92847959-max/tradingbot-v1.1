@@ -30,6 +30,8 @@ data/
 logs/
 *.log
 *.lock
+# Pinned dependency lockfile is committed (CI uses it for reproducible installs)
+!requirements.lock
 
 # OS
 .DS_Store
