@@ -448,6 +448,12 @@ Plans:
 ### Phase 13: Orderbuch-Analyse
 **Goal:** Order Flow / DOM Analyse zur Erkennung institutioneller Aktivitaet und grosser Bewegungen
 **Requirements:** FLOW-01, FLOW-02, FLOW-03, FLOW-04
+**Plans:** 3 plans
+
+Plans:
+- [ ] 13-01-PLAN.md - OHLCV-derived order-flow feature core
+- [ ] 13-02-PLAN.md - Optional Capital.com L1 quote-flow enrichment
+- [ ] 13-03-PLAN.md - FeatureEngineer/ML integration and UAT gate
 
 **Scope:**
 - Bid/Ask Walls erkennen (grosse Orders im Orderbuch)
@@ -503,4 +509,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-04-25 — Phases 12.4, 12.5 and 12.6 executed*
+*Last updated: 2026-04-25 — Phase 13 planned*

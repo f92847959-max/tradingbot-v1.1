@@ -2,30 +2,30 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
-current_phase: 12.7
+current_phase: 13
 current_plan: 1
-status: Phase 12.6 complete
-last_updated: "2026-04-25T08:27:23.144Z"
+status: Phase 13 planned
+last_updated: "2026-04-25T09:10:18.544Z"
 progress:
-  total_phases: 14
+  total_phases: 20
   completed_phases: 12
-  total_plans: 44
+  total_plans: 50
   completed_plans: 37
-  percent: 84
+  percent: 74
 ---
 
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 12.7
+**Current Phase:** 13
 **Current Plan:** 1
-**Phase Status:** Phases 12.4, 12.5 and 12.6 complete; Phase 12.7 ready for execution
-**Total Phases:** 19
+**Phase Status:** Phase 13 planned with 3 executable plans; Phase 12.7 remains ready for execution
+**Total Phases:** 20
 
 ## Next Action
 
-Execute Phase 12.7 (AI Training Pipeline Hardening)
+Execute Phase 13 (Orderbuch-Analyse)
 
 ## Decisions
 
@@ -98,6 +98,9 @@ Execute Phase 12.7 (AI Training Pipeline Hardening)
 - [Phase 12.5]: Runtime Exit AI may only reduce risk through existing modify/close/partial-close paths and must remain strict no-op when disabled or artifacts are absent
 - [Phase 12.6]: Existing deterministic systems remain runtime teachers and hard guards while autonomy is distilled into the current AI stack
 - [Phase 12.6]: Autonomy head stays within `BUY/HOLD/SELL` and may not bypass `DecisionGovernor`, `StrategyManager`, calendar blocks, or `RiskManager`
+- [Phase 13]: Capital.com has no true multi-level DOM; Phase 13 uses OHLCV-derived `flow_*` features as the primary path and optional L1 quote imbalance as enrichment
+- [Phase 13]: New order-flow features must use the `flow_` prefix and must not duplicate existing `l1_*`, `l2_*`, or `micro_*` microstructure features
+- [Phase 13]: Order-flow integration is feature/data only; runtime trading policy remains unchanged until a later phase explicitly consumes those features
 
 ## Accumulated Context
 
@@ -264,3 +267,7 @@ Execute Phase 12.7 (AI Training Pipeline Hardening)
   - 12.4: Exit-AI dataset, isolated specialist training, baseline comparison, promotion gate, and CLI
   - 12.5: Exit-AI runtime advisor, OrderManager application path, audit and reconciliation context
   - 12.6: teacher snapshots, distillation dataset, decision-head artifacts, and guarded rollout metadata
+- 2026-04-25: Phase 13 planned (3 plans, order-flow feature core through ML integration)
+  - 13-01: OHLCV-derived `flow_*` feature core for delta, volume profile, liquidity zones, FVG, and absorption
+  - 13-02: optional Capital.com L1 quote-flow enrichment with neutral fallback
+  - 13-03: FeatureEngineer/ML integration and UAT gate for FLOW-01 through FLOW-04
