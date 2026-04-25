@@ -16,7 +16,6 @@ from typing import Any
 
 import pandas as pd
 
-from shared.exceptions import ModelNotLoadedError, PredictionError, DataError
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +68,8 @@ class AIPredictor:
         candle_data: dict[str, pd.DataFrame] | None = None,
         data_provider: Any | None = None,
         primary_timeframe: str = "5m",
+        sentiment_data: dict[str, float] | None = None,
+        mirofish_signal: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         Erzeugt eine Trading-Vorhersage.
@@ -81,11 +82,11 @@ class AIPredictor:
         if candle_data is None and data_provider is not None:
             try:
                 if hasattr(data_provider, "get_all_timeframes"):
-                    maybe_data = data_provider.get_all_timeframes(count=200)
+                    maybe_data = data_provider.get_all_timeframes(count=5000)
                 elif hasattr(data_provider, "get_multi_timeframe_data"):
                     maybe_data = data_provider.get_multi_timeframe_data(
                         timeframes=["5m", "15m", "1h"],
-                        count=200,
+                        count=None,
                     )
                 else:
                     maybe_data = None
@@ -102,11 +103,16 @@ class AIPredictor:
             return self._empty_signal("Keine Daten verfuegbar")
 
         try:
-            signal = self._predictor.predict(candle_data, primary_timeframe)
+            signal = self._predictor.predict(
+                candle_data,
+                primary_timeframe,
+                sentiment_data=sentiment_data,
+                mirofish_signal=mirofish_signal,
+            )
             self._last_signal = signal
             return signal
-        except (ValueError, RuntimeError) as exc:
-            logger.error("Vorhersage fehlgeschlagen: %s", exc)
+        except Exception as exc:
+            logger.exception("Vorhersage fehlgeschlagen: %s", exc)
             return self._empty_signal(f"Vorhersage-Fehler: {exc}")
 
     def get_last_signal(self) -> dict[str, Any] | None:

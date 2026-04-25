@@ -11,7 +11,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from exit_engine.types import StructureLevel
+from exit_engine.types import StopLossResult, StructureLevel
 from strategy.regime_detector import MarketRegime
 from strategy.regime_params import get_regime_params
 from shared.constants import PIP_SIZE
@@ -21,14 +21,16 @@ logger = logging.getLogger(__name__)
 
 def calculate_dynamic_sl(
     direction: str,
-    entry_price: float,
-    atr: float,
-    regime: MarketRegime,
+    entry_price: float | None = None,
+    atr: float | None = None,
+    regime: MarketRegime | None = None,
     structure_levels: list[StructureLevel] | None = None,
     pip_size: float = PIP_SIZE,
     min_sl_pips: float = 5.0,
     structure_buffer_pips: float = 2.0,
-) -> tuple[float, str]:
+    *,
+    entry: float | None = None,
+) -> StopLossResult:
     """Calculate a regime-aware ATR-based stop loss with optional structure adjustment.
 
     Args:
@@ -47,6 +49,12 @@ def calculate_dynamic_sl(
     Raises:
         ValueError: If ATR is None, zero, or negative
     """
+    if entry_price is None:
+        if entry is None:
+            raise TypeError("entry_price is required")
+        entry_price = entry
+    if regime is None:
+        raise TypeError("regime is required")
     if atr is None or atr <= 0:
         raise ValueError(f"ATR must be positive, got: {atr}")
 
@@ -97,7 +105,7 @@ def calculate_dynamic_sl(
         if sl - entry_price < min_distance:
             sl = entry_price + min_distance
 
-    return round(sl, 2), reason
+    return StopLossResult(round(sl, 2), reason)
 
 
 def find_swing_levels(

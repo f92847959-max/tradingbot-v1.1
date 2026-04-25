@@ -73,22 +73,28 @@ class RateLimiter:
     def __init__(self, max_per_second: int = 10) -> None:
         self.max_per_second = max_per_second
         self._timestamps: list[float] = []
+        self._lock = asyncio.Lock()
 
     async def acquire(self) -> None:
-        now = time.monotonic()
-        self._timestamps = [t for t in self._timestamps if now - t < 1.0]
-        if len(self._timestamps) >= self.max_per_second:
-            wait = 1.0 - (now - self._timestamps[0])
-            if wait > 0:
-                await asyncio.sleep(wait)
-        self._timestamps.append(time.monotonic())
+        async with self._lock:
+            now = time.monotonic()
+            # Filter & snapshot once — no re-read between checks
+            active = [t for t in self._timestamps if now - t < 1.0]
+            self._timestamps = active
+
+            if len(active) >= self.max_per_second:
+                wait = 1.0 - (now - active[0])
+                if wait > 0:
+                    await asyncio.sleep(wait)
+
+            self._timestamps.append(time.monotonic())
 
 
 # ---------------------------------------------------------------------------
 # Exceptions — re-exported from shared for backward compatibility
 # ---------------------------------------------------------------------------
 
-from shared.exceptions import BrokerError, BrokerAuthError as AuthenticationError
+from shared.exceptions import BrokerError, BrokerAuthError as AuthenticationError  # noqa: E402
 
 
 class OrderRejectedError(BrokerError):
@@ -327,19 +333,175 @@ class CapitalComClient:
 
         candles = []
         for p in data.get("prices", []):
-            ts = datetime.fromisoformat(p["snapshotTime"].replace("Z", "+00:00"))
-            bid = p.get("closePrice", p.get("bidPrice", {}))
-            ask = p.get("highPrice", p.get("askPrice", {}))
+            snapshot_time = p.get("snapshotTime")
+            if not snapshot_time:
+                logger.warning("Skipping candle with missing snapshotTime")
+                continue
+            try:
+                ts = datetime.fromisoformat(snapshot_time.replace("Z", "+00:00"))
+            except (ValueError, AttributeError) as e:
+                logger.warning("Skipping candle with invalid snapshotTime %r: %s", snapshot_time, e)
+                continue
 
-            o = (float(bid.get("bid", p["openPrice"]["bid"])) + float(bid.get("ask", p["openPrice"]["ask"]))) / 2
-            h = float(p["highPrice"]["bid"])
-            l = float(p["lowPrice"]["bid"])
-            c = float(p["closePrice"]["bid"])
-            v = float(p.get("lastTradedVolume", 0))
+            open_price = p.get("openPrice", {}) or {}
+            high_price = p.get("highPrice", {}) or {}
+            low_price = p.get("lowPrice", {}) or {}
+            close_price = p.get("closePrice", {}) or {}
 
-            candles.append(CandleData(timestamp=ts, open=o, high=h, low=l, close=c, volume=v))
+            open_bid = open_price.get("bid")
+            open_ask = open_price.get("ask")
+            high_bid = high_price.get("bid")
+            low_bid = low_price.get("bid")
+            close_bid = close_price.get("bid")
+
+            if close_bid is None or high_bid is None or low_bid is None or open_bid is None:
+                logger.warning(
+                    "Skipping candle at %s: missing OHLC fields (o=%s h=%s l=%s c=%s)",
+                    snapshot_time, open_bid, high_bid, low_bid, close_bid,
+                )
+                continue
+
+            try:
+                if open_ask is not None:
+                    o = (float(open_bid) + float(open_ask)) / 2
+                else:
+                    o = float(open_bid)
+                high_v = float(high_bid)
+                low_v = float(low_bid)
+                c = float(close_bid)
+                v = float(p.get("lastTradedVolume", 0) or 0)
+            except (TypeError, ValueError) as e:
+                logger.warning("Skipping candle at %s: invalid numeric value (%s)", snapshot_time, e)
+                continue
+
+            candles.append(CandleData(timestamp=ts, open=o, high=high_v, low=low_v, close=c, volume=v))
 
         return candles
+
+    async def get_candles_paginated(
+        self,
+        timeframe: str = "5m",
+        total_count: int = 5000,
+        epic: str = GOLD_EPIC,
+    ) -> list[CandleData]:
+        """Fetch more than 1000 candles by paginating backwards in time.
+
+        Capital.com limits each request to max=1000 and enforces date-range
+        limits per resolution. This method uses small time windows (max 500
+        candles worth) to stay within API limits, then stitches results.
+        """
+        from datetime import timedelta
+
+        # Capital.com enforces date-range limits per resolution.
+        # Use conservative batch sizes (in candle count) that stay within limits.
+        tf_seconds = {
+            "1m": 60, "5m": 300, "15m": 900, "30m": 1800,
+            "1h": 3600, "4h": 14400, "1d": 86400,
+        }
+        # Max candles per batch to stay within API date-range limits
+        tf_batch_size = {
+            "1m": 200, "5m": 500, "15m": 500, "30m": 500,
+            "1h": 500, "4h": 500, "1d": 500,
+        }
+        step = tf_seconds.get(timeframe, 300)
+        batch_size = tf_batch_size.get(timeframe, 500)
+
+        all_candles: list[CandleData] = []
+        to_dt = datetime.utcnow()
+
+        remaining = total_count
+        max_iterations = 30  # safety cap (5000/200 = 25 for 1m)
+
+        for iteration in range(max_iterations):
+            if remaining <= 0:
+                break
+
+            batch = min(remaining, batch_size)
+            from_dt = to_dt - timedelta(seconds=step * batch)
+
+            from_str = from_dt.strftime("%Y-%m-%dT%H:%M:%S")
+            to_str = to_dt.strftime("%Y-%m-%dT%H:%M:%S")
+
+            try:
+                data = await self._request(
+                    "GET",
+                    f"/api/v1/prices/{epic}?resolution={TIMEFRAME_MAP.get(timeframe, timeframe)}"
+                    f"&from={from_str}&to={to_str}&max={batch}",
+                )
+            except BrokerError as e:
+                logger.warning(
+                    "Paginated fetch batch %d failed (%s to %s): %s",
+                    iteration + 1, from_str, to_str, e,
+                )
+                # Try halving batch size once on date-range error
+                if "daterange" in str(e).lower() and batch > 100:
+                    batch_size = batch_size // 2
+                    logger.info("Reducing batch size to %d and retrying", batch_size)
+                    continue
+                break
+
+            prices = data.get("prices", [])
+            if not prices:
+                break
+
+            batch_candles: list[CandleData] = []
+            for p in prices:
+                snapshot_time = p.get("snapshotTime")
+                if not snapshot_time:
+                    continue
+                try:
+                    ts = datetime.fromisoformat(snapshot_time.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    continue
+
+                open_price = p.get("openPrice", {}) or {}
+                high_price = p.get("highPrice", {}) or {}
+                low_price = p.get("lowPrice", {}) or {}
+                close_price = p.get("closePrice", {}) or {}
+
+                open_bid = open_price.get("bid")
+                open_ask = open_price.get("ask")
+                high_bid = high_price.get("bid")
+                low_bid = low_price.get("bid")
+                close_bid = close_price.get("bid")
+
+                if any(v is None for v in (open_bid, high_bid, low_bid, close_bid)):
+                    continue
+
+                try:
+                    if open_ask is not None:
+                        o = (float(open_bid) + float(open_ask)) / 2
+                    else:
+                        o = float(open_bid)
+                    batch_candles.append(CandleData(
+                        timestamp=ts,
+                        open=o,
+                        high=float(high_bid),
+                        low=float(low_bid),
+                        close=float(close_bid),
+                        volume=float(p.get("lastTradedVolume", 0) or 0),
+                    ))
+                except (TypeError, ValueError):
+                    continue
+
+            if not batch_candles:
+                break
+
+            all_candles = batch_candles + all_candles  # prepend (older first)
+            remaining -= len(batch_candles)
+
+            # Move window back: next batch ends where this one started
+            earliest = min(c.timestamp for c in batch_candles)
+            to_dt = earliest.replace(tzinfo=None) - timedelta(seconds=1)
+
+            # Only stop if API returned zero useful candles two batches in a row
+            # (weekends/holidays cause sparse batches that shouldn't stop pagination)
+
+        logger.info(
+            "Paginated fetch: got %d/%d candles for %s",
+            len(all_candles), total_count, timeframe,
+        )
+        return all_candles
 
     async def get_current_price(self, epic: str = GOLD_EPIC) -> dict:
         """Get current bid/ask for Gold.
@@ -498,13 +660,18 @@ class CapitalComClient:
                     logger.info("WebSocket connected")
 
                     # Subscribe to Gold market data
-                    subscribe_msg = json.dumps({
+                    subscribe_payload = {
                         "destination": "marketData.subscribe",
                         "correlationId": "1",
                         "cst": self._cst,
                         "securityToken": self._security_token,
                         "payload": {"epics": [epic]},
-                    })
+                    }
+                    subscribe_msg = json.dumps(subscribe_payload)
+                    # Mask tokens before any debug-level logging
+                    if logger.isEnabledFor(logging.DEBUG):
+                        masked = {**subscribe_payload, "cst": "***", "securityToken": "***"}
+                        logger.debug("Sending subscribe message: %s", masked)
                     await ws.send(subscribe_msg)
 
                     async for message in ws:
@@ -522,13 +689,27 @@ class CapitalComClient:
                     "WebSocket disconnected: %s. Retry %d/%d in %ds...",
                     e, ws_retries, max_ws_retries, backoff,
                 )
-                self._ws = None
                 await asyncio.sleep(backoff)
-                # Re-authenticate before reconnecting
+                # Re-authenticate before reconnecting (tokens may be stale)
                 try:
                     await self.authenticate()
                 except AuthenticationError:
                     logger.error("Re-auth failed, will retry on next cycle")
+            except Exception as e:
+                ws_retries += 1
+                backoff = min(5 * 2 ** min(ws_retries - 1, 4), 120)
+                logger.warning(
+                    "WebSocket error: %s. Retry %d/%d in %ds...",
+                    e, ws_retries, max_ws_retries, backoff,
+                )
+                await asyncio.sleep(backoff)
+                try:
+                    await self.authenticate()
+                except AuthenticationError:
+                    logger.error("Re-auth failed, will retry on next cycle")
+            finally:
+                # Avoid stale references — the context manager has closed ws
+                self._ws = None
 
     async def stop_price_stream(self) -> None:
         if self._ws:

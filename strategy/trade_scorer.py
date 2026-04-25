@@ -1,7 +1,6 @@
 """Trade scorer — evaluates signal quality on a 0-100 scale."""
 
 import logging
-from datetime import datetime, timezone
 from typing import Optional
 
 from strategy.entry_calculator import risk_reward_ratio

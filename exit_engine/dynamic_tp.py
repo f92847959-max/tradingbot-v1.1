@@ -11,7 +11,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from exit_engine.types import StructureLevel
+from exit_engine.types import StructureLevel, TakeProfitResult
 from strategy.regime_detector import MarketRegime
 from strategy.regime_params import get_regime_params
 from shared.constants import PIP_SIZE
@@ -116,13 +116,15 @@ def find_sr_levels(
 
 def calculate_dynamic_tp(
     direction: str,
-    entry_price: float,
-    atr: float,
-    regime: MarketRegime,
+    entry_price: float | None = None,
+    atr: float | None = None,
+    regime: MarketRegime | None = None,
     candles: pd.DataFrame | None = None,
     pip_size: float = PIP_SIZE,
     min_tp_pips: float = 10.0,
-) -> tuple[float, float | None, str]:
+    *,
+    entry: float | None = None,
+) -> TakeProfitResult:
     """Calculate a regime-aware take-profit level using Fibonacci and S/R.
 
     Priority: S/R level > Fibonacci extension > ATR-based fallback.
@@ -142,6 +144,12 @@ def calculate_dynamic_tp(
     Raises:
         ValueError: If ATR is None, zero, or negative
     """
+    if entry_price is None:
+        if entry is None:
+            raise TypeError("entry_price is required")
+        entry_price = entry
+    if regime is None:
+        raise TypeError("regime is required")
     if atr is None or atr <= 0:
         raise ValueError(f"ATR must be positive, got: {atr}")
 
@@ -230,4 +238,4 @@ def calculate_dynamic_tp(
         tp_distance = entry_price - tp
         tp1 = round(entry_price - tp_distance * 0.5, 2)
 
-    return round(tp, 2), tp1, reason
+    return TakeProfitResult(round(tp, 2), tp1, reason)

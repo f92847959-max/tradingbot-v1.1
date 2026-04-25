@@ -1,11 +1,28 @@
 """Technical indicators for Gold trading using pandas-ta."""
 
-import logging
+from __future__ import annotations
 
-import pandas as pd
-import pandas_ta as ta
+import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 logger = logging.getLogger(__name__)
+_PANDAS = None
+_PANDAS_TA = None
+
+
+def _get_indicator_libs():
+    """Import indicator libraries lazily to reduce first-start latency."""
+    global _PANDAS, _PANDAS_TA
+    if _PANDAS is None or _PANDAS_TA is None:
+        import pandas as pd
+        import pandas_ta as ta
+
+        _PANDAS = pd
+        _PANDAS_TA = ta
+    return _PANDAS, _PANDAS_TA
 
 
 def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -16,6 +33,8 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     if len(df) < 50:
         logger.warning("Only %d candles — some indicators may be NaN", len(df))
+
+    pd, ta = _get_indicator_libs()
 
     # -- Trend Indicators ---------------------------------------------------
 
@@ -63,11 +82,13 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     # -- Volatility Indicators ----------------------------------------------
 
     # Bollinger Bands
+    # pandas_ta.bbands returns columns in order: [BBL, BBM, BBU, BBB, BBP]
+    # i.e. Lower, Middle, Upper, Bandwidth, Percent.
     bb = ta.bbands(df["close"], length=20, std=2)
     if bb is not None:
-        df["bb_upper"] = bb.iloc[:, 0]
+        df["bb_lower"] = bb.iloc[:, 0]
         df["bb_middle"] = bb.iloc[:, 1]
-        df["bb_lower"] = bb.iloc[:, 2]
+        df["bb_upper"] = bb.iloc[:, 2]
         df["bb_bandwidth"] = bb.iloc[:, 3] if bb.shape[1] > 3 else None
         df["bb_percent"] = bb.iloc[:, 4] if bb.shape[1] > 4 else None
 
@@ -84,7 +105,7 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
         had_datetime_index = isinstance(df.index, pd.DatetimeIndex)
         if not had_datetime_index and "timestamp" in df.columns:
             original_index = df.index
-            df.index = pd.to_datetime(df["timestamp"])
+            df.index = pd.to_datetime(df["timestamp"], utc=True)
             df = df.sort_index()
             try:
                 df["vwap"] = ta.vwap(df["high"], df["low"], df["close"], df["volume"])
@@ -104,22 +125,24 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     # -- Derived Signals ----------------------------------------------------
 
     # EMA Crossover signals
-    df["ema_cross_9_21"] = (df["ema_9"] > df["ema_21"]).astype(int)
-    df["ema_cross_21_50"] = (df["ema_21"] > df["ema_50"]).astype(int)
+    df["ema_cross_9_21"] = (df["ema_9"].astype(float) > df["ema_21"].astype(float)).astype(int)
+    df["ema_cross_21_50"] = (df["ema_21"].astype(float) > df["ema_50"].astype(float)).astype(int)
 
     # RSI zones
-    df["rsi_oversold"] = (df["rsi_14"] < 30).astype(int)
-    df["rsi_overbought"] = (df["rsi_14"] > 70).astype(int)
+    df["rsi_oversold"] = (df["rsi_14"].astype(float) < 30).astype(int)
+    df["rsi_overbought"] = (df["rsi_14"].astype(float) > 70).astype(int)
 
     # Trend strength
     if "adx" in df.columns:
-        df["strong_trend"] = (df["adx"] > 25).astype(int)
+        df["strong_trend"] = (df["adx"].astype(float) > 25).astype(int)
 
     return df
 
 
 def get_indicator_summary(df: pd.DataFrame) -> dict:
     """Get a summary of the latest indicator values."""
+    pd, _ = _get_indicator_libs()
+
     if df.empty:
         return {}
 

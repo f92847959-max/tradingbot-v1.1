@@ -1,7 +1,6 @@
 """Tests for SHAP-based feature pruning in walk-forward windows."""
 
 import numpy as np
-import pytest
 
 from ai_engine.training.walk_forward import WalkForwardValidator, WindowSpec
 

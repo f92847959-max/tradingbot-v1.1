@@ -106,7 +106,7 @@ class CandleRepository(BaseRepository[Candle]):
         Returns the count of deleted rows.
         """
         from datetime import timedelta, timezone
-        from sqlalchemy import delete, func
+        from sqlalchemy import delete
 
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         stmt = (

@@ -17,11 +17,10 @@ _PROJECT_ROOT = os.path.dirname(_THIS_DIR)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from database.connection import get_session
-from database.repositories.trade_repo import TradeRepository
-from database.repositories.signal_repo import SignalRepository
-from market_data.data_provider import DataProvider
-from market_data.broker_client import CapitalComClient
+from database.connection import get_session  # noqa: E402
+from database.repositories.trade_repo import TradeRepository  # noqa: E402
+from market_data.data_provider import DataProvider  # noqa: E402
+from market_data.broker_client import CapitalComClient  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

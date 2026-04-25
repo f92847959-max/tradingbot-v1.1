@@ -6,7 +6,7 @@ of features/labels for the ML models.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -81,7 +81,7 @@ class DataPreparation:
 
         # Safety check
         if test_start >= n:
-            logger.warning(f"Purge gap too large, reducing")
+            logger.warning("Purge gap too large, reducing")
             purge_gap = 0
             val_start = train_end
             test_start = val_end

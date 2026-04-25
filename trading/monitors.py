@@ -78,7 +78,11 @@ class MonitorMixin:
             repo = TradeRepository(session)
             trade = await repo.get_by_deal_id(deal_id)
             if trade is None:
-                logger.warning("Trade not found in DB for deal_id=%s", deal_id)
+                logger.warning(
+                    "Untracked position closed at broker (deal_id=%s) -- "
+                    "no DB record; skipping heat release/notify (never tracked).",
+                    deal_id,
+                )
                 return
 
             pnl = float(trade.net_pnl) if trade.net_pnl is not None else 0.0

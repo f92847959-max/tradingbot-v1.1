@@ -154,7 +154,7 @@ class RiskManager:
         max_spread: float = 5.0,
         kill_switch_drawdown_pct: float = 20.0,
         min_lot_size: float = 0.01,
-        max_lot_size: float = 10.0,
+        max_lot_size: float = 100.0,
         max_leverage: float = 10.0,
         trading_start: time = time(8, 0),
         trading_end: time = time(22, 0),
@@ -379,11 +379,44 @@ class RiskManager:
         # Check if kill switch should trigger
         self.kill_switch.check_drawdown(current_drawdown)
 
-        # Calculate the FINAL lot size first — the margin/leverage checks must
-        # validate the actual trade we will place, not an intermediate estimate
-        # (was a circular dependency: margin computed from a lot_size that was
-        # then recomputed further down).
+        # Calculate the FINAL lot size first — every downstream guard must
+        # validate the actual trade we will place, not an intermediate estimate.
         lot_size = self.sizer.calculate(current_equity, entry_price, stop_loss)
+        sizing_reasoning = f"fixed_fractional risk={self.sizer.risk_per_trade_pct:.1f}%"
+        if self.advanced_sizer._kelly_fraction > 0.0:
+            sizing_result = self.advanced_sizer.get_position_size(
+                confidence=confidence,
+                atr=atr,
+                account_balance=current_equity,
+            )
+            lot_size = sizing_result["lot_size"]
+            sizing_reasoning = sizing_result["reasoning"]
+            logger.info(
+                "Advanced sizing applied: lot=%.2f, kelly=%.4f, tier=%s, atr_factor=%.2f",
+                lot_size,
+                sizing_result["kelly_fraction"],
+                sizing_result["confidence_tier"],
+                sizing_result["atr_factor"],
+            )
+        else:
+            logger.info(
+                "No Kelly data yet -- using fixed fractional sizing: lot=%.2f",
+                lot_size,
+            )
+
+        # Leverage-aware cap: cap lot_size so notional never exceeds max_leverage.
+        # Prevents the 'risk wants 30 lots, leverage caps at 26 -> reject' loop.
+        if entry_price > 0 and current_equity > 0:
+            max_lot_by_leverage = (current_equity * self.checker.max_leverage) / entry_price
+            # Leave 1% headroom so the leverage check itself (which compares actual
+            # runtime prices) doesn't fail due to a tiny price tick.
+            max_lot_by_leverage = round(max_lot_by_leverage * 0.99, 2)
+            if lot_size > max_lot_by_leverage and max_lot_by_leverage >= self.sizer.min_lot_size:
+                logger.info(
+                    "Lot capped by leverage: %.2f -> %.2f (max %.1fx)",
+                    lot_size, max_lot_by_leverage, self.checker.max_leverage,
+                )
+                lot_size = max_lot_by_leverage
         estimated_margin = entry_price * lot_size * 0.05  # ~5% margin for Gold CFD
         notional_value = entry_price * lot_size
 
@@ -458,29 +491,6 @@ class RiskManager:
                 lot_size=0.0,
                 reason=equity_msg,
                 checks=checks + [equity_check],
-            )
-
-        # Use advanced sizer if Kelly fraction has been set (trade history available)
-        sizing_reasoning = f"fixed_fractional risk={self.sizer.risk_per_trade_pct:.1f}%"
-        if self.advanced_sizer._kelly_fraction > 0.0:
-            sizing_result = self.advanced_sizer.get_position_size(
-                confidence=confidence,
-                atr=atr,
-                account_balance=current_equity,
-            )
-            lot_size = sizing_result["lot_size"]
-            sizing_reasoning = sizing_result["reasoning"]
-            logger.info(
-                "Advanced sizing applied: lot=%.2f, kelly=%.4f, tier=%s, atr_factor=%.2f",
-                lot_size,
-                sizing_result["kelly_fraction"],
-                sizing_result["confidence_tier"],
-                sizing_result["atr_factor"],
-            )
-        else:
-            logger.info(
-                "No Kelly data yet -- using fixed fractional sizing: lot=%.2f",
-                lot_size,
             )
 
         logger.info(

@@ -8,9 +8,7 @@ Validates all 4 Phase 5 UAT criteria:
 4. BACK-04: Consistency structure verifies 60% pos and 20% DD rules.
 """
 
-import json
 import os
-import shutil
 
 import numpy as np
 import pandas as pd

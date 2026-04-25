@@ -1,7 +1,6 @@
 """Load and store historical candle data from Capital.com."""
 
 import logging
-from datetime import datetime, timedelta
 
 from .broker_client import CapitalComClient, CandleData
 from database.connection import get_session
@@ -10,6 +9,36 @@ from database.repositories.candle_repo import CandleRepository
 logger = logging.getLogger(__name__)
 
 TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+
+# Expected step in seconds per timeframe — used for gap detection
+_TIMEFRAME_SECONDS = {
+    "1m": 60,
+    "5m": 300,
+    "15m": 900,
+    "30m": 1800,
+    "1h": 3600,
+    "4h": 14400,
+    "1d": 86400,
+}
+
+
+def _check_candle_gaps(candles: list[CandleData], timeframe: str) -> None:
+    """Log a warning if candle timestamps are not contiguous for the timeframe."""
+    expected = _TIMEFRAME_SECONDS.get(timeframe)
+    if not expected or len(candles) < 2:
+        return
+    # Allow 50% slack to absorb weekends/market holidays without false positives
+    threshold = expected * 1.5
+    gaps = 0
+    for prev, curr in zip(candles, candles[1:]):
+        delta = (curr.timestamp - prev.timestamp).total_seconds()
+        if delta > threshold:
+            gaps += 1
+    if gaps:
+        logger.warning(
+            "Detected %d non-contiguous gap(s) in %s candles (expected step ~%ds)",
+            gaps, timeframe, expected,
+        )
 
 
 async def download_historical_candles(
@@ -27,12 +56,19 @@ async def download_historical_candles(
     for tf in timeframes:
         try:
             logger.info("Downloading %s candles (max %d)...", tf, max_candles)
-            candles = await client.get_candles(timeframe=tf, count=max_candles)
+            if max_candles > 1000:
+                candles = await client.get_candles_paginated(
+                    timeframe=tf, total_count=max_candles,
+                )
+            else:
+                candles = await client.get_candles(timeframe=tf, count=max_candles)
 
             if not candles:
                 logger.warning("No candles returned for %s", tf)
                 results[tf] = 0
                 continue
+
+            _check_candle_gaps(candles, tf)
 
             # Convert to dicts for bulk upsert
             candle_dicts = [

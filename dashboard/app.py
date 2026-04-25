@@ -3,8 +3,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime, time, timedelta
-import asyncio
+from datetime import timedelta
 from dotenv import load_dotenv
 import os
 import sys
@@ -21,7 +20,7 @@ if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
 # Ensure local dashboard utils.py is imported (avoid accidental module shadowing).
-from utils import DataBridge, run_async
+from utils import DataBridge, run_async  # noqa: E402
 
 # Load environment variables from project root (.env beside folders like dashboard/, database/).
 load_dotenv(dotenv_path=os.path.join(_PROJECT_ROOT, ".env"), override=False)

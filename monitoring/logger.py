@@ -15,7 +15,7 @@ LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)-25s | %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 LOG_DIR = "logs"
 LOG_FILE = "logs/trading.log"
-MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_BYTES = 50 * 1024 * 1024  # 50 MB
 BACKUP_COUNT = 5
 
 

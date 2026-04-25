@@ -29,7 +29,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 import pandas as pd
-import pytest
 
 # ---------------------------------------------------------------------------
 # Stub ONLY the modules that pull in sqlalchemy, before any trading.* import.

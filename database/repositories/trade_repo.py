@@ -125,8 +125,8 @@ class TradeRepository(BaseRepository[Trade]):
         return result.scalar_one() > 0
 
     async def get_weekly_pnl(self) -> float:
-        """Get total net P&L for the current calendar week (Mon-Sun)."""
-        today = date.today()
+        """Get total net P&L for the current calendar week (Mon-Sun, UTC)."""
+        today = datetime.now(timezone.utc).date()
         monday = today - timedelta(days=today.weekday())
         stmt = (
             select(func.coalesce(func.sum(Trade.net_pnl), 0))

@@ -43,6 +43,7 @@ TREND_TIMEFRAME = "1h"
 # Candle counts used for indicators
 MIN_CANDLES_FOR_INDICATORS = 50
 DEFAULT_CANDLE_COUNT = 200
+TIMEFRAME_CANDLE_COUNTS: dict[str, int] = {"5m": 5000, "15m": 2000, "1h": 1000}
 
 # ---------------------------------------------------------------------------
 # Trading Sessions (UTC hours/minutes — canonical source of truth)
@@ -96,8 +97,8 @@ DEFAULT_COOLDOWN_MINUTES = 30
 # Strategy
 # ---------------------------------------------------------------------------
 
-MIN_TRADE_SCORE = 60
-MIN_AI_CONFIDENCE = 0.70
+MIN_TRADE_SCORE = 40
+MIN_AI_CONFIDENCE = 0.30
 SL_ATR_MULTIPLIER = 1.5
 TP_ATR_MULTIPLIER = 2.0
 MIN_RR_RATIO = 1.5

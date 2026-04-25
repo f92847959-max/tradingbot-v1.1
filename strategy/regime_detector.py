@@ -70,6 +70,7 @@ class RegimeDetector:
 
         # Hysteresis state for live trading (detect method)
         self._current_regime: Optional[MarketRegime] = None
+        self._pending_regime: Optional[MarketRegime] = None
         self._confirm_count: int = 0
 
     def detect(self, df: pd.DataFrame) -> RegimeState:
@@ -159,8 +160,12 @@ class RegimeDetector:
             )
 
         atr_series = df["atr_14"]
+        # Use the full lookback window to avoid look-ahead / under-filled
+        # windows biasing early rows. Rows where the window is not yet
+        # fully formed will be NaN and fall through to the RANGING default.
         atr_avg = atr_series.rolling(
-            window=self.lookback_periods, min_periods=1
+            window=self.lookback_periods,
+            min_periods=self.lookback_periods,
         ).mean()
 
         # Avoid division by zero
@@ -241,21 +246,32 @@ class RegimeDetector:
         """Apply hysteresis to prevent regime flickering.
 
         Only switches regime after ``min_confirm_candles`` consecutive
-        detections of the new regime.
+        detections of the new regime. The counter tracks how many
+        consecutive candles have reported the *candidate* new regime.
         """
         if self._current_regime is None:
             # First detection — accept immediately
             self._current_regime = raw_regime
+            self._pending_regime = None
             self._confirm_count = 0
             return raw_regime
 
         if raw_regime == self._current_regime:
-            # Same regime, reset confirmation counter
+            # Raw matches current regime -> any pending switch is aborted.
+            # Do NOT touch current regime, just clear the pending counter.
+            self._pending_regime = None
             self._confirm_count = 0
             return self._current_regime
 
-        # Different regime detected
-        self._confirm_count += 1
+        # Different regime detected -> this is a candidate switch
+        if getattr(self, "_pending_regime", None) != raw_regime:
+            # New candidate regime -> start counting from 1
+            self._pending_regime = raw_regime
+            self._confirm_count = 1
+        else:
+            # Same candidate as before -> increment streak
+            self._confirm_count += 1
+
         if self._confirm_count >= self.min_confirm_candles:
             # Confirmed switch
             logger.info(
@@ -265,6 +281,7 @@ class RegimeDetector:
                 self._confirm_count,
             )
             self._current_regime = raw_regime
+            self._pending_regime = None
             self._confirm_count = 0
             return raw_regime
 

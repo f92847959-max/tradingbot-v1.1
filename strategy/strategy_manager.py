@@ -111,7 +111,14 @@ class StrategyManager:
         regime = MarketRegime.RANGING  # safest default fallback
         if mtf_data and "5m" in mtf_data:
             df = mtf_data["5m"]
-            if not df.empty and len(df) >= 20:
+            # Warmup: need at least 50 candles AND a non-empty atr_14
+            # column. A short window can produce NaN-only ATR which
+            # would otherwise leak a bogus RANGING classification.
+            has_atr = (
+                "atr_14" in df.columns
+                and not df["atr_14"].isna().all()
+            )
+            if not df.empty and len(df) >= 50 and has_atr:
                 regime_state = self.regime_detector.detect(df)
                 regime = regime_state.regime
 

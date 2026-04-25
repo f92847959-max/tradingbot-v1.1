@@ -26,6 +26,31 @@ if TYPE_CHECKING:
 logger = logging.getLogger("main")
 
 
+def build_rollout_evaluation_summary(
+    signal: dict[str, Any] | None,
+    *,
+    rejection_reason: str | None = None,
+    pre_ai_block: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Build compact governance metadata for autonomy rollout analysis."""
+    if not signal and not pre_ai_block:
+        return None
+    rollout = (signal or {}).get("autonomy_rollout") if signal else None
+    if not rollout and not pre_ai_block and not rejection_reason:
+        return None
+    summary = {
+        "schema_version": 1,
+        "autonomy_rollout": rollout or {},
+        "rejection_reason": rejection_reason,
+        "pre_ai_block": pre_ai_block or {},
+        "guard_bypass_count": int((rollout or {}).get("guard_bypass_count", 0)),
+    }
+    if rollout:
+        summary["disagreement"] = bool(rollout.get("disagreement", False))
+        summary["selected_source"] = rollout.get("selected_source")
+    return summary
+
+
 class TradingLoopMixin:
     """Main trading loop, tick execution, and multi-timeframe data fetch."""
 
@@ -101,6 +126,10 @@ class TradingLoopMixin:
             await self.risk.sync_kill_switch(session)
 
         if self.risk.kill_switch.is_active:
+            await self._persist_pre_ai_block(
+                block_stage="kill_switch",
+                block_codes=["KILL_SWITCH_ACTIVE"],
+            )
             return
 
         # Phase 8: Force-close on extreme events
@@ -115,6 +144,10 @@ class TradingLoopMixin:
                 )
                 closed = await self.orders.close_all()
                 logger.info("Force-closed %d position(s) before '%s'", closed, event_name)
+            await self._persist_pre_ai_block(
+                block_stage="event_force_close",
+                block_codes=[event_name],
+            )
             return  # Skip tick entirely during extreme events
 
         # Optional: log during high-impact calendar windows (Phase 8)
@@ -134,6 +167,10 @@ class TradingLoopMixin:
             event = self._event_service.get_blocking_event()
             event_name = event.title if event else "high-impact event"
             logger.info("Trade blocked: high-impact event window ('%s')", event_name)
+            await self._persist_pre_ai_block(
+                block_stage="event_window",
+                block_codes=[event_name],
+            )
             return
 
         # 1. Get market data
@@ -400,6 +437,11 @@ class TradingLoopMixin:
 
         try:
             audit = self._extract_governance_audit(signal)
+            if evaluation_summary is None:
+                evaluation_summary = build_rollout_evaluation_summary(
+                    signal,
+                    rejection_reason=rejection_reason,
+                )
             async with get_session() as session:
                 repo = GovernanceDecisionRepository(session)
                 await repo.add_decision(
@@ -411,6 +453,38 @@ class TradingLoopMixin:
                 )
         except Exception as exc:
             logger.error("Failed to save governance decision to DB: %s", exc)
+
+    async def _persist_pre_ai_block(
+        self: TradingSystem,
+        *,
+        block_stage: str,
+        block_codes: list[str],
+    ) -> None:
+        synthetic_signal = {
+            "action": "HOLD",
+            "confidence": 0.0,
+            "final_aggregation": {
+                "decision_audit": {
+                    "preliminary_action": "HOLD",
+                    "final_action": "HOLD",
+                    "gate_decision": "block",
+                    "gate_reasons": block_codes,
+                },
+            },
+        }
+        await self._persist_governance_decision(
+            synthetic_signal,
+            executed=False,
+            rejection_reason=block_stage,
+            evaluation_summary=build_rollout_evaluation_summary(
+                synthetic_signal,
+                rejection_reason=block_stage,
+                pre_ai_block={
+                    "block_stage": block_stage,
+                    "block_codes": list(block_codes),
+                },
+            ),
+        )
 
     async def _fetch_mtf_parallel(self: TradingSystem) -> dict:
         """Fetch multi-timeframe data in parallel using asyncio.gather."""

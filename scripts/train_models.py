@@ -23,6 +23,24 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ai_engine.training.trainer import ModelTrainer
 
 
+logger = logging.getLogger(__name__)
+
+
+def _warn_if_credentials_in_onedrive() -> None:
+    """Warn when broker credentials are loaded from a OneDrive-synced .env file.
+
+    OneDrive uploads files to MS cloud storage, so .env files containing
+    CAPITAL_* secrets there should be migrated to a secure location
+    (Windows env vars, secret manager, ~/secrets/...).
+    """
+    paths_to_check = (os.getcwd(), str(__file__))
+    if any("OneDrive" in p for p in paths_to_check):
+        logger.warning(
+            "WARNING: .env credentials in OneDrive path -- "
+            "consider moving to secure env vars"
+        )
+
+
 def generate_synthetic_data(n_candles: int = 5000) -> pd.DataFrame:
     """Generate realistic synthetic Gold price data for testing."""
     np.random.seed(42)
@@ -54,14 +72,36 @@ async def fetch_broker_data(
     save_csv: str | None = None,
 ) -> pd.DataFrame:
     """Fetch real candle data from Capital.com broker API."""
-    from market_data.broker_client import CapitalComClient, CandleData
+    from market_data.broker_client import CapitalComClient
 
-    load_dotenv()
+    # load_dotenv searches parent dirs by default and can crash on UTF-16 .env
+    # files (e.g. legacy C:\Users\<user>\.env). Don't let an unrelated .env
+    # block training -- we can still read from the real OS env.
+    from pathlib import Path
+    env_candidates = [
+        os.environ.get("GOLD_ENV_PATH"),
+        str(Path.home() / "secrets" / "ai-trading-gold" / ".env"),
+        ".env",
+    ]
+    for candidate in env_candidates:
+        if not candidate:
+            continue
+        try:
+            if os.path.exists(candidate):
+                load_dotenv(candidate, override=False)
+                logger.info("Loaded env from %s", candidate)
+        except UnicodeDecodeError as exc:
+            logger.warning(
+                "Skipping %s due to encoding error: %s", candidate, exc,
+            )
 
     email = os.getenv("CAPITAL_EMAIL", "").strip()
     password = os.getenv("CAPITAL_PASSWORD", "").strip()
     api_key = os.getenv("CAPITAL_API_KEY", "").strip()
     demo = os.getenv("CAPITAL_DEMO", "true").strip().lower() in ("1", "true", "yes")
+
+    if email or password or api_key:
+        _warn_if_credentials_in_onedrive()
 
     if not email or not password or not api_key:
         print("ERROR: Broker credentials missing!")
@@ -81,7 +121,12 @@ async def fetch_broker_data(
         print(f"Authenticated with Capital.com ({mode})")
 
         print(f"Fetching {count} {timeframe} candles...")
-        candles = await client.get_candles(timeframe=timeframe, count=count)
+        if count > 1000 and hasattr(client, "get_candles_paginated"):
+            candles = await client.get_candles_paginated(
+                timeframe=timeframe, total_count=count,
+            )
+        else:
+            candles = await client.get_candles(timeframe=timeframe, count=count)
         print(f"Received {len(candles)} candles")
 
         if not candles:
@@ -156,12 +201,19 @@ def main() -> None:
         "--sl-atr-mult", type=float, default=1.5,
         help="ATR multiplier for stop-loss (default: 1.5)",
     )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Log planned actions and skip data writes / model serialization.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
+
+    if args.dry_run:
+        logger.warning("DRY-RUN active: no data writes, no model serialization.")
 
     trainer = ModelTrainer(
         saved_models_dir=args.output,
@@ -178,11 +230,22 @@ def main() -> None:
     if args.broker:
         save_path = args.save_csv or f"data/gold_{args.timeframe}.csv"
         print(f"Fetching real data from Capital.com (count={args.count}, tf={args.timeframe})...")
+        # Dry-run: do not persist fetched candles to CSV.
+        effective_save_csv = None if args.dry_run else save_path
+        if args.dry_run:
+            logger.info("DRY-RUN: would save fetched candles to %s (skipped).", save_path)
         df = asyncio.run(fetch_broker_data(
             count=args.count,
             timeframe=args.timeframe,
-            save_csv=save_path,
+            save_csv=effective_save_csv,
         ))
+        if args.dry_run:
+            logger.info(
+                "DRY-RUN: would train on %d real broker candles "
+                "(TP=%s pips, SL=%s pips, max_holding=%s) and save to %s. Skipped.",
+                len(df), args.tp_pips, args.sl_pips, args.max_holding, args.output,
+            )
+            return
         print(f"Training on {len(df)} real broker candles...")
         print(f"  TP={args.tp_pips} pips, SL={args.sl_pips} pips, max_holding={args.max_holding}")
         results = trainer.train_all(
@@ -190,6 +253,12 @@ def main() -> None:
         )
     elif args.csv:
         print(f"Loading data from: {args.csv}")
+        if args.dry_run:
+            logger.info(
+                "DRY-RUN: would train from CSV %s and save to %s. Skipped.",
+                args.csv, args.output,
+            )
+            return
         results = trainer.train_from_csv(
             args.csv, timeframe=args.timeframe,
             min_data_months=args.min_data_months,
@@ -197,6 +266,12 @@ def main() -> None:
     elif args.synthetic > 0:
         print(f"Generating {args.synthetic} synthetic candles...")
         df = generate_synthetic_data(args.synthetic)
+        if args.dry_run:
+            logger.info(
+                "DRY-RUN: would train on %d synthetic candles and save to %s. Skipped.",
+                args.synthetic, args.output,
+            )
+            return
         results = trainer.train_all(
             df, timeframe=args.timeframe, min_data_months=args.min_data_months,
         )
@@ -210,7 +285,7 @@ def main() -> None:
     report = results.get("training_report", {})
     version_dir = results.get("version_dir", "")
 
-    print(f"\nTraining complete!")
+    print("\nTraining complete!")
     print(f"  Duration: {meta.get('training_duration_seconds', 0):.1f}s")
     print(f"  Features: {meta.get('n_features_selected', 0)}")
     print(f"  Samples:  {meta.get('n_samples_total', 0)}")

@@ -9,7 +9,6 @@ import json
 import os
 import time
 
-import pytest
 
 from ai_engine.training.model_versioning import (
     cleanup_old_versions,

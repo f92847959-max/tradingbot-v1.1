@@ -6,6 +6,14 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+# Placeholder tokens that must never be accepted as a real access token.
+_PLACEHOLDER_TOKENS = frozenset(
+    {
+        "bitte-token-setzen",
+        "bitte-eigenen-token-setzen",
+    }
+)
+
 
 @dataclass(frozen=True)
 class ControlAppSettings:
@@ -33,9 +41,25 @@ def load_settings() -> ControlAppSettings:
         )
     )
     api_host = os.getenv("CONTROL_APP_API_HOST", "127.0.0.1")
-    api_port = int(os.getenv("CONTROL_APP_API_PORT", "8060"))
+
+    raw_port = os.getenv("CONTROL_APP_API_PORT", "8060")
+    try:
+        api_port = int(raw_port)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"CONTROL_APP_API_PORT must be an integer, got: {raw_port!r}"
+        ) from exc
+    if not (1024 <= api_port <= 65535):
+        raise ValueError(
+            f"CONTROL_APP_API_PORT must be in range 1024-65535, got: {api_port}"
+        )
+
     retention_days = int(os.getenv("CONTROL_APP_RETENTION_DAYS", "30"))
-    access_token = os.getenv("CONTROL_APP_ACCESS_TOKEN", "1")
+
+    access_token = os.getenv("CONTROL_APP_ACCESS_TOKEN", "").strip()
+    if access_token in _PLACEHOLDER_TOKENS:
+        raise RuntimeError("Control-App token not configured")
+
     return ControlAppSettings(
         project_root=project_root,
         db_path=db_path,

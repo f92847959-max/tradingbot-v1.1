@@ -4,9 +4,7 @@ Tests DB insert failures, execution timeouts, immediate closes,
 trailing stop errors, lock timeouts, and orphaned trade reconciliation.
 """
 
-import asyncio
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -79,7 +77,7 @@ class TestOrderDBFailure:
             cm.__aexit__ = AsyncMock(return_value=False)
             mock_gs.return_value = cm
 
-            result = await mgr.open_trade(
+            await mgr.open_trade(
                 direction="BUY",
                 lot_size=0.1,
                 stop_loss=2040,
@@ -290,3 +288,48 @@ class TestCloseTrade:
         mgr = OrderManager(broker)
         count = await mgr.close_all()
         assert count == 1  # Only 1 of 2 succeeded
+
+    @pytest.mark.asyncio
+    async def test_close_all_keeps_tracking_when_db_update_fails(self):
+        """Kill-switch close keeps tracking and queues reconciliation on DB failure."""
+        broker = _mock_broker()
+        broker.close_all_positions = AsyncMock(return_value=[
+            OrderResult("ref1", "DEAL_001", "ACCEPTED", level=2048),
+        ])
+
+        mgr = OrderManager(broker)
+        mgr.monitor.track_position(
+            "DEAL_001",
+            Position(
+                deal_id="DEAL_001",
+                direction="BUY",
+                size=0.1,
+                open_level=2045.0,
+                current_level=2045.0,
+            ),
+        )
+
+        mock_trade = MagicMock()
+        mock_trade.id = 1
+        mock_trade.status = "OPEN"
+        mock_trade.direction = "BUY"
+        mock_trade.entry_price = 2045.0
+        mock_trade.lot_size = 0.1
+
+        with patch("order_management.order_manager.get_session") as mock_gs, \
+             patch("order_management.order_manager.TradeRepository") as mock_repo_cls:
+            cm = AsyncMock()
+            cm.__aenter__ = AsyncMock(return_value=AsyncMock())
+            cm.__aexit__ = AsyncMock(return_value=False)
+            mock_gs.return_value = cm
+
+            mock_repo = AsyncMock()
+            mock_repo.get_by_deal_id = AsyncMock(return_value=mock_trade)
+            mock_repo.close_trade = AsyncMock(side_effect=Exception("DB write error"))
+            mock_repo_cls.return_value = mock_repo
+
+            count = await mgr.close_all()
+
+        assert count == 1
+        assert mgr.monitor.get_open_count() == 1
+        assert len(mgr.orphan_close_queue) == 1

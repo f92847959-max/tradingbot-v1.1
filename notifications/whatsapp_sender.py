@@ -1,5 +1,6 @@
 """WhatsApp message sender via Twilio API with retry and fallback."""
 
+import asyncio
 import logging
 import os
 import time
@@ -77,10 +78,12 @@ class WhatsAppSender:
         except OSError as e:
             logger.error("Could not write to fallback log: %s", e)
 
-    def send(self, message: str) -> bool:
-        """Send a WhatsApp message with retry and fallback.
+    async def send(self, message: str) -> bool:
+        """Send a WhatsApp message with retry and fallback (async-safe).
 
-        Returns True if sent successfully.
+        Returns True if sent successfully. Uses asyncio.sleep for backoff
+        so the event loop is not blocked, and offloads the blocking Twilio
+        HTTP call to a worker thread.
         """
         if not self.account_sid or not self.auth_token:
             logger.debug("Twilio not configured, skipping WhatsApp message")
@@ -95,7 +98,8 @@ class WhatsAppSender:
         last_error = ""
         for attempt in range(1, self.MAX_RETRIES + 1):
             try:
-                msg = client.messages.create(
+                msg = await asyncio.to_thread(
+                    client.messages.create,
                     body=message,
                     from_=self.from_number,
                     to=self.to_number,
@@ -110,14 +114,14 @@ class WhatsAppSender:
                         "WhatsApp send attempt %d/%d failed: %s. Retrying in %.1fs...",
                         attempt, self.MAX_RETRIES, e, wait,
                     )
-                    time.sleep(wait)
+                    await asyncio.sleep(wait)
                 else:
                     logger.error(
                         "WhatsApp send failed after %d attempts: %s",
                         self.MAX_RETRIES, e,
                     )
 
-        # All retries exhausted — fallback
+        # All retries exhausted -- fallback
         self._record_failure()
         self._log_to_fallback(message, last_error)
         return False

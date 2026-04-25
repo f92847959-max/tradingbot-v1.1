@@ -7,11 +7,9 @@ detailed performance report.
 """
 
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +36,7 @@ class Backtester:
         pip_size: float = 0.01,
         pip_value: float = 1.0,
         min_confidence: float = 0.70,
+        commission_per_trade_pips: float = 0.0,
     ) -> None:
         """
         Initializes the Backtester.
@@ -52,6 +51,8 @@ class Backtester:
             pip_size: Pip size (0.01 for gold)
             pip_value: Pip value in USD per 1 lot
             min_confidence: Minimum confidence for trades
+            commission_per_trade_pips: Commission per trade in pips (default 0.0,
+                Capital.com CFD costs are captured via spread)
         """
         self.initial_balance = initial_balance
         self.risk_pct = risk_per_trade_pct
@@ -62,7 +63,8 @@ class Backtester:
         self.pip_size = pip_size
         self.pip_value = pip_value
         self.min_confidence = min_confidence
-        self.total_cost_pips = spread_pips + slippage_pips
+        self.commission_per_trade_pips = commission_per_trade_pips
+        self.total_cost_pips = spread_pips + slippage_pips + commission_per_trade_pips
 
     def run(
         self,
@@ -70,18 +72,37 @@ class Backtester:
         actual_labels: np.ndarray,
         close_prices: np.ndarray,
         confidences: Optional[np.ndarray] = None,
+        high_prices: Optional[np.ndarray] = None,
+        low_prices: Optional[np.ndarray] = None,
     ) -> Dict[str, Any]:
         """
         Runs the backtest.
 
         Args:
             predictions: Predicted labels [-1, 0, 1]
-            actual_labels: True labels [-1, 0, 1]
+            actual_labels: True labels [-1, 0, 1] (ONLY used for reporting /
+                diagnostics -- MUST NOT influence PnL to avoid look-ahead)
             close_prices: Close prices for each time step
             confidences: Optional -- Confidence per prediction [0-1]
+            high_prices: Optional -- High prices per candle (needed for a
+                truly leak-free candle-based SL/TP check)
+            low_prices: Optional -- Low prices per candle (needed for a
+                truly leak-free candle-based SL/TP check)
 
         Returns:
             Dict with complete performance report
+
+        Notes:
+            Previously this method resolved trade outcomes by comparing
+            the open position's direction to ``actual_labels[i]`` -- that
+            is a classic TRUE-LABEL LEAK: the backtester was using the
+            ground-truth future direction to decide whether TP or SL was
+            hit, which massively inflates win rate. The fix below walks
+            the price path candle-by-candle from the entry index and
+            closes the position the first time High/Low crosses the
+            pip-based TP/SL levels derived from the entry price. If no
+            High/Low is provided we fall back to Close-only checks, which
+            is still leak-free but coarser.
         """
         n = len(predictions)
         balance = self.initial_balance
@@ -91,27 +112,72 @@ class Backtester:
         position: Optional[Dict] = None
         peak_balance = balance
 
-        for i in range(n):
+        # Pip distance to price distance
+        tp_dist = self.tp_pips * self.pip_size
+        sl_dist = self.sl_pips * self.pip_size
+
+        def _resolve_position(
+            pos: Dict, start_idx: int, end_idx: int
+        ) -> Tuple[Optional[Dict], int]:
+            """Walk forward from start_idx+1 to end_idx looking for SL/TP hit.
+
+            Returns (trade_result_or_None, resolved_idx). If no level is
+            touched within the window, returns (None, end_idx) so the
+            caller can force-close at the window boundary.
+            """
+            entry = float(pos["entry_price"])
+            direction = int(pos["direction"])
+
+            if direction == 1:  # LONG
+                tp_level = entry + tp_dist
+                sl_level = entry - sl_dist
+            else:  # SHORT
+                tp_level = entry - tp_dist
+                sl_level = entry + sl_dist
+
+            for j in range(start_idx + 1, end_idx + 1):
+                if high_prices is not None and low_prices is not None:
+                    hi = float(high_prices[j])
+                    lo = float(low_prices[j])
+                else:
+                    # Fallback: treat close as both high and low
+                    hi = lo = float(close_prices[j])
+
+                if direction == 1:
+                    hit_tp = hi >= tp_level
+                    hit_sl = lo <= sl_level
+                else:
+                    hit_tp = lo <= tp_level
+                    hit_sl = hi >= sl_level
+
+                if hit_tp and hit_sl:
+                    # Both in same candle -> conservative: assume SL first
+                    return (
+                        self._build_trade(pos, exit_price=sl_level, won=False),
+                        j,
+                    )
+                if hit_tp:
+                    return (
+                        self._build_trade(pos, exit_price=tp_level, won=True),
+                        j,
+                    )
+                if hit_sl:
+                    return (
+                        self._build_trade(pos, exit_price=sl_level, won=False),
+                        j,
+                    )
+
+            return (None, end_idx)
+
+        i = 0
+        while i < n:
             pred = int(predictions[i])
-            true_label = int(actual_labels[i])
             price = float(close_prices[i])
             conf = float(confidences[i]) if confidences is not None else 0.80
 
-            # === Check position (if one is open) ===
-            if position is not None:
-                # Check if the open position should be closed by outcome
-                # (In a simplified backtest: the candle decides)
-                pass
-
             # === Process new signal ===
-            if pred != 0 and conf >= self.min_confidence:
-                # Close old position (if any)
-                if position is not None:
-                    result = self._close_position(position, true_label, price)
-                    balance += result["pnl_usd"]
-                    trades.append(result)
-
-                # Open new position
+            if pred != 0 and conf >= self.min_confidence and position is None:
+                # Open new position at the current candle close
                 risk_amount = balance * (self.risk_pct / 100)
                 position = {
                     "direction": pred,
@@ -120,21 +186,40 @@ class Backtester:
                     "risk_amount": risk_amount,
                     "confidence": conf,
                 }
-            elif pred == 0 and position is not None:
-                # HOLD signal with open position -> close
-                result = self._close_position(position, true_label, price)
-                balance += result["pnl_usd"]
-                trades.append(result)
-                position = None
+
+                # Resolve by walking forward until SL/TP is hit
+                result, resolved_idx = _resolve_position(
+                    position, start_idx=i, end_idx=n - 1
+                )
+                if result is not None:
+                    balance += result["pnl_usd"]
+                    trades.append(result)
+                    position = None
+                    # Advance past the candle where we got closed
+                    for _ in range(i + 1, resolved_idx + 1):
+                        equity_curve.append(balance)
+                    i = resolved_idx + 1
+                    peak_balance = max(peak_balance, balance)
+                    continue
+                else:
+                    # Ran off the end without hitting SL/TP -> flat close
+                    exit_price = float(close_prices[-1])
+                    forced = self._build_trade(
+                        position, exit_price=exit_price, won=False,
+                        forced_close=True,
+                    )
+                    balance += forced["pnl_usd"]
+                    trades.append(forced)
+                    position = None
+                    for _ in range(i + 1, n):
+                        equity_curve.append(balance)
+                    i = n
+                    peak_balance = max(peak_balance, balance)
+                    continue
 
             equity_curve.append(balance)
             peak_balance = max(peak_balance, balance)
-
-        # Close last open position
-        if position is not None:
-            result = self._close_position(position, 0, close_prices[-1])
-            balance += result["pnl_usd"]
-            trades.append(result)
+            i += 1
 
         # === Generate report ===
         return self._generate_report(trades, equity_curve)
@@ -224,17 +309,25 @@ class Backtester:
             avg_tp_pips=avg_tp_pips, avg_sl_pips=avg_sl_pips,
         )
 
-    def _close_position(
+    def _build_trade(
         self,
         position: Dict,
-        true_label: int,
         exit_price: float,
+        won: bool,
+        forced_close: bool = False,
     ) -> Dict:
-        """Closes a position and calculates PnL."""
-        direction = position["direction"]
-        won = direction == true_label
+        """Build a trade result dict WITHOUT using any true-label info.
 
-        if won:
+        The caller is responsible for determining whether TP or SL was hit
+        by walking the actual price path (High/Low) candle by candle.
+        """
+        direction = position["direction"]
+
+        if forced_close:
+            # Mark-to-market PnL at forced close (no TP/SL hit)
+            price_diff = (exit_price - position["entry_price"]) * direction
+            pnl_pips = (price_diff / self.pip_size) - self.total_cost_pips
+        elif won:
             pnl_pips = self.tp_pips - self.total_cost_pips
         else:
             pnl_pips = -(self.sl_pips + self.total_cost_pips)
@@ -250,6 +343,32 @@ class Backtester:
             "pnl_usd": pnl_usd,
             "confidence": position.get("confidence", 0),
         }
+
+    def _close_position(
+        self,
+        position: Dict,
+        true_label: int,
+        exit_price: float,
+    ) -> Dict:
+        """DEPRECATED / LEAKY: resolved win/loss via true_label.
+
+        FIXME: This helper is a TRUE-LABEL LEAK. It decides whether a
+        position won by comparing the position direction to the ground
+        truth label, which is information the model should not have at
+        trade time. It is kept here only for backward compatibility and
+        MUST NOT be used by new code. Use ``_build_trade`` together with
+        a candle-based SL/TP scan instead (see ``run``).
+        """
+        logger.warning(
+            "_close_position is deprecated and uses true labels -- "
+            "this introduces look-ahead leakage. Switch to _build_trade "
+            "with a candle-based SL/TP walk."
+        )
+        direction = position["direction"]
+        won = direction == true_label
+        return self._build_trade(
+            position, exit_price=exit_price, won=won, forced_close=False
+        )
 
     def _generate_report(
         self,
@@ -324,7 +443,7 @@ class Backtester:
 
         # Logging
         logger.info(f"\n{'='*60}")
-        logger.info(f"BACKTEST REPORT")
+        logger.info("BACKTEST REPORT")
         logger.info(f"{'='*60}")
         logger.info(f"Trades:           {n_trades} (BUY={len(buy_trades)}, SELL={len(sell_trades)})")
         logger.info(f"Win Rate:         {win_rate*100:.1f}% ({n_wins}W / {n_losses}L)")
@@ -384,22 +503,35 @@ class Backtester:
     @staticmethod
     def _grade(wr: float, pf: float, sharpe: float) -> str:
         score = 0
-        if wr >= 0.60: score += 3
-        elif wr >= 0.55: score += 2
-        elif wr >= 0.50: score += 1
+        if wr >= 0.60:
+            score += 3
+        elif wr >= 0.55:
+            score += 2
+        elif wr >= 0.50:
+            score += 1
 
-        if pf >= 2.0: score += 3
-        elif pf >= 1.5: score += 2
-        elif pf >= 1.2: score += 1
+        if pf >= 2.0:
+            score += 3
+        elif pf >= 1.5:
+            score += 2
+        elif pf >= 1.2:
+            score += 1
 
-        if sharpe >= 2.0: score += 2
-        elif sharpe >= 1.0: score += 1
+        if sharpe >= 2.0:
+            score += 2
+        elif sharpe >= 1.0:
+            score += 1
 
-        if score >= 7: return "*** EXCELLENT"
-        elif score >= 5: return "** GOOD"
-        elif score >= 3: return "* ACCEPTABLE"
-        elif score >= 1: return "WEAK"
-        else: return "UNUSABLE"
+        if score >= 7:
+            return "*** EXCELLENT"
+        elif score >= 5:
+            return "** GOOD"
+        elif score >= 3:
+            return "* ACCEPTABLE"
+        elif score >= 1:
+            return "WEAK"
+        else:
+            return "UNUSABLE"
 
     def _empty_report(self) -> Dict[str, Any]:
         return {
@@ -442,5 +574,5 @@ if __name__ == "__main__":
 
     # Simple backtest
     report = bt.run_simple(y_pred, y_true)
-    print(f"\nBacktester test successful!")
+    print("\nBacktester test successful!")
     print(f"   Balance: ${report['final_balance']:,.2f} ({report['total_return_pct']:+.1f}%)")

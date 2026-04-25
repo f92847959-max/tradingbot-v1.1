@@ -1,6 +1,6 @@
 """Repository for portfolio statistics and equity curve."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Sequence
 
 from sqlalchemy import select, and_
@@ -43,7 +43,7 @@ class EquityCurveRepository(BaseRepository[EquityCurve]):
         super().__init__(session, EquityCurve)
 
     async def get_latest(self, days: int = 30) -> Sequence[EquityCurve]:
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         stmt = (
             select(EquityCurve)
             .where(EquityCurve.timestamp >= cutoff)
@@ -54,7 +54,7 @@ class EquityCurveRepository(BaseRepository[EquityCurve]):
 
     async def add_point(self, equity: float, trade_id: int | None = None) -> EquityCurve:
         point = EquityCurve(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             equity=equity,
             trade_id=trade_id,
         )

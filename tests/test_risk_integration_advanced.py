@@ -221,6 +221,22 @@ class TestApproveTradeAdvanced:
         # Low confidence should produce same or smaller lot than high confidence
         assert low_result.lot_size <= high_result.lot_size
 
+    def test_rejects_trade_when_final_advanced_size_breaks_heat_limit(self):
+        rm = make_rm(max_portfolio_heat_pct=5.0)
+        rm.set_initial_equity(10000.0)
+        rm.update_trade_stats(win_rate=0.9, avg_win=4.0, avg_loss=1.0)
+
+        result = run_approve(
+            rm,
+            confidence=0.95,
+            atr=0.5,
+            entry_price=2050.0,
+            stop_loss=1950.0,
+        )
+
+        assert result.approved is False
+        assert "heat" in result.reason.lower()
+
 
 # ---------------------------------------------------------------------------
 # Tests: disabled equity filter

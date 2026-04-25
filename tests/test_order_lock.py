@@ -2,7 +2,7 @@
 
 import asyncio
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 from order_management.order_manager import OrderManager
 
@@ -26,8 +26,6 @@ class TestOrderLock:
         manager = OrderManager(broker)
 
         # Mock _execute_trade to track execution order
-        original_execute = manager._execute_trade
-
         async def slow_execute(*args, **kwargs):
             execution_order.append("start")
             await asyncio.sleep(0.1)  # Simulate execution time

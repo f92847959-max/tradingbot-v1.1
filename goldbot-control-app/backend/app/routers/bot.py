@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from backend.app.dependencies import get_control_service
 from backend.app.guards import GuardViolation
 from backend.app.services import ControlService
 from shared.contracts import BotMetricsResponse, BotStatusResponse, CommandRequest, CommandResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/bot", tags=["bot"])
 
@@ -38,8 +42,9 @@ def submit_command(
             detail=str(exc),
         ) from exc
     except Exception as exc:
+        logger.exception("Command execution failed for command=%s", command)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Command execution failed: {exc}",
+            detail="Command execution failed",
         ) from exc
 

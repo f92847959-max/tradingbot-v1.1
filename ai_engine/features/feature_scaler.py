@@ -82,12 +82,15 @@ class FeatureScaler:
 
         df = df.copy()
 
-        # Check if all expected features are present
+        # Check if all expected features are present.
+        # Silent zero-filling would corrupt downstream predictions, so we
+        # refuse to transform when required features are missing.
         missing = [f for f in self._feature_names if f not in df.columns]
         if missing:
-            logger.warning(f"Missing features during transform: {missing}")
-            for feat in missing:
-                df[feat] = 0.0
+            raise ValueError(
+                f"Cannot transform: {len(missing)} required feature(s) missing "
+                f"from input DataFrame: {missing}"
+            )
 
         features = df[self._feature_names].values
         scaled = self._scaler.transform(features)
@@ -190,7 +193,7 @@ if __name__ == "__main__":
 
     # Fit + Transform
     scaled_df = scaler.fit_transform(df, features)
-    print(f"Scaler fitted")
+    print("Scaler fitted")
     print(f"Before scaling:\n{df[features].describe().round(2)}")
     print(f"After scaling:\n{scaled_df[features].describe().round(2)}")
 

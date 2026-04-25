@@ -4,6 +4,8 @@ import logging
 import os
 import time
 
+from typing import Optional
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,7 +21,7 @@ logger = logging.getLogger(__name__)
 _START_TIME = time.monotonic()
 
 
-def create_app(trading_system=None) -> FastAPI:
+def create_app(trading_system: Optional[object] = None) -> FastAPI:
     """Create and configure the FastAPI application.
 
     Args:
@@ -57,11 +59,15 @@ def create_app(trading_system=None) -> FastAPI:
     # CORS — configure via environment variable CORS_ORIGINS (comma-separated)
     raw_origins = os.getenv("CORS_ORIGINS", "")
     if raw_origins:
-        allow_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+        allow_origins = [
+            o.strip().rstrip("/")
+            for o in raw_origins.split(",")
+            if o.strip()
+        ]
     else:
         # Default to localhost only
         allow_origins = ["http://127.0.0.1:3000", "http://127.0.0.1:5173"]
-        logger.warning("CORS_ORIGINS not set — defaulting to localhost origins only")
+        logger.debug("CORS_ORIGINS not set — defaulting to localhost origins only")
 
     app.add_middleware(
         CORSMiddleware,
@@ -82,12 +88,15 @@ def create_app(trading_system=None) -> FastAPI:
 
     # Inject trading system if provided at creation time
     if trading_system is not None:
-        set_trading_system(trading_system)
+        set_trading_system(trading_system, time.monotonic())
         # Expose settings and optional confirmation handler on app.state for routers
         try:
             app.state.settings = trading_system.settings
             app.state.confirmation_handler = getattr(trading_system, "_confirmation_handler", None)
         except Exception:
-            logger.debug("Failed to attach trading system state to app.state")
+            logger.warning(
+                "Failed to attach trading system state to app.state",
+                exc_info=True,
+            )
 
     return app

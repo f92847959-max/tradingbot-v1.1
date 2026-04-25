@@ -39,6 +39,39 @@ def make_candles(n=30, base_price=2000.0, trend=0.5, atr=3.0, rsi_base=55.0) -> 
 # EXIT-01: Dynamic SL tests
 # ---------------------------------------------------------------------------
 
+def test_package_exports_public_exit_api():
+    """Package-level imports expose the user-facing exit engine API."""
+    from exit_engine import (  # noqa: PLC0415
+        ExitLevels,
+        ExitSignal,
+        calculate_dynamic_sl,
+        calculate_dynamic_tp,
+        check_exit_signals,
+    )
+
+    assert ExitLevels is not None
+    assert ExitSignal is not None
+    assert calculate_dynamic_sl is not None
+    assert calculate_dynamic_tp is not None
+    assert check_exit_signals is not None
+
+
+def test_dynamic_sl_entry_alias_and_attribute_result():
+    """Public snippets can use entry= and read result.sl without breaking unpacking."""
+    from exit_engine import calculate_dynamic_sl  # noqa: PLC0415
+
+    result = calculate_dynamic_sl(
+        direction="BUY",
+        entry=2000.0,
+        atr=2.0,
+        regime=MarketRegime.TRENDING,
+    )
+
+    sl, reason = result
+    assert result.sl == sl == 1997.0
+    assert result.reason == reason
+
+
 def test_sl_buy_below_entry():
     """BUY stop loss must be below entry price."""
     sl, reason = calculate_dynamic_sl("BUY", 2000.0, 3.0, MarketRegime.TRENDING)

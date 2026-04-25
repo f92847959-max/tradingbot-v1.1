@@ -1,7 +1,6 @@
 """Unit tests for the trailing stop manager."""
 
 import pytest
-from dataclasses import dataclass
 from typing import Optional
 
 from order_management.trailing_stop import TrailingStopManager

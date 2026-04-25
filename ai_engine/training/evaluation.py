@@ -6,7 +6,7 @@ Trading metrics: Win Rate, Profit Factor, Sharpe Ratio, Max Drawdown, Expectancy
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import numpy as np
 
@@ -73,8 +73,8 @@ class ModelEvaluator:
         logger.info(f"Precision: {precision:.4f}")
         logger.info(f"Recall:    {recall:.4f}")
         logger.info(f"F1-Score:  {f1:.4f}")
-        logger.info(f"\nConfusion Matrix:")
-        logger.info(f"         SELL  HOLD  BUY")
+        logger.info("\nConfusion Matrix:")
+        logger.info("         SELL  HOLD  BUY")
         for i, row in enumerate(conf_matrix):
             label = ["SELL", "HOLD", "BUY"][i]
             logger.info(f"  {label:4s}  {row[0]:5d} {row[1]:5d} {row[2]:5d}")
@@ -271,7 +271,7 @@ class ModelEvaluator:
     ) -> Dict[str, Any]:
         """Compares multiple models (ML metrics)."""
         logger.info(f"\n{'='*60}")
-        logger.info(f"Model comparison")
+        logger.info("Model comparison")
         logger.info(f"{'='*60}")
         logger.info(f"{'Model':<15} {'Accuracy':>10} {'Precision':>10} {'Recall':>10} {'F1':>10}")
         logger.info(f"{'-'*55}")
@@ -298,7 +298,7 @@ class ModelEvaluator:
     ) -> Dict[str, Any]:
         """Compares multiple models (trading metrics)."""
         logger.info(f"\n{'='*70}")
-        logger.info(f"Trading comparison")
+        logger.info("Trading comparison")
         logger.info(f"{'='*70}")
         logger.info(f"{'Model':<15} {'WinRate':>10} {'PF':>8} {'Pips':>10} {'Sharpe':>8} {'DD':>10}")
         logger.info(f"{'-'*61}")
@@ -454,4 +454,4 @@ if __name__ == "__main__":
         model_name="TestModel"
     )
 
-    print(f"\nEvaluation test successful!")
+    print("\nEvaluation test successful!")

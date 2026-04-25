@@ -108,3 +108,17 @@ def test_lookback_days_passed():
     _, kwargs = mock_dl.call_args
     assert kwargs.get("period") == "200d"
     assert kwargs.get("interval") == "1d"
+
+
+def test_cache_bypassed_when_lookback_changes():
+    """Changing lookback_days must bypass the TTL cache."""
+    from correlation.asset_fetcher import AssetFetcher
+
+    mock_df = _make_mock_download_df()
+    with patch("correlation.asset_fetcher.yf.download", return_value=mock_df) as mock_dl, \
+         patch("correlation.asset_fetcher.time.monotonic", side_effect=[0.0, 10.0, 20.0, 30.0]):
+        fetcher = AssetFetcher(cache_ttl_seconds=3600)
+        fetcher.fetch_daily_closes(lookback_days=30)
+        fetcher.fetch_daily_closes(lookback_days=200)
+
+    assert mock_dl.call_count == 2

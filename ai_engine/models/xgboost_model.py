@@ -7,7 +7,7 @@ Particularly good for tabular data with feature engineering.
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import joblib
 import numpy as np

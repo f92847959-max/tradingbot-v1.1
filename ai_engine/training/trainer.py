@@ -141,7 +141,7 @@ class ModelTrainer:
         df = pd.read_csv(csv_path)
 
         if "timestamp" in df.columns:
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
             df.set_index("timestamp", inplace=True)
 
         return self.train_all(df, timeframe=timeframe, min_data_months=min_data_months)

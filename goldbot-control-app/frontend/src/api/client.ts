@@ -12,6 +12,9 @@ import type {
 const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8060/api/v1";
 const TOKEN_KEY = "control_api_token";
 
+// SECURITY TODO: Move token to httpOnly cookie with CSRF protection.
+// localStorage is XSS-readable; switching requires backend changes
+// (set-cookie on auth, CSRF middleware) so this is tracked as a TODO.
 export function getApiToken(): string {
   return localStorage.getItem(TOKEN_KEY) ?? "";
 }

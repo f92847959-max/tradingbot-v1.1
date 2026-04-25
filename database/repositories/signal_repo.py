@@ -1,7 +1,7 @@
 """Repository for AI signal operations."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Sequence
 
 from sqlalchemy import select, and_, update
@@ -71,7 +71,7 @@ class SignalRepository(BaseRepository[Signal]):
     async def get_execution_rate(self, days: int = 7) -> dict:
         """Get signal execution statistics for the last N days."""
         from sqlalchemy import func
-        cutoff = datetime.utcnow().replace(hour=0, minute=0, second=0)
+        cutoff = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         from datetime import timedelta
         cutoff = cutoff - timedelta(days=days)
 
@@ -83,7 +83,7 @@ class SignalRepository(BaseRepository[Signal]):
         executed_stmt = (
             select(func.count())
             .select_from(Signal)
-            .where(and_(Signal.timestamp >= cutoff, Signal.was_executed == True))
+            .where(and_(Signal.timestamp >= cutoff, Signal.was_executed.is_(True)))
         )
 
         total = (await self.session.execute(total_stmt)).scalar_one()

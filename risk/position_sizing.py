@@ -16,7 +16,7 @@ class PositionSizer:
         self,
         risk_per_trade_pct: float = 1.0,
         min_lot_size: float = 0.01,
-        max_lot_size: float = 10.0,
+        max_lot_size: float = 100.0,
     ) -> None:
         self.risk_per_trade_pct = risk_per_trade_pct
         self.min_lot_size = min_lot_size

@@ -1339,3 +1339,19 @@ class EnsemblePredictor:
                 "timeframe_order": [],
             },
         }
+
+    def apply_autonomy_rollout(
+        self,
+        champion_signal: dict[str, Any],
+        candidate_prediction: dict[str, Any] | Any | None,
+        *,
+        mode: str = "shadow",
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Apply the optional decision-head rollout selector to a raw signal."""
+        from .decision_head import apply_autonomy_rollout
+
+        return apply_autonomy_rollout(
+            champion_signal,
+            candidate_prediction,
+            mode=mode,
+        )

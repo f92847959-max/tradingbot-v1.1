@@ -4,9 +4,7 @@ Simulates complete trade cycles with mocked broker and database.
 Verifies the full pipeline: data → signal → risk → execution → close → P&L.
 """
 
-import asyncio
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pandas as pd

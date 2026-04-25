@@ -1,10 +1,12 @@
 """System routers: /health, /status, /risk/kill-switch."""
 
+import logging
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
+from api.auth import check_order_rate_limit
 from api.dependencies import get_trading_system, get_start_time, get_db
 from api.schemas.system import (
     HealthResponse,
@@ -14,6 +16,8 @@ from api.schemas.system import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -27,7 +31,8 @@ async def health(
     try:
         await db.execute(text("SELECT 1"))
         db_ok = True
-    except Exception:
+    except Exception as exc:
+        logger.error("Health check DB probe failed: %s", exc, exc_info=True)
         db_ok = False
 
     status = "ok" if db_ok else "degraded"
@@ -49,7 +54,6 @@ async def status(
 
     # Compute drawdown from last known equity (equity_peak is always available)
     equity_peak = risk._equity_peak
-    equity_start = risk._equity_start
 
     components = [
         ComponentStatus(
@@ -78,7 +82,10 @@ async def status(
     )
 
 
-@router.post("/risk/kill-switch")
+@router.post(
+    "/risk/kill-switch",
+    dependencies=[Depends(check_order_rate_limit)],
+)
 async def toggle_kill_switch(
     request: KillSwitchRequest,
     system=Depends(get_trading_system),
@@ -107,7 +114,10 @@ async def risk_status(system=Depends(get_trading_system)) -> dict:
     }
 
 
-@router.post("/system/stop")
+@router.post(
+    "/system/stop",
+    dependencies=[Depends(check_order_rate_limit)],
+)
 async def stop_system(system=Depends(get_trading_system)) -> dict:
     """Gracefully stop the trading system."""
     await system.stop()

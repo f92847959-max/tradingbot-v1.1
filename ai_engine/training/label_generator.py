@@ -12,7 +12,7 @@ Improvements over V1:
 
 import logging
 import warnings
-from typing import Dict, Optional, Tuple
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -428,11 +428,11 @@ if __name__ == "__main__":
     for _ in range(n):
         change = np.random.randn() * 0.3
         price += change
-        h = price + abs(np.random.randn()) * 0.2
-        l = price - abs(np.random.randn()) * 0.2
+        high = price + abs(np.random.randn()) * 0.2
+        low = price - abs(np.random.randn()) * 0.2
         closes.append(price)
-        highs.append(h)
-        lows.append(l)
+        highs.append(high)
+        lows.append(low)
 
     df = pd.DataFrame({"close": closes, "high": highs, "low": lows})
 
@@ -452,4 +452,4 @@ if __name__ == "__main__":
     print(f"\nWITHOUT Spread: BUY={stats_no['buy_pct']}%, SELL={stats_no['sell_pct']}%, HOLD={stats_no['hold_pct']}%")
     print(f"WITH   Spread: BUY={stats_with['buy_pct']}%, SELL={stats_with['sell_pct']}%, HOLD={stats_with['hold_pct']}%")
     print(f"\nDifference: {stats_no['trade_pct'] - stats_with['trade_pct']:.1f}% fewer trades (more realistic!)")
-    print(f"\nLabelGenerator test successful!")
+    print("\nLabelGenerator test successful!")

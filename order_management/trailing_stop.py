@@ -52,8 +52,22 @@ class TrailingStopManager:
         trail_distance = self.trail_distance_pips * self.pip_size
         if direction == "BUY":
             new_sl = current_price - trail_distance
+            # FIXME: spread consideration — when a live spread feed is wired
+            # in, subtract spread/2 here for BUY (and add for SELL) so the
+            # trailing stop accounts for the bid/ask gap and isn't tripped by
+            # normal spread fluctuation. Currently no spread access at this
+            # call site (Position carries no spread field).
         else:
             new_sl = current_price + trail_distance
+            # FIXME: spread consideration — see BUY branch above.
+
+        # Round BEFORE the monotonicity check so that the value we compare
+        # against current_sl / previous_trailing is the same value we'll
+        # ultimately persist. Otherwise rounding after the check can violate
+        # the monotonicity invariant (e.g. an unrounded 1234.567 passes the
+        # ">previous" guard, gets rounded down to 1234.57, and ends up equal
+        # or worse than the previous level we just stored).
+        new_sl = round(new_sl, 2)
 
         # Only move SL in favorable direction
         previous_trailing = self._trailing_levels.get(deal_id)
@@ -71,9 +85,8 @@ class TrailingStopManager:
             if previous_trailing and new_sl >= previous_trailing:
                 return None
 
-        # Update tracking
+        # Update tracking with the same rounded value we are about to return.
         self._trailing_levels[deal_id] = new_sl
-        new_sl = round(new_sl, 2)
 
         logger.info(
             "Trailing SL update: deal=%s, direction=%s, profit=%.1f pips, new_sl=%.2f (was %s)",

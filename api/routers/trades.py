@@ -1,11 +1,12 @@
 """Trade and position routers."""
 
 import logging
-from datetime import datetime, timezone
+from datetime import timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.auth import check_order_rate_limit
 from api.dependencies import get_trading_system, get_db
 from api.schemas.trades import (
     TradeResponse,
@@ -74,7 +75,11 @@ async def get_positions(system=Depends(get_trading_system)) -> list[PositionResp
     return result
 
 
-@router.post("/positions/close", response_model=ClosePositionResponse)
+@router.post(
+    "/positions/close",
+    response_model=ClosePositionResponse,
+    dependencies=[Depends(check_order_rate_limit)],
+)
 async def close_position(
     request: ClosePositionRequest,
     system=Depends(get_trading_system),
@@ -90,10 +95,14 @@ async def close_position(
     except BrokerError as e:
         raise HTTPException(status_code=502, detail=f"Broker error: {e}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Unhandled error while closing position %s: %s", request.deal_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@router.post("/positions/close-all")
+@router.post(
+    "/positions/close-all",
+    dependencies=[Depends(check_order_rate_limit)],
+)
 async def close_all_positions(system=Depends(get_trading_system)) -> dict:
     """Close all open positions immediately."""
     try:

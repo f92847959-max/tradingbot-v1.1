@@ -10,6 +10,12 @@ $ErrorActionPreference = "Stop"
 $Root = "C:\Users\roder\gold_bot"
 $Py = "C:\Users\roder\tradingsystem\.venv\Scripts\python.exe"
 $EnvPath = Join-Path $Root ".env"
+# NOTE: PowerShell's Start-Process -RedirectStandardOutput/Error does NOT
+# rotate these files. train_real_overnight.py has its own in-process
+# RotatingFileHandler writing to logs/overnight_training.log (50 MB x 3)
+# which is the authoritative log. The *_stdout.log / *_stderr.log files
+# below only capture raw pipe output (uncaught tracebacks, C-level prints)
+# and should be truncated manually if they grow large.
 $StdOut = Join-Path $Root "logs\overnight_training_stdout.log"
 $StdErr = Join-Path $Root "logs\overnight_training_stderr.log"
 $RunLog = "logs/overnight_training_runs.jsonl"

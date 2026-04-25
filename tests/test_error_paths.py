@@ -5,7 +5,6 @@ invalid data, and concurrency edge cases.
 """
 
 import asyncio
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
@@ -16,9 +15,7 @@ from shared.exceptions import (
     BrokerError,
     BrokerConnectionError,
     DataError,
-    InsufficientDataError,
     ModelNotLoadedError,
-    PredictionError,
     classify_error,
     ErrorCategory,
 )
@@ -254,12 +251,12 @@ class TestFeatureCache:
         }, index=timestamps)
 
         # First call → cache miss
-        result1 = fe.create_features(df.copy(), timeframe="5m")
+        fe.create_features(df.copy(), timeframe="5m")
         assert fe.cache.misses == 1
         assert fe.cache.hits == 0
 
         # Second call with same data → cache hit
-        result2 = fe.create_features(df.copy(), timeframe="5m")
+        fe.create_features(df.copy(), timeframe="5m")
         assert fe.cache.hits == 1
 
     def test_cache_miss_on_new_candle(self):

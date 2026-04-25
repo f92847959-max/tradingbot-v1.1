@@ -32,6 +32,26 @@ def _sqlite_url() -> str:
     return f"sqlite+aiosqlite:///{db_path}"
 
 
+def _mask_db_url(url: str) -> str:
+    """Return a URL safe for logging by masking any embedded password.
+
+    Handles `scheme://user:password@host/...` and leaves SQLite paths intact.
+    """
+    if not url or "://" not in url:
+        return url
+    try:
+        scheme, rest = url.split("://", 1)
+        if "@" not in rest:
+            return url
+        creds, tail = rest.split("@", 1)
+        if ":" in creds:
+            user, _ = creds.split(":", 1)
+            return f"{scheme}://{user}:***@{tail}"
+        return url
+    except Exception:
+        return f"{url.split('://', 1)[0]}://***"
+
+
 def _build_url() -> str:
     """Build database URL from environment.
 
@@ -57,6 +77,13 @@ def _build_url() -> str:
 
     # Option 2: PostgreSQL from individual vars
     pg_password = os.getenv("POSTGRES_PASSWORD", "")
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    pg_host_set = bool(os.getenv("POSTGRES_HOST"))
+    if not pg_password and environment != "development" and pg_host_set:
+        raise RuntimeError(
+            "POSTGRES_PASSWORD must be set in non-development environments. "
+            f"ENVIRONMENT={environment!r}, POSTGRES_HOST is set but no password."
+        )
     if pg_password:
         host = os.getenv("POSTGRES_HOST", "localhost")
         port = os.getenv("POSTGRES_PORT", "5432")
@@ -110,7 +137,7 @@ def _reset_to_sqlite() -> None:
         class_=AsyncSession,
         expire_on_commit=False,
     )
-    logger.warning("Database reset to SQLite: %s", url)
+    logger.warning("Database reset to SQLite: %s", _mask_db_url(url))
 
 
 def get_engine() -> AsyncEngine:

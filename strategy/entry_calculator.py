@@ -1,11 +1,16 @@
 """Entry calculator — computes SL/TP and validates risk/reward ratio."""
 
+from typing import TYPE_CHECKING
+
 from shared.constants import (
     SL_ATR_MULTIPLIER,
     TP_ATR_MULTIPLIER,
     MIN_RR_RATIO,
 )
 from risk.position_sizing import PositionSizer
+
+if TYPE_CHECKING:
+    from strategy.regime_detector import MarketRegime
 
 
 def calculate_sl_tp(

@@ -3,7 +3,6 @@
 import os
 
 import numpy as np
-import pytest
 from xgboost import XGBClassifier
 
 from ai_engine.training.shap_importance import (

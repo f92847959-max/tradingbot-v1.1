@@ -6,7 +6,27 @@ trailing_manager, partial_close, and exit_signals modules.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import NamedTuple
+
+
+class StopLossResult(NamedTuple):
+    """Stop-loss calculation result.
+
+    NamedTuple keeps backward-compatible tuple unpacking while exposing
+    readable attributes for package-level UAT snippets.
+    """
+
+    sl: float
+    reason: str
+
+
+class TakeProfitResult(NamedTuple):
+    """Take-profit calculation result with optional first partial target."""
+
+    tp: float
+    tp1: float | None
+    reason: str
 
 
 @dataclass

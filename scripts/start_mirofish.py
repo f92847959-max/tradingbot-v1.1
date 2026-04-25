@@ -3,7 +3,7 @@
 Automatisiert die vollstaendige MiroFish-Einrichtung:
   - Git-Klon (falls noch nicht vorhanden)
   - Abhaengigkeiten installieren via uv sync (Python 3.11 venv)
-  - .env-Datei erstellen (LLM_API_KEY, ZEP_API_KEY, etc.)
+  - .env-Datei erstellen (Ollama als LLM-Backend, ZEP_API_KEY)
   - Flask-Backend starten
 
 Verwendung:
@@ -14,6 +14,7 @@ Verwendung:
 """
 
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -29,8 +30,8 @@ FLASK_PORT = 5001
 HEALTH_CHECK_HOST = "localhost:5001"
 HEALTH_CHECK_URL = f"http://{HEALTH_CHECK_HOST}/health"
 HEALTH_CHECK_TIMEOUT_SECONDS = 15
-LLM_MODEL_NAME = "gpt-4o-mini"
-LLM_BASE_URL = "https://api.openai.com/v1"
+LLM_MODEL_NAME = "qwen2.5:7b"
+LLM_BASE_URL = "http://localhost:11434/v1"  # Ollama OpenAI-kompatibel
 # Windows-spezifischer Python-Pfad in der uv-erstellten venv
 # Vollstaendiger Pfad: .venv/Scripts/python.exe (relativ zu mirofish/backend/)
 VENV_PYTHON_WIN = Path(".venv") / "Scripts" / "python.exe"
@@ -148,10 +149,35 @@ def cmd_install(project_root: Path) -> bool:
     return True
 
 
+def cmd_check_ollama() -> bool:
+    """Prueft ob Ollama laeuft und das Modell verfuegbar ist."""
+    import urllib.request
+    import urllib.error
+
+    print("[MiroFish] Pruefe Ollama-Verbindung ...")
+    try:
+        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=5) as response:
+            if response.status == 200:
+                import json
+                data = json.loads(response.read())
+                models = [m.get("name", "") for m in data.get("models", [])]
+                if any(LLM_MODEL_NAME in m for m in models):
+                    print(f"[MiroFish] Ollama laeuft, Modell '{LLM_MODEL_NAME}' verfuegbar.")
+                    return True
+                else:
+                    print(f"[MiroFish] FEHLER: Modell '{LLM_MODEL_NAME}' nicht gefunden.")
+                    print(f"[MiroFish] Installiere mit: ollama pull {LLM_MODEL_NAME}")
+                    return False
+    except (urllib.error.URLError, OSError):
+        print("[MiroFish] FEHLER: Ollama antwortet nicht auf localhost:11434")
+        print("[MiroFish] Bitte Ollama starten (ollama serve) oder installieren: https://ollama.com")
+        return False
+
+
 def cmd_configure(project_root: Path) -> bool:
     """Erstellt die MiroFish .env-Datei, falls nicht vorhanden.
 
-    Liest OPENAI_API_KEY aus der Host-.env und verwendet ihn als LLM_API_KEY.
+    Verwendet Ollama als LLM-Backend (kostenlos, lokal).
     ZEP_API_KEY wird aus der Host-.env gelesen oder beim Benutzer abgefragt.
     Gibt True zurueck wenn erfolgreich (oder bereits vorhanden).
     """
@@ -166,38 +192,41 @@ def cmd_configure(project_root: Path) -> bool:
         print(f"[MiroFish] .env bereits vorhanden: {env_file}")
         return True
 
-    print("[MiroFish] Erstelle MiroFish .env-Datei ...")
+    print("[MiroFish] Erstelle MiroFish .env-Datei (Ollama-Modus) ...")
 
-    # LLM_API_KEY aus Host-.env lesen (OPENAI_API_KEY wiederverwenden)
-    host_env = read_host_env(project_root)
-    llm_api_key = host_env.get("OPENAI_API_KEY", "")
+    # Ollama braucht keinen echten API-Key, aber manche Clients erwarten einen nicht-leeren Wert
+    llm_api_key = "ollama"
 
-    if not llm_api_key:
-        print("[MiroFish] WARNUNG: OPENAI_API_KEY nicht in Host-.env gefunden.")
-        llm_api_key = input("[MiroFish] OpenAI API-Schluessel eingeben (oder leer lassen): ").strip()
+    # SECURITY: Dieses Verzeichnis liegt in OneDrive (wird in die MS-Cloud gesynct).
+    # ZEP_API_KEY deshalb NICHT mehr interaktiv abfragen und in die .env schreiben.
+    # Wer Zep-Memory braucht, setzt die Windows-Umgebungsvariable ZEP_API_KEY
+    # (setx ZEP_API_KEY <key>) oder traegt den Key manuell in
+    # ~/secrets/ai-trading-gold/mirofish.env ein und sourced das vor dem Start.
+    zep_api_key = os.environ.get("ZEP_API_KEY", "").strip()
 
-    # ZEP_API_KEY aus Host-.env oder Eingabe
-    zep_api_key = host_env.get("ZEP_API_KEY", "")
-    if not zep_api_key:
-        print("[MiroFish] ZEP_API_KEY nicht in Host-.env gefunden.")
-        print("[MiroFish] Kostenlosen Account unter https://app.getzep.com erstellen")
-        zep_api_key = input("[MiroFish] Zep Cloud API-Schluessel eingeben (oder leer lassen): ").strip()
-
-    # .env-Inhalt schreiben
-    env_content = f"""# MiroFish Konfiguration -- automatisch erstellt von scripts/start_mirofish.py
-LLM_API_KEY={llm_api_key}
-LLM_BASE_URL={LLM_BASE_URL}
-LLM_MODEL_NAME={LLM_MODEL_NAME}
-ZEP_API_KEY={zep_api_key}
-FLASK_PORT={FLASK_PORT}
-"""
+    # .env-Inhalt schreiben (ohne Secrets -- nur nicht-sensible Ollama-Config).
+    # ZEP_API_KEY wird NUR geschrieben wenn die Umgebungsvariable einen echten
+    # Wert enthaelt. Ein leerer Eintrag wuerde sonst in die OneDrive-gesyncte
+    # Datei landen und spaeter den Eindruck erwecken, ein Key sei konfiguriert.
+    env_lines = [
+        "# MiroFish Konfiguration -- automatisch erstellt von scripts/start_mirofish.py",
+        "# Ollama als LLM-Backend (kostenlos, lokal auf GPU)",
+        "# KEINE Secrets hier speichern -- das Verzeichnis wird ueber OneDrive gesynct!",
+        f"LLM_API_KEY={llm_api_key}",
+        f"LLM_BASE_URL={LLM_BASE_URL}",
+        f"LLM_MODEL_NAME={LLM_MODEL_NAME}",
+    ]
+    if zep_api_key:
+        env_lines.append(f"ZEP_API_KEY={zep_api_key}")
+    env_lines.append(f"FLASK_PORT={FLASK_PORT}")
+    env_content = "\n".join(env_lines) + "\n"
     env_file.write_text(env_content, encoding="utf-8")
     print(f"[MiroFish] .env erstellt: {env_file}")
 
-    if not llm_api_key:
-        print("[MiroFish] WARNUNG: LLM_API_KEY ist leer -- bitte in mirofish/backend/.env eintragen.")
     if not zep_api_key:
-        print("[MiroFish] WARNUNG: ZEP_API_KEY ist leer -- bitte in mirofish/backend/.env eintragen.")
+        print("[MiroFish] WARNUNG: ZEP_API_KEY leer -- nicht in .env geschrieben (OneDrive-Sync).")
+        print("[MiroFish]          Zep-Memory deaktiviert. Key manuell setzen:")
+        print("[MiroFish]          setx ZEP_API_KEY <key>  (dann neu starten)")
 
     return True
 
@@ -329,7 +358,11 @@ Beispiele:
     # Setup-Schritte (fuer 'setup' oder kein Befehl)
     # -----------------------------------------------------------------------
     if command in (None, "setup"):
-        print("[MiroFish] === Schritt 1/3: Repository klonen ===")
+        print("[MiroFish] === Schritt 0/4: Ollama pruefen ===")
+        if not cmd_check_ollama():
+            return 1
+
+        print("\n[MiroFish] === Schritt 1/3: Repository klonen ===")
         if not cmd_clone(project_root):
             return 1
 

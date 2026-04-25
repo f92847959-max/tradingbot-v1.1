@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.app.auth import verify_access_token
 from backend.app.config import load_settings
 from backend.app.database import init_db
+from backend.app.rate_limit import AuthRateLimitMiddleware
 from backend.app.routers import bot, health, logs, settings, trades
 from backend.app.services import build_control_service
 
@@ -24,6 +25,16 @@ def create_app() -> FastAPI:
     )
     app.state.control_service = build_control_service()
 
+    # Rate limit authenticated endpoints (10 requests/min/IP) to mitigate
+    # token brute-force attempts against the X-Control-Token header.
+    app.add_middleware(
+        AuthRateLimitMiddleware,
+        max_requests=10,
+        window_seconds=60,
+        protected_prefix="/api/v1",
+        exempt_paths=("/api/v1/health",),
+    )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -33,8 +44,8 @@ def create_app() -> FastAPI:
             "http://127.0.0.1:3000",
         ],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization", "X-Control-Token"],
     )
 
     protected = [Depends(verify_access_token)]

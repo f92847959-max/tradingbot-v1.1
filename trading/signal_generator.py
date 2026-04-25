@@ -42,6 +42,7 @@ class SignalGeneratorMixin:
                     candle_data=candle_data,
                     primary_timeframe="5m",
                 )
+                signal = self._apply_autonomy_rollout(signal)
                 # MiroFish veto check (Phase 6, D-06 to D-09)
                 if (
                     signal
@@ -54,11 +55,44 @@ class SignalGeneratorMixin:
         except (PredictionError, DataError) as e:
             logger.warning("AI engine error: %s", e)
         except Exception as e:
-            logger.debug("AI engine not available: %s", e)
+            logger.exception("AI engine failed unexpectedly: %s", e)
 
-        # No fallback -- if models aren't trained, return HOLD
-        logger.info("No trained models available. Run scripts/train_models.py first.")
+        # Fallback HOLD -- the actual cause is logged above.
         return {"action": "HOLD", "confidence": 0.0}
+
+    def _apply_autonomy_rollout(self: TradingSystem, signal: dict | None) -> dict | None:
+        """Optionally score the decision-head candidate beside the champion signal."""
+        if signal is None:
+            return None
+        settings = getattr(self, "settings", None)
+        mode = str(
+            getattr(settings, "autonomy_rollout_mode", None)
+            or getattr(settings, "decision_head_rollout_mode", None)
+            or "disabled"
+        )
+        if mode == "disabled":
+            return signal
+
+        try:
+            from ai_engine.prediction.decision_head import (
+                DecisionHeadRuntime,
+                apply_autonomy_rollout,
+            )
+
+            runtime = getattr(self, "_decision_head_runtime", None)
+            if runtime is None:
+                runtime = DecisionHeadRuntime(enabled=True)
+                setattr(self, "_decision_head_runtime", runtime)
+            candidate = runtime.predict_from_signal(signal)
+            selected, _metadata = apply_autonomy_rollout(
+                signal,
+                candidate,
+                mode=mode,
+            )
+            return selected
+        except Exception as exc:
+            logger.warning("Decision-head rollout failed: %s", exc)
+            return signal
 
     async def _save_signal(
         self: TradingSystem, signal: dict, executed: bool, rejection_reason: str = "",

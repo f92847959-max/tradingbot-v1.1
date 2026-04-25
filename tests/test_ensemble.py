@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from ai_engine.prediction.ensemble import EnsemblePredictor
 
@@ -57,20 +57,6 @@ class TestEnsemblePredictor:
 
     def test_weighted_vote_disagreement_returns_hold(self):
         """When models disagree, agreement filter should return HOLD."""
-        model_votes = {
-            "xgboost": {
-                "action": "BUY",
-                "confidence": 0.75,
-                "probabilities": [0.10, 0.15, 0.75],
-                "weight": 0.55,
-            },
-            "lightgbm": {
-                "action": "SELL",
-                "confidence": 0.70,
-                "probabilities": [0.70, 0.15, 0.15],
-                "weight": 0.45,
-            },
-        }
         # With min_agreement=2, disagreement should produce HOLD
         # (tested via predict method, not directly via _weighted_vote)
 

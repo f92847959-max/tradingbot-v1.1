@@ -110,7 +110,6 @@ def cleanup_dataframe_features(
         The cleaned DataFrame
     """
     import numpy as np
-    import pandas as pd
 
     if feature_columns is None:
         feature_columns = df.select_dtypes(include=["number"]).columns.tolist()

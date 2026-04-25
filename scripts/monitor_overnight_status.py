@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -290,7 +289,10 @@ def main() -> int:
         output = _render(health, runs)
 
         if not args.no_clear:
-            os.system("cls" if os.name == "nt" else "clear")
+            # Use ANSI escape sequence instead of shelling out via os.system().
+            # ANSI clear works on modern Windows terminals (WT, ConEmu, VS Code)
+            # and on POSIX, and avoids spawning a subprocess on every refresh.
+            print("\033[2J\033[H", end="")
         print(output, flush=True)
 
         if args.once:

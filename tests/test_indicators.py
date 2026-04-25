@@ -41,7 +41,7 @@ class TestCalculateIndicators:
     def test_expected_columns_exist(self):
         df = make_gold_df()
         result = calculate_indicators(df)
-        expected = ["ema_9", "ema_21", "ema_50", "rsi_14", "atr"]
+        expected = ["ema_9", "ema_21", "ema_50", "rsi_14", "atr_14"]
         for col in expected:
             assert col in result.columns, f"Missing column: {col}"
 
@@ -63,7 +63,7 @@ class TestCalculateIndicators:
     def test_atr_positive(self):
         df = make_gold_df()
         result = calculate_indicators(df)
-        atr = result["atr"].dropna()
+        atr = result["atr_14"].dropna()
         assert len(atr) > 0
         assert (atr > 0).all(), "ATR should always be positive"
 
@@ -103,12 +103,11 @@ class TestCalculateIndicators:
         """Upper BB should be above middle which should be above lower."""
         df = make_gold_df()
         result = calculate_indicators(df)
-        bb_cols = [c for c in result.columns if "bb_" in c.lower() or "bbu" in c.lower()]
         if "bb_upper" in result.columns:
-            valid = result[["bb_upper", "bb_mid", "bb_lower"]].dropna()
+            valid = result[["bb_upper", "bb_middle", "bb_lower"]].dropna()
             if not valid.empty:
-                assert (valid["bb_upper"] >= valid["bb_mid"]).all()
-                assert (valid["bb_mid"] >= valid["bb_lower"]).all()
+                assert (valid["bb_upper"] >= valid["bb_middle"]).all()
+                assert (valid["bb_middle"] >= valid["bb_lower"]).all()
 
     def test_short_dataframe_warning(self):
         """Should handle short DataFrames without crashing."""
@@ -129,7 +128,7 @@ class TestGetIndicatorSummary:
         df = make_gold_df()
         df = calculate_indicators(df)
         summary = get_indicator_summary(df)
-        for key in ["close", "rsi", "atr"]:
+        for key in ["rsi_14", "atr_14", "ema_9"]:
             assert key in summary, f"Missing key: {key}"
 
     def test_returns_floats(self):
@@ -137,5 +136,5 @@ class TestGetIndicatorSummary:
         df = calculate_indicators(df)
         summary = get_indicator_summary(df)
         for k, v in summary.items():
-            if v is not None:
+            if v is not None and not isinstance(v, str):
                 assert isinstance(v, (int, float)), f"Key {k} is not numeric: {type(v)}"

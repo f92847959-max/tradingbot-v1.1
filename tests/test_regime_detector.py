@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from strategy.regime_detector import MarketRegime, RegimeDetector, RegimeState
-from strategy.regime_params import REGIME_PARAMS, get_regime_params
+from strategy.regime_params import get_regime_params
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class HealthResponse(BaseModel):
@@ -34,4 +34,8 @@ class SystemStatusResponse(BaseModel):
 
 class KillSwitchRequest(BaseModel):
     activate: bool
-    reason: str = "manual"
+    reason: str = Field(
+        default="manual",
+        max_length=200,
+        pattern=r"^[a-zA-Z0-9_\-\. ]+$",
+    )

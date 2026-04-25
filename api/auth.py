@@ -58,6 +58,9 @@ class RateLimiter:
     Note: For production use an external store (Redis) / robust limiter.
     """
 
+    # Hard cap on tracked IPs to prevent unbounded memory growth.
+    _MAX_TRACKED_IPS = 500
+
     def __init__(self, max_requests: int = 10, window_seconds: int = 60):
         self.max_requests = max_requests
         self.window = window_seconds
@@ -67,21 +70,50 @@ class RateLimiter:
         """Returns True if request is allowed."""
         now = time.monotonic()
         timestamps = self._requests[client_ip]
-        # Prune old entries
-        self._requests[client_ip] = [t for t in timestamps if now - t < self.window]
-        if len(self._requests[client_ip]) >= self.max_requests:
+        # Prune old entries for this IP
+        fresh = [t for t in timestamps if now - t < self.window]
+        if len(fresh) >= self.max_requests:
+            # Persist the pruned list and reject
+            self._requests[client_ip] = fresh
             return False
-        self._requests[client_ip].append(now)
+        fresh.append(now)
+        self._requests[client_ip] = fresh
 
-        # Memory cleanup: cap tracked IPs at 2000 and prune stale
-        if len(self._requests) > 2000:
-            # Remove IPs with oldest last-access time (best-effort)
-            items = list(self._requests.items())
-            items.sort(key=lambda kv: kv[1][-1] if kv[1] else 0)
-            for ip, _ in items[:500]:
-                try:
-                    del self._requests[ip]
-                except KeyError:
-                    pass
+        # Per-request cleanup: if this slot is empty, drop it from the dict.
+        if not self._requests[client_ip]:
+            try:
+                del self._requests[client_ip]
+            except KeyError:
+                pass
+
+        # Hard cap on tracked IPs with LRU-ish eviction (drop oldest last-seen).
+        if len(self._requests) > self._MAX_TRACKED_IPS:
+            try:
+                victim = min(
+                    self._requests.items(),
+                    key=lambda kv: kv[1][-1] if kv[1] else 0,
+                )[0]
+                del self._requests[victim]
+            except (ValueError, KeyError):
+                pass
 
         return True
+
+
+# ---------------------------------------------------------------------------
+# Global rate limiter for order / mutating endpoints
+# ---------------------------------------------------------------------------
+
+order_rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
+
+
+async def check_order_rate_limit(request: Request) -> None:
+    """FastAPI dependency for rate-limiting order / mutating endpoints.
+
+    Applied to POST endpoints that can move money or flip kill switches
+    (e.g. /positions/close, /positions/close-all, /risk/kill-switch).
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    if not order_rate_limiter.check(client_ip):
+        logger.warning("Rate limit exceeded for %s on %s", client_ip, request.url.path)
+        raise HTTPException(status_code=429, detail="Rate limit exceeded (max 10 requests/minute)")

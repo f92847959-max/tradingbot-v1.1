@@ -1,7 +1,6 @@
 import logging
 import numpy as np
-import pandas as pd
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from ai_engine.training.backtester import Backtester
 
 logger = logging.getLogger(__name__)
@@ -56,8 +55,10 @@ class AdvancedBacktester(Backtester):
         truths = np.array(actual_labels)
 
         # Normalize to -1, 0, 1
-        if preds.min() >= 0: preds = preds - 1
-        if truths.min() >= 0: truths = truths - 1
+        if preds.min() >= 0:
+            preds = preds - 1
+        if truths.min() >= 0:
+            truths = truths - 1
 
         trade_mask = preds != 0
         n_trades = trade_mask.sum()

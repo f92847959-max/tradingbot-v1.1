@@ -50,7 +50,7 @@ class TimeFeatures:
         if isinstance(df.index, pd.DatetimeIndex):
             ts = df.index
         elif "timestamp" in df.columns:
-            ts = pd.to_datetime(df["timestamp"])
+            ts = pd.to_datetime(df["timestamp"], utc=True)
         else:
             logger.warning("No timestamp found -- setting all time features to 0")
             for feat in self.FEATURE_NAMES:

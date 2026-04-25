@@ -1,9 +1,9 @@
 """Repository for risk events and daily risk state."""
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Sequence
 
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,7 +26,7 @@ class RiskRepository(BaseRepository[RiskEvent]):
         return await self.add(event)
 
     async def get_recent(self, hours: int = 24) -> Sequence[RiskEvent]:
-        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         stmt = (
             select(RiskEvent)
             .where(RiskEvent.timestamp >= cutoff)
@@ -53,12 +53,13 @@ class DailyRiskStateRepository(BaseRepository[DailyRiskState]):
         super().__init__(session, DailyRiskState)
 
     async def get_today(self) -> DailyRiskState | None:
-        stmt = select(DailyRiskState).where(DailyRiskState.date == date.today())
+        today = datetime.now(timezone.utc).date()
+        stmt = select(DailyRiskState).where(DailyRiskState.date == today)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def upsert_today(self, state: dict) -> None:
-        state["date"] = date.today()
+        state["date"] = datetime.now(timezone.utc).date()
         stmt = pg_insert(DailyRiskState).values(**state)
         stmt = stmt.on_conflict_do_update(
             index_elements=["date"],

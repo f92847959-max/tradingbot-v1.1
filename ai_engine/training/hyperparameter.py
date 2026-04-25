@@ -6,7 +6,7 @@ to find the best hyperparameters for XGBoost and LightGBM.
 """
 
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import numpy as np
 
@@ -106,7 +106,7 @@ class HyperparameterOptimizer:
 
         search.fit(X_train, y_train)
 
-        logger.info(f"Best XGBoost parameters found!")
+        logger.info("Best XGBoost parameters found!")
         logger.info(f"   Score: {search.best_score_:.4f}")
         logger.info(f"   Params: {search.best_params_}")
 
@@ -163,7 +163,7 @@ class HyperparameterOptimizer:
 
         search.fit(X_train, y_train)
 
-        logger.info(f"Best LightGBM parameters found!")
+        logger.info("Best LightGBM parameters found!")
         logger.info(f"   Score: {search.best_score_:.4f}")
         logger.info(f"   Params: {search.best_params_}")
 

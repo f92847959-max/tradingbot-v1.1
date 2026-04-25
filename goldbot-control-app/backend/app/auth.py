@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hmac
+
 from fastapi import Header, HTTPException, status
 
 from backend.app.config import load_settings
@@ -19,14 +21,7 @@ def verify_access_token(x_control_token: str | None = Header(default=None)) -> N
             detail="Server token configuration is missing.",
         )
 
-    # Dev compatibility: support both placeholder defaults used in this repo.
-    valid_tokens = {expected}
-    if expected == "bitte-token-setzen":
-        valid_tokens.add("bitte-eigenen-token-setzen")
-    elif expected == "bitte-eigenen-token-setzen":
-        valid_tokens.add("bitte-token-setzen")
-
-    if provided not in valid_tokens:
+    if not provided or not hmac.compare_digest(expected, provided):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Nicht autorisiert. Bitte gueltigen Zugriffstoken senden.",

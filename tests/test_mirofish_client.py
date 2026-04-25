@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-import pytest
 
 # Skip marker for tests that need a live MiroFish backend
 MIROFISH_AVAILABLE = os.environ.get("MIROFISH_AVAILABLE", "false").lower() == "true"
@@ -27,12 +26,11 @@ requires_mirofish = pytest.mark.skipif(
 # -------------------------------------------------------------------------
 # Imports from module under test (must succeed for tests to run)
 # -------------------------------------------------------------------------
-from ai_engine.mirofish_client import (
+from ai_engine.mirofish_client import (  # noqa: E402
     MiroFishClient,
     MiroFishCostLimiter,
     SwarmAssessment,
     parse_swarm_direction,
-    run_simulation_loop,
 )
 
 

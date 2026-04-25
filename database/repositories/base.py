@@ -1,6 +1,6 @@
 """Base repository with common CRUD operations."""
 
-from typing import Any, Generic, Sequence, TypeVar
+from typing import Generic, Sequence, TypeVar
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession

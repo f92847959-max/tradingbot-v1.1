@@ -61,6 +61,21 @@ def _looks_placeholder(value: str) -> bool:
     return any(m in v for m in markers)
 
 
+def _warn_if_credentials_in_onedrive() -> None:
+    """Warn when broker credentials are loaded from a OneDrive-synced .env file.
+
+    OneDrive uploads files to MS cloud storage, so .env files containing
+    CAPITAL_* secrets there should be migrated to a secure location
+    (Windows env vars, secret manager, ~/secrets/...).
+    """
+    paths_to_check = (os.getcwd(), str(__file__))
+    if any("OneDrive" in p for p in paths_to_check):
+        logger.warning(
+            "WARNING: .env credentials in OneDrive path -- "
+            "consider moving to secure env vars"
+        )
+
+
 @dataclass
 class BrokerCreds:
     email: str
@@ -74,6 +89,9 @@ def _load_broker_creds() -> BrokerCreds:
     password = os.getenv("CAPITAL_PASSWORD", "").strip()
     api_key = os.getenv("CAPITAL_API_KEY", "").strip()
     demo = _env_bool("CAPITAL_DEMO", True)
+
+    if email or password or api_key:
+        _warn_if_credentials_in_onedrive()
 
     bad_fields: list[str] = []
     if _looks_placeholder(email):
@@ -139,9 +157,14 @@ async def _fetch_candles_with_fallback(
             candles = await client.get_candles(timeframe=timeframe, count=count)
             if candles:
                 return candles
-        except Exception as exc:  # noqa: BLE001
+        except (OSError, RuntimeError, ValueError, asyncio.TimeoutError) as exc:
+            # Network / broker / parsing errors are recoverable: try next count.
             last_error = exc
-            logger.warning("Fetch failed for count=%d: %s", count, exc)
+            logger.exception("Fetch failed for count=%d", count)
+        except Exception as exc:  # noqa: BLE001
+            # Last-resort safety net so a single bad count never aborts the loop.
+            last_error = exc
+            logger.exception("Unexpected error during fetch for count=%d", count)
 
     if last_error is not None:
         raise last_error
@@ -805,6 +828,38 @@ async def _fetch_with_retries(
 
 async def _run(args: argparse.Namespace) -> int:
     load_dotenv()
+
+    if args.dry_run:
+        logger.warning(
+            "DRY-RUN active: skipping lock, health/run-log writes, "
+            "model serialization and promotion. Logging planned actions only."
+        )
+        logger.info(
+            "DRY-RUN plan: source=%s timeframe=%s count=%d hours=%.2f "
+            "interval_minutes=%.2f output=%s candidate=%s run_log=%s health_file=%s",
+            args.source,
+            args.timeframe,
+            args.count,
+            args.hours,
+            args.interval_minutes,
+            args.output,
+            args.candidate_output or f"{args.output}/candidate",
+            args.run_log,
+            args.health_file,
+        )
+        if args.source == "broker":
+            try:
+                _load_broker_creds()
+                logger.info("DRY-RUN: broker credentials present (validated, not used).")
+            except RuntimeError as exc:
+                logger.error("DRY-RUN: broker credential check failed: %s", exc)
+                return 1
+        logger.info(
+            "DRY-RUN: would train and (if quality gate passes) promote models to %s. "
+            "No files written. Exiting.",
+            args.output,
+        )
+        return 0
 
     log_path = Path(args.run_log)
     accepted_output_dir = Path(args.output)
@@ -1525,6 +1580,14 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run only one cycle (smoke test).",
     )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Log planned actions but skip data writes (run log, health file, "
+            "lock file) and skip model serialization / promotion."
+        ),
+    )
     return p
 
 
@@ -1532,10 +1595,33 @@ def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    # Log to stderr (captured by the PowerShell launcher's -RedirectStandardError)
+    # AND to a rotating file so overnight runs can't produce unbounded logs.
+    # Historical issue: logs/overnight_training_stderr.log grew to 77 MB with no
+    # rotation because the PowerShell redirect has no size limit. The rotating
+    # handler below caps Python-generated log output at ~50 MB * 3 backups.
+    from logging.handlers import RotatingFileHandler as _RFH
+
+    _log_dir = Path("logs")
+    _log_dir.mkdir(parents=True, exist_ok=True)
+    _formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     )
+    _rotating = _RFH(
+        _log_dir / "overnight_training.log",
+        maxBytes=50 * 1024 * 1024,
+        backupCount=3,
+        encoding="utf-8",
+    )
+    _rotating.setFormatter(_formatter)
+
+    _stream = logging.StreamHandler()
+    _stream.setFormatter(_formatter)
+
+    _root = logging.getLogger()
+    _root.setLevel(logging.INFO)
+    # Avoid duplicate handlers if main() is ever re-entered.
+    _root.handlers = [_stream, _rotating]
 
     try:
         return asyncio.run(_run(args))

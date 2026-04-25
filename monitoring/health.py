@@ -1,10 +1,14 @@
 """Health checks for all system components."""
 
 import logging
+import os
+import shutil
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+# Warn if disk usage exceeds this fraction.
+DISK_WARN_THRESHOLD = 0.80
 
 
 @dataclass
@@ -55,12 +59,32 @@ async def check_redis() -> HealthResult:
         return HealthResult("redis", False, str(e))
 
 
+async def check_disk_space(path: str | None = None) -> HealthResult:
+    """Verify the working volume has free space.
+
+    Returns FAIL when usage exceeds DISK_WARN_THRESHOLD (default 80%).
+    """
+    target = path or os.getenv("DISK_CHECK_PATH") or os.getcwd()
+    try:
+        usage = shutil.disk_usage(target)
+        used_fraction = usage.used / usage.total if usage.total else 0.0
+        used_pct = used_fraction * 100.0
+        free_gb = usage.free / (1024 ** 3)
+        detail = f"{used_pct:.1f}% used, {free_gb:.1f} GB free ({target})"
+        if used_fraction >= DISK_WARN_THRESHOLD:
+            return HealthResult("disk", False, f"disk almost full: {detail}")
+        return HealthResult("disk", True, detail)
+    except Exception as e:
+        return HealthResult("disk", False, f"disk check failed: {e}")
+
+
 async def run_all(broker=None) -> list[HealthResult]:
     """Run all health checks and return results."""
     results = []
     results.append(await check_database())
     results.append(await check_broker(broker))
     results.append(await check_redis())
+    results.append(await check_disk_space())
     all_ok = all(r.ok for r in results)
     status = "HEALTHY" if all_ok else "DEGRADED"
     logger.info(
