@@ -143,6 +143,8 @@ def _run_all(checker: PreTradeChecker, **overrides) -> list[CheckResult]:
         required_margin=100.0,
         has_open_same_direction=False,
         current_drawdown_pct=0.0,
+        notional_value=10000.0,
+        equity=10000.0,
     )
     defaults.update(overrides)
     return checker.run_all(**defaults)
@@ -175,6 +177,17 @@ class TestPreTradeChecker:
         early = datetime(2024, 1, 15, 5, 0)  # 05:00 UTC
         results = _run_all(checker, current_time=early)
         assert not _get(results, "trading_hours").passed
+
+    def test_custom_trading_window_is_respected(self):
+        checker = _checker(trading_start=time(9, 0), trading_end=time(10, 0))
+        too_early = datetime(2024, 1, 15, 8, 30)
+        allowed = datetime(2024, 1, 15, 9, 30)
+
+        early_results = _run_all(checker, current_time=too_early)
+        allowed_results = _run_all(checker, current_time=allowed)
+
+        assert not _get(early_results, "trading_hours").passed
+        assert _get(allowed_results, "trading_hours").passed
 
     def test_daily_loss_limit(self):
         checker = _checker(max_daily_loss_pct=5.0)

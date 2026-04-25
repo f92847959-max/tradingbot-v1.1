@@ -5,12 +5,11 @@ and timeout handling during system lifecycle.
 """
 
 import asyncio
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from market_data.broker_client import AccountInfo, BrokerError
+from market_data.broker_client import BrokerError
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +125,7 @@ class TestGracefulShutdown:
         system.orders = MagicMock()
         system.orders.get_open_count.return_value = 0
 
-        with patch("main.close_db", AsyncMock()):
+        with patch("trading.lifecycle.close_db", AsyncMock()):
             await system.stop()
 
         assert not system._running
@@ -154,7 +153,7 @@ class TestGracefulShutdown:
             return_value={"synced": ["D1", "D2"], "orphaned": []}
         )
 
-        with patch("main.close_db", AsyncMock()):
+        with patch("trading.lifecycle.close_db", AsyncMock()):
             await system.stop()
 
         system.orders.position_monitor.sync_with_broker.assert_called_once()
@@ -187,7 +186,7 @@ class TestGracefulShutdown:
             side_effect=slow_sync
         )
 
-        with patch("main.close_db", AsyncMock()):
+        with patch("trading.lifecycle.close_db", AsyncMock()):
             # Should not hang — timeout kicks in
             await asyncio.wait_for(system.stop(), timeout=20)
 
@@ -216,7 +215,7 @@ class TestGracefulShutdown:
         system.notifications = MagicMock()
         system.notifications.notify_kill_switch = MagicMock()
 
-        with patch("main.close_db", AsyncMock()):
+        with patch("trading.lifecycle.close_db", AsyncMock()):
             await system.stop()
 
         system.orders.close_all.assert_called_once()

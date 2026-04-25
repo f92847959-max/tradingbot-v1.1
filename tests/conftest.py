@@ -1,9 +1,64 @@
 """Shared pytest fixtures for the Gold Trader test suite."""
 
+import asyncio
+import inspect
+from datetime import datetime, timezone
+from unittest.mock import MagicMock
+
 import numpy as np
 import pandas as pd
 import pytest
-from datetime import datetime, timedelta
+
+try:
+    import pytest_asyncio as _pytest_asyncio  # noqa: F401
+except ModuleNotFoundError:
+    _HAS_PYTEST_ASYNCIO = False
+else:
+    _HAS_PYTEST_ASYNCIO = True
+
+
+_RISK_TIME_DEPENDENT_FILES = (
+    "test_risk_manager.py",
+    "test_risk_integration_advanced.py",
+)
+
+
+@pytest.fixture(autouse=True)
+def _freeze_risk_clock_to_friday(request, monkeypatch):
+    # PreTradeChecker rejects trades on weekends and outside the configured
+    # trading window. Without a frozen clock, approve_trade tests are flaky:
+    # they pass weekday-in-window and fail nights/weekends.
+    if request.node.fspath.basename not in _RISK_TIME_DEPENDENT_FILES:
+        yield
+        return
+
+    frozen = datetime(2026, 4, 24, 10, 0, tzinfo=timezone.utc)
+    fake_datetime = MagicMock(wraps=datetime)
+    fake_datetime.now = MagicMock(return_value=frozen)
+    monkeypatch.setattr("risk.risk_manager.datetime", fake_datetime)
+    yield frozen
+
+
+def pytest_addoption(parser) -> None:
+    """Accept the local asyncio config even when pytest-asyncio is absent."""
+    parser.addini("asyncio_mode", "Fallback asyncio mode setting", default="auto")
+
+
+def pytest_configure(config) -> None:
+    config.addinivalue_line("markers", "asyncio: run test in an asyncio event loop")
+
+
+def pytest_pyfunc_call(pyfuncitem):
+    """Fallback runner for async tests when pytest-asyncio is not installed."""
+    if _HAS_PYTEST_ASYNCIO or not inspect.iscoroutinefunction(pyfuncitem.obj):
+        return None
+
+    kwargs = {
+        name: pyfuncitem.funcargs[name]
+        for name in pyfuncitem._fixtureinfo.argnames
+    }
+    asyncio.run(pyfuncitem.obj(**kwargs))
+    return True
 
 
 @pytest.fixture

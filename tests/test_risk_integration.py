@@ -4,15 +4,13 @@ Verifies kill switch behavior, drawdown tracking, weekly loss limits,
 cooldown logic, and that all 11 pre-trade checks interact correctly.
 """
 
-import asyncio
-from datetime import datetime, timedelta, timezone, time
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import timezone
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from risk.risk_manager import RiskManager, RiskApproval, RiskMetricsCache
+from risk.risk_manager import RiskManager, RiskMetricsCache
 from risk.kill_switch import KillSwitch
-from risk.pre_trade_check import PreTradeChecker, CheckResult
 
 
 # ---------------------------------------------------------------------------
@@ -64,13 +62,14 @@ class TestKillSwitch:
         rm._equity_peak = 10000
 
         # Equity dropped to 8900 → 11% drawdown → kill switch
-        approval = await rm.approve_trade(**_make_approval_args(current_equity=8900))
+        await rm.approve_trade(**_make_approval_args(current_equity=8900))
         assert rm.kill_switch.is_active
 
     @pytest.mark.asyncio
     async def test_kill_switch_sync_failure_activates_fail_safe(self):
         """DB sync fails → kill switch activates as fail-safe."""
         ks = KillSwitch(max_drawdown_pct=20.0)
+        ks._MAX_DB_SYNC_RETRIES = 1
         assert not ks.is_active
 
         mock_session = AsyncMock()
@@ -185,7 +184,6 @@ class TestPreTradeChecks:
     @pytest.mark.asyncio
     async def test_all_checks_pass(self):
         """All parameters within limits → trade approved (mocked time to weekday)."""
-        from unittest.mock import patch
         from datetime import datetime as dt
 
         # Mock datetime.now to return a Wednesday at 10:00 UTC
@@ -207,7 +205,8 @@ class TestPreTradeChecks:
 
         assert approval.approved
         assert approval.lot_size > 0
-        assert len(approval.checks) == 11
+        # PreTradeChecker.run_all now returns 12 results (added: leverage_exceeded)
+        assert len(approval.checks) == 12
         assert all(c.passed for c in approval.checks)
 
     @pytest.mark.asyncio

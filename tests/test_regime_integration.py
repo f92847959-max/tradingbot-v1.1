@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from strategy.regime_detector import MarketRegime
 from strategy.strategy_manager import StrategyManager
@@ -28,19 +27,28 @@ from risk.position_sizing import PositionSizer
 
 
 def _make_df(
-    rows: int = 30,
+    rows: int = 60,
     adx: float = 30.0,
     atr: float = 2.0,
     close_start: float = 2000.0,
     close_end: float = 2050.0,
 ) -> pd.DataFrame:
-    """Create a synthetic 5m DataFrame with known indicator values."""
+    """Create a synthetic 5m DataFrame with known indicator values.
+
+    Default rows is 60 because StrategyManager.evaluate() requires
+    >=50 candles before invoking regime detection (warmup guard).
+    """
+    close = np.linspace(close_start, close_end, rows)
     return pd.DataFrame({
-        "close": np.linspace(close_start, close_end, rows),
+        "close": close,
         "high": np.linspace(close_start + 1, close_end + 1, rows),
         "low": np.linspace(close_start - 1, close_end - 1, rows),
         "atr_14": [atr] * rows,
         "adx": [adx] * rows,
+        # multi_timeframe.py expects EMA columns; provide a simple monotonic
+        # series so the timeframe is not skipped during regime evaluation.
+        "ema_9": close,
+        "ema_21": close,
     })
 
 
