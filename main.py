@@ -12,22 +12,18 @@ Runs the autonomous trading loop:
 
 import asyncio
 import contextlib
-import functools
 import logging
 import os
 import signal
 import sys
-import time
-from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
-from dotenv  import load_dotenv
-
 # ---------------------------------------------------------------------------
-# Bootstrap
+# Bootstrap — pydantic-settings (config/settings.py) handles .env loading
+# (including the external ~/secrets/ai-trading-gold/.env path resolution).
+# Do NOT call load_dotenv() here: it would double-load env vars and also
+# silently override the pydantic-settings resolution order.
 # ---------------------------------------------------------------------------
-
-load_dotenv()
 
 os.makedirs("logs", exist_ok=True)
 
@@ -47,13 +43,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("main")
 
+if __name__ == "__main__":
+    logger.info("Bootstrapping trading system modules...")
+
 # ---------------------------------------------------------------------------
 # Imports (after dotenv so env vars are available)
 # ---------------------------------------------------------------------------
 
-from config.settings import get_settings, Settings  # noqa: E402
-from database.connection import init_db, close_db, get_session  # noqa: E402
-from api.dependencies import set_trading_system  # noqa: E402
+from config.settings import get_settings  # noqa: E402
 
 from trading.lifecycle import LifecycleMixin  # noqa: E402
 from trading.trading_loop import TradingLoopMixin  # noqa: E402
@@ -93,21 +90,45 @@ async def main() -> None:
         for err in errors:
             logger.error("Config error: %s", err)
         logger.error("Fix your .env file (see .env.example)")
-        sys.exit(1)
+        # Raise SystemExit so asyncio.run() tears the loop down cleanly.
+        # A bare sys.exit(1) here converts to SystemExit on the Task and can
+        # leave other scheduled tasks (API server, signal handlers) in a
+        # "Task exception was never retrieved" state; historical logs show
+        # that pattern on startups where .env was unavailable.
+        raise SystemExit(1)
 
     system = TradingSystem(settings)
 
-    # Graceful shutdown
+    # Graceful shutdown — idempotent across repeated signals (a second Ctrl+C
+    # must not spawn a second stop() coroutine racing the first).
     loop = asyncio.get_running_loop()
+    shutdown_requested = False
+
+    def _request_stop() -> None:
+        nonlocal shutdown_requested
+        if shutdown_requested or loop.is_closed():
+            return
+        shutdown_requested = True
+        asyncio.create_task(system.stop())
+
+    def _signal_handler(_signum, _frame):
+        # Windows path: signal arrives on the main thread without a loop in
+        # asyncio context, so we hop back onto the loop thread before touching
+        # any loop state.
+        if loop.is_closed():
+            return
+        loop.call_soon_threadsafe(_request_stop)
+
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
-            loop.add_signal_handler(sig, lambda: asyncio.create_task(system.stop()))
+            loop.add_signal_handler(sig, _request_stop)
         except NotImplementedError:
             # Windows: add_signal_handler is not supported
-            signal.signal(sig, lambda s, f: asyncio.create_task(system.stop()))
+            signal.signal(sig, _signal_handler)
 
-    # Inject system into API layer
-    set_trading_system(system, time.monotonic())
+    # NOTE: do NOT call set_trading_system() here — create_app() in api/app.py
+    # already injects the system into the API layer. Calling it twice leaves
+    # stale state if the API is later rebuilt.
 
     try:
         if settings.api_enabled:
@@ -144,7 +165,10 @@ async def main() -> None:
     except Exception as e:
         logger.critical("Fatal error: %s", e, exc_info=True)
         await system.stop()
-        sys.exit(1)
+        # Same reasoning as the config-error path above: let SystemExit
+        # propagate through asyncio.run() rather than calling sys.exit()
+        # while other tasks may still be queued on the loop.
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
