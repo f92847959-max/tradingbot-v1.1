@@ -2,30 +2,30 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
-current_phase: 12.4
+current_phase: 12.7
 current_plan: 1
-status: Executing Phase 12.4
+status: Phase 12.6 complete
 last_updated: "2026-04-25T08:27:23.144Z"
 progress:
   total_phases: 14
-  completed_phases: 9
-  total_plans: 35
-  completed_plans: 28
-  percent: 80
+  completed_phases: 12
+  total_plans: 44
+  completed_plans: 37
+  percent: 84
 ---
 
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 12.4
+**Current Phase:** 12.7
 **Current Plan:** 1
-**Phase Status:** Phase 12.3 complete; Phases 12.4, 12.5 and 12.6 planned; Phase 12.4 ready for execution
+**Phase Status:** Phases 12.4, 12.5 and 12.6 complete; Phase 12.7 ready for execution
 **Total Phases:** 19
 
 ## Next Action
 
-Execute Phase 12.4 (Exit AI Training & Baseline Evaluation)
+Execute Phase 12.7 (AI Training Pipeline Hardening)
 
 ## Decisions
 
@@ -260,3 +260,7 @@ Execute Phase 12.4 (Exit AI Training & Baseline Evaluation)
   - 12.6-01: teacher snapshot capture, hierarchical labels, and distillation dataset manifest
   - 12.6-02: learned decision head, calibration reuse, and walk-forward promotion gate
   - 12.6-03: shadow rollout, challenger logging, and guarded runtime selection
+- 2026-04-25: Phases 12.4, 12.5 and 12.6 complete (9/9 plans, 37 targeted tests passing)
+  - 12.4: Exit-AI dataset, isolated specialist training, baseline comparison, promotion gate, and CLI
+  - 12.5: Exit-AI runtime advisor, OrderManager application path, audit and reconciliation context
+  - 12.6: teacher snapshots, distillation dataset, decision-head artifacts, and guarded rollout metadata

@@ -349,9 +349,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 12.4-01-PLAN.md - Exit snapshot dataset, action labels, and leakage-safe sample builder
-- [ ] 12.4-02-PLAN.md - Exit AI training pipeline, specialist storage, and walk-forward baseline comparison
-- [ ] 12.4-03-PLAN.md - Exit AI calibration, promotion gate, and training/reporting entrypoints
+- [x] 12.4-01-PLAN.md - Exit snapshot dataset, action labels, and leakage-safe sample builder
+- [x] 12.4-02-PLAN.md - Exit AI training pipeline, specialist storage, and walk-forward baseline comparison
+- [x] 12.4-03-PLAN.md - Exit AI calibration, promotion gate, and training/reporting entrypoints
 
 **Scope:**
 - Kausale Exit-Snapshots aus offenen Trades, Candle-Kontext und Smart-Exit-Empfehlungen erzeugen
@@ -360,10 +360,10 @@ Plans:
 - Promotion-/Calibration-Gate fuer Exit-AI vorbereiten
 
 **UAT:**
-- [ ] Trade-Lifecycle-Snapshots und Smart-Exit-Signale werden kausal in Trainingssamples ueberfuehrt
-- [ ] Exit-AI-Modell wird separat trainiert und versioniert
-- [ ] Walk-Forward-/Baseline-Vergleich misst Schutz vs. Upside sauber
-- [ ] Promotion-Gate blockiert schwache oder leakage-verdaechtige Kandidaten
+- [x] Trade-Lifecycle-Snapshots und Smart-Exit-Signale werden kausal in Trainingssamples ueberfuehrt
+- [x] Exit-AI-Modell wird separat trainiert und versioniert
+- [x] Walk-Forward-/Baseline-Vergleich misst Schutz vs. Upside sauber
+- [x] Promotion-Gate blockiert schwache oder leakage-verdaechtige Kandidaten
 
 ---
 
@@ -374,9 +374,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 12.5-01-PLAN.md - Exit AI runtime loader, advisor contract, and no-risk-widening guardrails
-- [ ] 12.5-02-PLAN.md - Order manager integration for tighten-SL, partial-close, and full-exit actions
-- [ ] 12.5-03-PLAN.md - Exit AI audit logging, drift monitoring, and reconciliation checks
+- [x] 12.5-01-PLAN.md - Exit AI runtime loader, advisor contract, and no-risk-widening guardrails
+- [x] 12.5-02-PLAN.md - Order manager integration for tighten-SL, partial-close, and full-exit actions
+- [x] 12.5-03-PLAN.md - Exit AI audit logging, drift monitoring, and reconciliation checks
 
 **Scope:**
 - Runtime-Loader und Advisor-Contract fuer Exit-AI-Artefakte
@@ -385,10 +385,10 @@ Plans:
 - Harte no-op Fallbacks, wenn Exit-AI deaktiviert oder nicht verfuegbar ist
 
 **UAT:**
-- [ ] Runtime-Exit-AI reduziert nur Risiko und eroefnet keine Trades
-- [ ] Live-Integration nutzt bestehende Modify-/Close-/Partial-Close-Pfade
-- [ ] Exit-AI-Entscheidungen werden mit Baseline-Kontext und Ergebnis geloggt
-- [ ] Drift/Reconciliation zwischen Empfehlung und Outcome ist nachvollziehbar
+- [x] Runtime-Exit-AI reduziert nur Risiko und eroefnet keine Trades
+- [x] Live-Integration nutzt bestehende Modify-/Close-/Partial-Close-Pfade
+- [x] Exit-AI-Entscheidungen werden mit Baseline-Kontext und Ergebnis geloggt
+- [x] Drift/Reconciliation zwischen Empfehlung und Outcome ist nachvollziehbar
 
 ---
 
@@ -399,9 +399,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 12.6-01-PLAN.md - Teacher snapshot capture, hierarchical labels, and distillation dataset manifest
-- [ ] 12.6-02-PLAN.md - Learned decision head, calibration reuse, and walk-forward promotion gate
-- [ ] 12.6-03-PLAN.md - Shadow rollout, challenger logging, and guarded runtime selection
+- [x] 12.6-01-PLAN.md - Teacher snapshot capture, hierarchical labels, and distillation dataset manifest
+- [x] 12.6-02-PLAN.md - Learned decision head, calibration reuse, and walk-forward promotion gate
+- [x] 12.6-03-PLAN.md - Shadow rollout, challenger logging, and guarded runtime selection
 
 **Scope:**
 - Kausale Decision-Snapshots pro Tick aus bestehender Teacher-Kette erfassen
@@ -410,10 +410,10 @@ Plans:
 - Shadow-Mode und spaetere Runtime-Auswahl mit Champion/Challenger, ohne Kill-Switch-, Kalender-, Strategie- oder Risk-Guards zu umgehen
 
 **UAT:**
-- [ ] Teacher-Snapshots enthalten Ensemble-, Governance-, Strategie-, Kalender-, Risk- und Execution-Kontext ohne Lookahead
-- [ ] Distillation-Dataset trennt echte HOLDs von geblockten HOLDs ueber strukturiertes `block_stage` / `block_codes`
-- [ ] Decision-Head wird versioniert, kalibriert und walk-forward gegen den bestehenden Champion verglichen
-- [ ] Shadow-/Primary-Rollout laesst bestehende Runtime-Guards unangetastet und loggt Disagreements strukturiert
+- [x] Teacher-Snapshots enthalten Ensemble-, Governance-, Strategie-, Kalender-, Risk- und Execution-Kontext ohne Lookahead
+- [x] Distillation-Dataset trennt echte HOLDs von geblockten HOLDs ueber strukturiertes `block_stage` / `block_codes`
+- [x] Decision-Head wird versioniert, kalibriert und walk-forward gegen den bestehenden Champion verglichen
+- [x] Shadow-/Primary-Rollout laesst bestehende Runtime-Guards unangetastet und loggt Disagreements strukturiert
 
 ---
 
@@ -503,4 +503,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-04-25 — Existing AI Autonomy Distillation phase 12.6 planned*
+*Last updated: 2026-04-25 — Phases 12.4, 12.5 and 12.6 executed*
