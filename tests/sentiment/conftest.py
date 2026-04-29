@@ -27,20 +27,30 @@ def reference_now() -> datetime:
 
 
 @pytest.fixture
-async def sentiment_session():
-    """In-memory SQLite async session for sentiment repository tests.
+def sentiment_session():
+    """In-memory SQLite async session factory for sentiment repository tests.
 
-    Uses pytest asyncio_mode='auto' (configured in pyproject.toml) -- no explicit
-    pytest_asyncio import needed.
+    The project has a fallback async test runner when pytest-asyncio is absent,
+    but pytest itself cannot resolve async generator fixtures without the plugin.
+    Return a session factory so tests create sessions inside their own event loop.
     """
+    import asyncio
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
     from database.models import Base
 
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
-    async with SessionLocal() as session:
-        yield session
-    await engine.dispose()
+    async def _create():
+        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+        return engine, SessionLocal
+
+    engine, SessionLocal = asyncio.run(_create())
+    try:
+        yield SessionLocal
+    finally:
+        async def _close():
+            await engine.dispose()
+
+        asyncio.run(_close())

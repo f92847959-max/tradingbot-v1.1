@@ -1,9 +1,9 @@
 ---
 phase: 11
 slug: news-sentiment-analyse
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-16
 ---
 
@@ -38,7 +38,13 @@ created: 2026-04-16
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| TBD     | TBD  | TBD  | SENT-01..05 | unit/integration | `pytest tests/sentiment/` | ❌ W0 | ⬜ pending |
+| 11-02-01 | 11-02 | 2 | SENT-01 | unit | `python -m pytest tests/sentiment/test_news_fetcher.py -q` | yes | green |
+| 11-02-02 | 11-02 | 2 | SENT-02 | unit | `python -m pytest tests/sentiment/test_sentiment_analyzer.py -q` | yes | green |
+| 11-02-03 | 11-02 | 2 | SENT-03 | unit | `python -m pytest tests/sentiment/test_sentiment_aggregator.py -q` | yes | green |
+| 11-02-04 | 11-02 | 2 | SENT-05 | integration | `python -m pytest tests/sentiment/test_sentiment_repository.py -q` | yes | green |
+| 11-03-01 | 11-03 | 3 | SENT-04 | unit | `python -m pytest tests/sentiment/test_sentiment_features.py -q` | yes | green |
+| 11-03-02 | 11-03 | 3 | SENT-04 | integration | `python -m pytest tests/sentiment/test_feature_engineer_sentiment.py -q` | yes | green |
+| 11-03-03 | 11-03 | 3 | SENT-01 | integration | `python -m pytest tests/sentiment/test_sentiment_service.py -q` | yes | green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky — populated by gsd-planner during planning.*
 
@@ -46,10 +52,10 @@ created: 2026-04-16
 
 ## Wave 0 Requirements
 
-- [ ] `tests/sentiment/__init__.py` — package marker
-- [ ] `tests/sentiment/conftest.py` — shared fixtures (mock RSS feeds, sample news items, fixture sentiment models)
-- [ ] `tests/sentiment/fixtures/` — sample RSS XML, sample articles for deterministic NLP tests
-- [ ] `pip install feedparser transformers torch vaderSentiment` — if not in requirements.txt
+- [x] `tests/sentiment/__init__.py` — package marker
+- [x] `tests/sentiment/conftest.py` — shared fixtures (mock RSS feeds, sample news items, fixture sentiment data)
+- [x] `tests/sentiment/fixtures/` — sample RSS XML, sample articles for deterministic NLP tests
+- [x] `feedparser` / `vaderSentiment` declared in requirements; deterministic fallbacks keep tests runnable when not installed
 
 *Planner expands this list with concrete stub files per SENT requirement.*
 
@@ -66,11 +72,11 @@ created: 2026-04-16
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have automated verification
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 placeholders replaced by executable tests
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** complete

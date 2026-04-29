@@ -23,6 +23,7 @@ from .microstructure_features import MicrostructureFeatures
 from .orderflow_features import OrderFlowFeatures
 from .support_resistance import SupportResistanceFeatures
 from .correlation_features import CorrelationFeatures
+from .sentiment_features import SentimentFeatures
 from correlation.snapshot import CorrelationSnapshot
 
 logger = logging.getLogger(__name__)
@@ -111,7 +112,11 @@ class FeatureEngineer:
     from raw OHLCV data + technical indicators.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        sentiment_aggregator=None,
+        sentiment_enabled: bool = False,
+    ) -> None:
         """Initialize the FeatureEngineer with all sub-feature calculators."""
         self._technical = TechnicalFeatures()
         self._price = PriceFeatures()
@@ -122,6 +127,8 @@ class FeatureEngineer:
         self._sr = SupportResistanceFeatures()
         self._correlation = CorrelationFeatures()
         self._specialist = MarketStructureLiquidityFeatures()
+        self._sentiment_enabled = sentiment_enabled
+        self._sentiment = SentimentFeatures(aggregator=sentiment_aggregator)
 
         # Combined feature list
         self._feature_names: List[str] = (
@@ -134,6 +141,8 @@ class FeatureEngineer:
             + self._sr.get_feature_names()
             + self._correlation.get_feature_names()
         )
+        if self._sentiment_enabled:
+            self._feature_names += self._sentiment.get_feature_names()
         self._specialist_feature_names: List[str] = (
             self._specialist.get_feature_names()
         )
@@ -174,6 +183,7 @@ class FeatureEngineer:
             and multi_tf_data is None
             and correlation_snapshot is None
             and not include_specialist
+            and not self._sentiment_enabled
         ):
             logger.debug(
                 "Feature cache HIT for %s (hit rate: %.1f%%)",
@@ -200,7 +210,12 @@ class FeatureEngineer:
                         idx, total, name, _time.perf_counter() - t0)
             return result
 
-        total = 8 + (1 if include_specialist else 0) + (1 if multi_tf_data else 0)
+        total = (
+            8
+            + (1 if self._sentiment_enabled else 0)
+            + (1 if include_specialist else 0)
+            + (1 if multi_tf_data else 0)
+        )
         idx = 0
 
         idx += 1; df = _step(idx, total, "technical (derived from indicators)",
@@ -219,6 +234,9 @@ class FeatureEngineer:
                               lambda: self._sr.calculate(df))
         idx += 1; df = _step(idx, total, "correlation features",
                               lambda: self._correlation.calculate(df, correlation_snapshot))
+        if self._sentiment_enabled:
+            idx += 1; df = _step(idx, total, "sentiment features",
+                                  lambda: self._sentiment.calculate(df))
         if include_specialist:
             idx += 1; df = _step(idx, total, "specialist features",
                                   lambda: self._specialist.calculate(df))
@@ -236,7 +254,11 @@ class FeatureEngineer:
         logger.info(f"{feature_count} features created for {timeframe}")
 
         # Update cache (only for single-timeframe to avoid MTF staleness)
-        if multi_tf_data is None and correlation_snapshot is None:
+        if (
+            multi_tf_data is None
+            and correlation_snapshot is None
+            and not self._sentiment_enabled
+        ):
             self._cache.update(df, df, timeframe)
             logger.debug(
                 "Feature cache updated (hit rate: %.1f%%)", self._cache.hit_rate,
@@ -377,6 +399,7 @@ class FeatureEngineer:
             "orderflow": self._orderflow.get_feature_names(),
             "support_resistance": self._sr.get_feature_names(),
             "correlation": self._correlation.get_feature_names(),
+            "sentiment": self._sentiment.get_feature_names() if self._sentiment_enabled else [],
             "market_structure_liquidity": self._specialist.get_feature_names(),
         }
 

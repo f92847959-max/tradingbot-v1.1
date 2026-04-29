@@ -2,30 +2,30 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
-current_phase: 15
+current_phase: 12
 current_plan: 1
-status: Phase 15 planned and ready for execution
-last_updated: "2026-04-28T17:30:00.000Z"
+status: Phase 11 complete; autonomous continuing with Phase 12
+last_updated: "2026-04-29T00:00:00.000Z"
 progress:
   total_phases: 20
-  completed_phases: 13
+  completed_phases: 14
   total_plans: 53
-  completed_plans: 40
-  percent: 75
+  completed_plans: 42
+  percent: 79
 ---
 
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 15
+**Current Phase:** 12
 **Current Plan:** 1
-**Phase Status:** Phase 15 (Fibonacci Engine & S/R Zones) is planned with 3 waves. Phase 12.7 and 14 remain in the backlog.
+**Phase Status:** Phase 11 (News-Sentiment-Analyse) completed. Phase 6 is explicitly excluded by user request. Continuing with Phase 12.
 **Total Phases:** 20
 
 ## Next Action
 
-Execute Phase 15 (Fibonacci Engine & S/R Zones)
+Execute Phase 12 (Korrelations-Engine), skipping Phase 6.
 
 ## Decisions
 
@@ -84,6 +84,9 @@ Execute Phase 15 (Fibonacci Engine & S/R Zones)
 - [Phase 11]: sentiment_enabled defaults to False for graceful fallback (mirrors MiroFish Phase 6 opt-in pattern)
 - [Phase 11]: Alembic down_revision=None for 20260416_news_sent migration (first in versions/ directory)
 - [Phase 11]: Test scaffold uses pyproject asyncio_mode=auto instead of pytest_asyncio (not in venv)
+- [Phase 11]: Feedparser/VADER dependencies are used when installed, but deterministic local fallbacks keep tests runnable in lean environments
+- [Phase 11]: FeatureEngineer sentiment mode disables candle-cache reuse so fresh news state is queried per feature call
+- [Phase 11]: SentimentService uses APScheduler jobs and remains fail-soft when sentiment startup fails
 - [Phase 12]: TTL default 3600s aligned between AssetFetcher constructor and correlation_cache_ttl_seconds setting
 - [Phase 12]: Index normalisation uses tz_convert('UTC').tz_localize(None) to preserve UTC semantics
 - [Phase 12.1]: Planning split fixed into 3 waves: calibration artifacts -> runtime governance -> persistence and challenger monitoring
@@ -120,3 +123,4 @@ Execute Phase 15 (Fibonacci Engine & S/R Zones)
 ## Session Log
 
 - 2026-04-28: Phase 15 (Fibonacci Engine & S/R Zones) planned with 3 detailed executable plans. ROADMAP updated to reflect shifted phases. STATE updated to Current Phase 15.
+- 2026-04-29: Phase 11 completed under autonomous mode. Phase 6 remained excluded per user instruction.

@@ -64,6 +64,7 @@ class LifecycleMixin:
         self._mirofish_client = None  # Lazy-loaded when mirofish_enabled (Phase 6)
         self._mirofish_task = None    # Background simulation loop asyncio.Task
         self._mirofish_disabled: bool = False  # Set True if MiroFish failed/crashed
+        self._sentiment_service = None  # Lazy-loaded when sentiment_enabled (Phase 11)
 
         # Economic calendar (Phase 8) -- graceful when disabled
         self._event_service = None
@@ -278,6 +279,20 @@ class LifecycleMixin:
                 self.settings.confirmation_timeout_seconds,
             )
 
+        # Start news sentiment polling and MiroFish seed refresh (Phase 11)
+        if self.settings.sentiment_enabled:
+            try:
+                from sentiment import SentimentService
+
+                self._sentiment_service = SentimentService(self.settings)
+                await self._sentiment_service.start()
+                logger.info("News sentiment analysis ENABLED")
+            except Exception as e:
+                logger.exception(
+                    "Sentiment service startup failed (trading continues without it): %s", e
+                )
+                self._sentiment_service = None
+
         # Start MiroFish background simulation loop (Phase 6)
         if self.settings.mirofish_enabled:
             try:
@@ -343,6 +358,11 @@ class LifecycleMixin:
         """
         logger.info("Shutting down...")
         self._running = False
+
+        # Stop news sentiment service (Phase 11)
+        if self._sentiment_service is not None:
+            await self._sentiment_service.stop()
+            self._sentiment_service = None
 
         # Cancel MiroFish background task (Phase 6)
         if self._mirofish_task is not None:

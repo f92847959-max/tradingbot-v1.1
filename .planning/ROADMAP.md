@@ -58,7 +58,7 @@ Plans:
 ### Phase 5: Backtesting & Validation
 **Goal:** Proven strategy performance on historical data with realistic conditions
 **Requirements:** BACK-01, BACK-02, BACK-03, BACK-04
-**Plans:** 2 plans
+**Plans:** 3 plans
 
 Plans:
 - [x] 05-01-PLAN.md — Commission support, BacktestRunner, and BacktestReport
@@ -120,7 +120,8 @@ Plans:
 
 Plans:
 - [x] 11-01-PLAN.md — News sentiment database and models
-- [ ] 11-02-PLAN.md — RSS fetcher and FinBERT scoring
+- [x] 11-02-PLAN.md — RSS fetcher, sentiment scoring, aggregation, and repository
+- [x] 11-03-PLAN.md — FeatureEngineer, lifecycle service, and MiroFish seed integration
 
 ---
 

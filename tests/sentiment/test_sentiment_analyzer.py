@@ -1,18 +1,22 @@
-"""RED tests for SENT-02 -- filled in by Plan 11-02."""
-import pytest
+from sentiment.sentiment_analyzer import SentimentAnalyzer
 
 
 def test_vader_range():
-    pytest.fail("Wave 0 red test -- VADER range check in Plan 11-02")
+    analyzer = SentimentAnalyzer()
+
+    for text in ("gold surges", "dollar strengthens and gold crashes", ""):
+        assert -1.0 <= analyzer.score(text) <= 1.0
 
 
 def test_gold_headline_positive():
-    pytest.fail("Wave 0 red test -- gold-positive headline in Plan 11-02")
+    assert SentimentAnalyzer().score("gold surges on Fed pause") > 0.1
 
 
 def test_gold_headline_negative():
-    pytest.fail("Wave 0 red test -- gold-negative headline in Plan 11-02")
+    assert SentimentAnalyzer().score("dollar strengthens, gold crashes on hawkish Fed") < 0.0
 
 
 def test_html_tags_stripped_before_scoring():
-    pytest.fail("Wave 0 red test -- HTML stripping in Plan 11-02")
+    analyzer = SentimentAnalyzer()
+
+    assert analyzer.score("<p>gold surges</p>") == analyzer.score("gold surges")
