@@ -9,7 +9,28 @@ __pycache__/
 
 # Environment
 .env
+.env.*
 .env.local
+!.env.example
+!.env.*.example
+
+# Secrets / credentials
+secrets/
+config/secrets.py
+config/local_secrets.py
+*.secret
+*.secrets
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.csr
+*.jks
+*.keystore
+credentials.json
+token.json
+*token*.json
 
 # IDE
 .idea/
@@ -17,14 +38,39 @@ __pycache__/
 *.swp
 *.swo
 
+# External checkouts
+mirofish/
+
 # ML Models
 ai_engine/saved_models/
 *.pkl
+*.joblib
 *.h5
 *.onnx
+*.model
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+*.npy
+*.npz
 
 # Data
 data/
+datasets/
+exports/
+artifacts/
+checkpoints/
+tmp/
+temp/
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+*.duckdb
+*.parquet
+*.feather
 
 # Logs
 logs/
