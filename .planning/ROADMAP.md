@@ -128,11 +128,12 @@ Plans:
 ### Phase 12: Korrelations-Engine
 **Goal:** Inter-Market-Korrelationen (DXY, US10Y, Silber, VIX) als zusaetzliche Signalquelle
 **Requirements:** CORR-01, CORR-02, CORR-03, CORR-04
-**Plans:** 2 plans
+**Plans:** 3 plans
 
 Plans:
-- [x] 12-01-PLAN.md — Asset fetcher and correlation calculator
-- [ ] 12-02-PLAN.md — Correlation divergence signals and ML features
+- [x] 12-01-PLAN.md - Asset fetcher and correlation snapshot foundation
+- [x] 12-02-PLAN.md - Correlation calculator, divergence, regime, and lead-lag signals
+- [x] 12-03-PLAN.md - Correlation ML feature integration
 
 ---
 
