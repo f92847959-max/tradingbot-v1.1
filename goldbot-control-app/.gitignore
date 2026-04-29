@@ -2,8 +2,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .coverage
+.env
+.env.*
+!.env.example
+.runtime/
+*.pid
 database/control_app.db
 logs/*.log
 frontend/node_modules/
 frontend/dist/
-

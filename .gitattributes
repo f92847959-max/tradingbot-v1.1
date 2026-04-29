@@ -1,0 +1,13 @@
+# Keep local/generated material out of source archives produced by GitHub.
+.claude/ export-ignore
+.claude-flow/ export-ignore
+.obsidian/ export-ignore
+.planning/ export-ignore
+.swarm/ export-ignore
+.vscode/ export-ignore
+.mcp.json export-ignore
+logs/ export-ignore
+data/ export-ignore
+ai_engine/saved_models/ export-ignore
+*.bak export-ignore
+*.pid export-ignore

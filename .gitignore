@@ -76,6 +76,8 @@ temp/
 logs/
 *.log
 *.lock
+*.pid
+*.pid.lock
 # Pinned dependency lockfile is committed (CI uses it for reproducible installs)
 !requirements.lock
 
@@ -95,6 +97,10 @@ pytest_*.txt
 
 # Generated artifacts
 main.callgraph.json
+*.bak
+.runtime/
+dist/
+node_modules/
 
 # Windows / OneDrive metadata
 desktop.ini

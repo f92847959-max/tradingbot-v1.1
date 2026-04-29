@@ -66,6 +66,7 @@ Settings are loaded by `config/settings.py` in this order:
 3. `.env` in the project root
 
 Prefer the external secrets folder so credentials are not stored inside a OneDrive-synced project folder.
+Use [.env.example](.env.example) as the template and keep the real file out of Git.
 
 Example PowerShell session:
 
@@ -167,6 +168,7 @@ ruff check .
 - Keep `CAPITAL_DEMO=true` until the full system behavior is verified.
 - Review `MAX_RISK_PER_TRADE_PCT`, daily loss limits, trading hours, and `MAX_OPEN_POSITIONS` before enabling automated trading.
 - Treat generated signals as decision support, not a profit guarantee.
+- Read [SECURITY.md](SECURITY.md) before making the repository public.
 
 ## License
 

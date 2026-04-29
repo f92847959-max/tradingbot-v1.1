@@ -6,12 +6,22 @@ Configure in Twilio console:
 """
 
 import logging
+from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, Request, Response, HTTPException
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
+
+
+def _build_twiml_message(reply: str) -> str:
+    """Build a TwiML response with XML-escaped message text."""
+    safe_reply = escape(reply, {'"': "&quot;", "'": "&apos;"})
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        f"<Response><Message>{safe_reply}</Message></Response>"
+    )
 
 
 def _validate_twilio_request(request: Request, form: dict) -> bool:
@@ -96,8 +106,5 @@ async def whatsapp_incoming(request: Request) -> Response:
     logger.info("WhatsApp reply: %s", reply)
 
     # Respond with TwiML
-    twiml = (
-        '<?xml version="1.0" encoding="UTF-8"?>'
-        f"<Response><Message>{reply}</Message></Response>"
-    )
+    twiml = _build_twiml_message(reply)
     return Response(content=twiml, media_type="application/xml")
