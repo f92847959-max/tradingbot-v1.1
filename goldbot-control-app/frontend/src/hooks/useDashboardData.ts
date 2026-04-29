@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   ActionLogEntry,
+  AIDecisionResponse,
   BotMetricsResponse,
   BotStatusResponse,
   CommandRequest,
@@ -11,6 +12,7 @@ import type {
 } from "../../../shared/types";
 import {
   fetchActions,
+  fetchAIDecision,
   fetchErrors,
   fetchMetrics,
   fetchSettings,
@@ -27,6 +29,7 @@ export function useDashboardData(enabled = true) {
   const [actions, setActions] = useState<ActionLogEntry[]>([]);
   const [errors, setErrors] = useState<ErrorLogEntry[]>([]);
   const [tradePoints, setTradePoints] = useState<TradeChartPoint[]>([]);
+  const [aiDecision, setAiDecision] = useState<AIDecisionResponse | null>(null);
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -40,13 +43,22 @@ export function useDashboardData(enabled = true) {
     }
     setIsRefreshing(true);
     try {
-      const [statusData, metricData, actionData, errorData, settingsData, tradeData] = await Promise.all([
+      const [
+        statusData,
+        metricData,
+        actionData,
+        errorData,
+        settingsData,
+        tradeData,
+        aiData,
+      ] = await Promise.all([
         fetchStatus(),
         fetchMetrics(),
         fetchActions(),
         fetchErrors(),
         fetchSettings(),
         fetchTradeChartPoints(30, 600),
+        fetchAIDecision().catch(() => null),
       ]);
       setStatus(statusData);
       setMetrics(metricData);
@@ -54,6 +66,7 @@ export function useDashboardData(enabled = true) {
       setErrors(errorData);
       setTradePoints(tradeData);
       setSettings(settingsData);
+      setAiDecision(aiData);
       setGlobalError(null);
       setConsecutiveFailures(0);
       setLastUpdatedAt(new Date());
@@ -106,6 +119,7 @@ export function useDashboardData(enabled = true) {
     actions,
     errors,
     tradePoints,
+    aiDecision,
     settings,
     globalError,
     isRefreshing,

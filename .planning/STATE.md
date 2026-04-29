@@ -2,30 +2,30 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
-current_phase: 12.7
+current_phase: 15
 current_plan: 1
-status: Phase 13 complete
-last_updated: "2026-04-25T21:57:59.515Z"
+status: Phase 15 planned and ready for execution
+last_updated: "2026-04-28T17:30:00.000Z"
 progress:
   total_phases: 20
   completed_phases: 13
-  total_plans: 50
+  total_plans: 53
   completed_plans: 40
-  percent: 80
+  percent: 75
 ---
 
 # Project State
 
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
-**Current Phase:** 12.7
+**Current Phase:** 15
 **Current Plan:** 1
-**Phase Status:** Phase 13 complete; Phase 12.7 remains ready for execution
+**Phase Status:** Phase 15 (Fibonacci Engine & S/R Zones) is planned with 3 waves. Phase 12.7 and 14 remain in the backlog.
 **Total Phases:** 20
 
 ## Next Action
 
-Execute Phase 12.7 (AI Training Pipeline Hardening)
+Execute Phase 15 (Fibonacci Engine & S/R Zones)
 
 ## Decisions
 
@@ -101,177 +101,22 @@ Execute Phase 12.7 (AI Training Pipeline Hardening)
 - [Phase 13]: Capital.com has no true multi-level DOM; Phase 13 uses OHLCV-derived `flow_*` features as the primary path and optional L1 quote imbalance as enrichment
 - [Phase 13]: New order-flow features must use the `flow_` prefix and must not duplicate existing `l1_*`, `l2_*`, or `micro_*` microstructure features
 - [Phase 13]: Order-flow integration is feature/data only; runtime trading policy remains unchanged until a later phase explicitly consumes those features
+- [Phase 15]: Implementation based on density clustering (MeanShift) and Hough Transforms (trendln) to avoid noisy TA markers.
+- [Phase 15]: Confluence scoring aggregates SR, Fib, and Trendlines into high-probability zones.
 
 ## Accumulated Context
 
 ### Roadmap Evolution
 
 - Phase 12.1 inserted after Phase 12: AI Confidence Calibration & Decision Governance (URGENT)
-
-- Phase 12.3 inserted after Phase 12.1: AI Indicator Specialist Training (additional AI model for a second indicator/feature block)
-
-- Phase 12.4 inserted after Phase 12.3: Exit AI Training & Baseline Evaluation (Smart-Exit-Engine-based specialist for trade-management decisions)
-
-- Phase 12.5 inserted after Phase 12.4: Exit AI Runtime Integration & Governance (governed overlay for tighten/partial/full-exit actions)
-
+- Phase 12.3 inserted after Phase 12.1: AI Indicator Specialist Training
+- Phase 12.4 inserted after Phase 12.3: Exit AI Training & Baseline Evaluation
+- Phase 12.5 inserted after Phase 12.4: Exit AI Runtime Integration & Governance
 - Phase 12.7 inserted after Phase 12.6: AI Training Pipeline Hardening (URGENT)
-
-- Phase 14 added: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates
+- Phase 14 added: Elliott Wave Theorie Integration
+- Phase 15 redefined: Fibonacci Engine & S/R Zones (Automated structure detection)
+- Phase 16 shifted: Demo Trading Validation (formerly Phase 15)
 
 ## Session Log
 
-- 2026-03-03: Project initialized from goldbot v2.0 codebase
-- 2026-03-03: Research completed (STACK, FEATURES, ARCHITECTURE, PITFALLS)
-- 2026-03-03: Requirements defined (31 v1 requirements)
-- 2026-03-03: Roadmap created (8 phases)
-- 2026-03-06: Phase 1 complete (4/4 plans done)
-  - 01-01: .gitignore updated, German translated to English (17+ files)
-  - 01-02: main.py refactored from 824 to 151 lines (mixin composition)
-  - 01-03: trainer.py split into 3 modules (trainer, pipeline, trade_filter)
-  - 01-04: Test suite verified (171 passed, 7 pre-existing failures, 0 regressions)
-- 2026-03-06: Phase 2 planned (3 plans, checker PASS)
-  - 02-01: Walk-forward validation engine + 6-month data validation
-  - 02-02: Model versioning with version.json and production pointer
-  - 02-03: Training report generation + end-to-end integration
-- 2026-03-06: Plan 02-01 complete (4/4 tasks, 17 tests, 264s)
-  - WalkForwardValidator with expanding windows in walk_forward.py
-  - 6-month data validation in data_preparation.py
-  - pipeline.py refactored for walk-forward loop
-- 2026-03-06: Plan 02-02 complete (4/4 tasks, 7 tests, 172s)
-  - model_versioning.py with create/write/pointer/cleanup functions
-  - pipeline.py save step uses versioned directories
-  - version.json extends model_metadata.json with walk-forward metrics
-- 2026-03-06: Phase 7 context gathered (dashboard/history UI decisions captured)
-  - Context file: .planning/phases/07-control-app-dashboard-history/07-CONTEXT.md
-  - Focus: compact adaptive feed/error panes, one-line status strip, minimal dark glass style, micro-animations
-- 2026-03-07: Plan 02-03 complete (4/4 tasks, 1 test added, 291s)
-  - generate_training_report() with combined-trade aggregation in walk_forward.py
-  - Report wired into pipeline.py (JSON save + console output)
-  - train_models.py updated with walk-forward summary output + --min-data-months
-  - End-to-end integration test verifying all Phase 2 UAT criteria
-- 2026-03-07: Phase 2 complete (3/3 plans, 25 tests total, all passing)
-- 2026-03-07: Plan 03-01 complete (3/3 tasks, 6 tests, 159s)
-  - shap_importance.py module: compute_shap_importance + save_feature_importance_chart
-  - shap==0.51.0 and matplotlib>=3.8 added to requirements.txt
-  - 6 unit tests, 0 regressions in existing test suite
-- 2026-03-07: Plan 03-02 complete (4/4 tasks, 6 tests, 210s)
-  - SHAP pruning replaces XGBoost gain importance in walk_forward.py step 5
-  - Performance guard: pruned vs full model profit factor comparison
-  - Training report enriched with SHAP top features and pruning info per window
-  - 6 integration tests, 0 regressions in existing 23 tests
-- 2026-03-07: Plan 03-03 complete (3/3 tasks, 0 new tests, 245s)
-  - SHAP persistence wired into pipeline.py (chart PNG + version.json data)
-  - Feature pruning summary added to train_models.py console output
-  - E2e test extended with all 4 Phase 3 UAT assertions (13/13 SHAP tests pass)
-- 2026-03-07: Phase 3 complete (3/3 plans, 13 SHAP tests total, 208/208 passing, 0 regressions)
-- 2026-03-08: Plan 04-01 complete (5/5 tasks, 33 tests added, 413s)
-  - RegimeDetector class with MarketRegime enum (TRENDING/RANGING/VOLATILE)
-  - detect() with hysteresis for live trading, detect_series() stateless for backtesting
-  - REGIME_PARAMS lookup table with per-regime TP/SL/confidence parameters
-  - 33 tests covering classification, hysteresis, edge cases, params
-- 2026-03-08: Plan 04-02 complete (7/7 tasks, 18 tests added, 526s)
-  - LabelGenerator: use_dynamic_atr flag with per-candle ATR-based TP/SL distances
-  - Backtester: run_simple() with per-trade ATR-based TP/SL evaluation
-  - ModelTrainer: ATR params forwarded to LabelGenerator (default dynamic=True)
-  - walk_forward.py: ATR mode info stored in window result dict
-  - train_models.py: --dynamic-atr, --no-dynamic-atr, --tp/sl-atr-mult CLI args
-  - E2e test updated for dynamic ATR default; 260 passing, 0 regressions
-- 2026-03-25: Plan 05-01 complete (18 unit tests, backtest engine + report module)
-  - BacktestRunner: loads version dir, runs OOS walk-forward backtest with cost modeling
-  - backtest_report.py: generate_backtest_report, check_consistency, print_backtest_report
-  - 18 unit tests in test_backtest_runner.py, 0 regressions
-- 2026-03-25: Plan 05-02 complete (2/2 tasks, 4 e2e tests, ~8 min)
-  - scripts/run_backtest.py: CLI entry point for OOS backtest with argparse (8 args)
-  - tests/test_backtest_e2e.py: E2e test validating all 4 Phase 5 UAT criteria
-  - All 4 BACK-01..BACK-04 criteria verified: OOS windows, cost deduction, metrics, consistency
-  - Decisions: CLI defaults output to version_dir; module-scoped fixture trains once for speed
-- 2026-03-26: Plan 06-03 complete (2/2 tasks, 6 new integration tests, ~12 min)
-  - MiroFishClient wired into lifecycle.py (init + asyncio background task in start(), cancel in stop())
-  - Veto check wired into signal_generator.py after ML prediction (HOLD/disabled/no-cache all skip veto)
-  - 6 integration tests in test_mirofish_integration.py (33 total MiroFish tests, 27+6)
-  - Stopped at Task 3: human-verify checkpoint (awaiting user verification)
-- 2026-04-10: Plan 08-01 complete (3/3 tasks, 9 files, ~5 min)
-  - calendar/models.py: EconomicEvent dataclass + EventImpact enum
-  - calendar/event_repository.py: EventRepository with upsert and query methods
-  - calendar/event_fetcher.py: ForexFactory fetcher via faireconomy.media JSON API
-  - calendar/event_filter.py: Gold-relevant filter (6 currencies + 30 keywords)
-  - calendar/event_rules.py: Pure-logic EventRules (block window, force-close)
-  - calendar/event_service.py: EventService facade for Phase 9/10
-  - Fixed stdlib calendar shadow conflict with aiohttp (Rule 3 deviation)
-- 2026-04-10: Plan 08-02 complete (2/2 tasks, 57 tests, ~6 min)
-  - trading/trading_loop.py: force-close check + high-impact window veto in _trading_tick
-  - trading/lifecycle.py: EventService init, initial refresh, _calendar_refresh_loop, gather integration
-  - calendar/__init__.py: Extended stdlib fixup to re-export all public attributes
-  - tests/test_calendar.py: 40 unit tests (models, rules, filter, service)
-  - tests/test_calendar_integration.py: 9 integration tests (veto, force-close, cooldown)
-  - tests/test_calendar_wiring.py: 8 structural tests (wiring correctness)
-  - Phase 08 complete (2/2 plans): calendar module built and wired into trading
-- 2026-04-13: Plan 09-02 complete (1/1 task, 19 tests, ~3 min)
-  - risk/monte_carlo.py: MonteCarloSimulator + SimulationResult (pure numerical, no DB)
-  - Vectorised NumPy simulation: 1000 paths x 200 trades in ~0.3s
-  - Drawdown percentiles (p50/p75/p90/p95/p99), ruin probability, optimal_f
-  - 19 tests covering structure, edge strength, reproducibility, performance, no-DB-imports
-  - Stopped at: Completed 09-02-PLAN.md
-- 2026-04-13: Plan 09-03 complete (2/2 tasks, 54 tests, ~7 min)
-  - risk/portfolio_heat.py: PortfolioHeatManager (heat tracking, 5% max limit)
-  - risk/equity_curve_filter.py: EquityCurveFilter (EMA-based, insufficient data defaults to allowed)
-  - risk/risk_manager.py: extended with advanced sizing, heat check, equity filter check
-  - trading/trading_loop.py: passes confidence+atr to approve_trade, tracks heat
-  - risk/__init__.py: full package exports for all 9 risk classes
-  - Phase 09 complete (3/3 plans): full advanced risk pipeline wired
-- 2026-04-14: Plan 10-01 complete (2/2 tasks, 21 tests, ~7 min)
-  - exit_engine/types.py: StructureLevel, ExitLevels, TrailingResult, PartialCloseAction, ExitSignal
-  - exit_engine/dynamic_sl.py: calculate_dynamic_sl (ATR + regime + structure) and find_swing_levels
-  - exit_engine/dynamic_tp.py: fibonacci_extensions, find_sr_levels, calculate_dynamic_tp (Fib+S/R+ATR)
-  - exit_engine/exit_signals.py: check_exit_signals (engulfing, shooting star, hammer, RSI divergence)
-  - tests/test_exit_engine_core.py: 21 unit tests, all pass (EXIT-01, EXIT-02, EXIT-05)
-  - Stopped at: Completed 10-01-PLAN.md
-- 2026-04-16: Phase 14 added to roadmap — Elliott Wave Theorie Integration (not yet planned)
-- 2026-04-17: Plan 11-01 complete (3/3 tasks, 24 red tests, 15 files, ~3 min)
-  - requirements.txt + pyproject.toml: pinned feedparser==6.0.12, vaderSentiment==3.3.2; added [sentiment-finbert] optional extras
-  - config/settings.py: 9 new sentiment_* fields (opt-in, defaults per CONTEXT D-01..D-07) + sentiment_poll_interval_seconds >= 60 validator
-  - database/models.py: NewsSentiment ORM model with 12 cols, 3 indices (entry_id unique dedup key per D-08)
-  - database/migrations/versions/20260416_add_news_sentiment.py: first Alembic migration (down_revision=None)
-  - tests/sentiment/: 10 files, 24 red tests (pytest.fail bodies) covering SENT-01..SENT-05
-  - Rule 3 deviation: dropped pytest_asyncio import (not in venv); project pyproject asyncio_mode=auto handles async fixtures
-  - Stopped at: Completed 11-01-PLAN.md (Plan 11-02 can proceed)
-- 2026-04-23: Phase 12.1 planned (3 plans, ready once Phase 12 dependency is complete)
-  - 12.1-01: calibration artifacts, threshold tuning, and walk-forward integration
-  - 12.1-02: DecisionGovernor runtime integration in EnsemblePredictor
-  - 12.1-03: governance audit logging, champion/challenger, and retraining triggers
-- 2026-04-23: Phase 12.1 complete (3/3 plans, 43 targeted tests passing)
-  - 12.1-01: calibration artifacts, threshold tuning, and walk-forward integration
-  - 12.1-02: DecisionGovernor runtime integration in EnsemblePredictor
-  - 12.1-03: governance audit logging, champion/challenger, and retraining triggers
-- 2026-04-23: Phase 12.3 planned (3 plans, ready for execution after Phase 12.1)
-  - 12.3-01: specialist feature block and leakage-safe feature-engineering integration
-  - 12.3-02: specialist training pipeline, storage, and walk-forward uplift comparison
-  - 12.3-03: runtime specialist overlay and governance-compatible logging
-- 2026-04-24: Phase 12.3 complete (3/3 plans, 14 targeted tests passing)
-  - 12.3-01: specialist feature block and leakage-safe feature-engineering integration
-  - 12.3-02: specialist training pipeline, storage, isolated versioning, and walk-forward uplift comparison
-  - 12.3-03: runtime specialist overlay with governance-safe logging and no-trade-alone guardrails
-- 2026-04-24: Phase 12.4 planned (3 plans, Exit AI training and baseline evaluation)
-  - 12.4-01: exit snapshot dataset, action labels, and leakage-safe sample builder
-  - 12.4-02: exit AI training pipeline, specialist storage, and walk-forward baseline comparison
-  - 12.4-03: exit AI calibration, promotion gate, and training/reporting entrypoints
-- 2026-04-24: Phase 12.5 planned (3 plans, governed Exit AI runtime integration)
-  - 12.5-01: runtime loader, advisor contract, and no-risk-widening guardrails
-  - 12.5-02: order-manager integration for tighten-SL, partial-close, and full-exit actions
-  - 12.5-03: audit logging, drift monitoring, and reconciliation checks
-- 2026-04-25: Phase 12.6 planned (3 plans, existing AI autonomy distillation)
-  - 12.6-01: teacher snapshot capture, hierarchical labels, and distillation dataset manifest
-  - 12.6-02: learned decision head, calibration reuse, and walk-forward promotion gate
-  - 12.6-03: shadow rollout, challenger logging, and guarded runtime selection
-- 2026-04-25: Phases 12.4, 12.5 and 12.6 complete (9/9 plans, 37 targeted tests passing)
-  - 12.4: Exit-AI dataset, isolated specialist training, baseline comparison, promotion gate, and CLI
-  - 12.5: Exit-AI runtime advisor, OrderManager application path, audit and reconciliation context
-  - 12.6: teacher snapshots, distillation dataset, decision-head artifacts, and guarded rollout metadata
-- 2026-04-25: Phase 13 planned (3 plans, order-flow feature core through ML integration)
-  - 13-01: OHLCV-derived `flow_*` feature core for delta, volume profile, liquidity zones, FVG, and absorption
-  - 13-02: optional Capital.com L1 quote-flow enrichment with neutral fallback
-  - 13-03: FeatureEngineer/ML integration and UAT gate for FLOW-01 through FLOW-04
-- 2026-04-25: Phase 13 complete (3/3 plans, 29 targeted/regression tests passing)
-  - 13-01: `OrderFlowFeatures` adds finite OHLCV-derived `flow_*` features
-  - 13-02: `QuoteFlowAggregator` adds optional Capital.com L1 quote-flow enrichment with neutral fallback
-  - 13-03: `FeatureEngineer` exposes the `orderflow` group as ML inputs
+- 2026-04-28: Phase 15 (Fibonacci Engine & S/R Zones) planned with 3 detailed executable plans. ROADMAP updated to reflect shifted phases. STATE updated to Current Phase 15.

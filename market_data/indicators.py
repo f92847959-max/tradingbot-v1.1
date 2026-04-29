@@ -31,12 +31,18 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     Expected columns: timestamp, open, high, low, close, volume
     Returns DataFrame with all indicator columns added.
     """
+    import time as _time
+
     if len(df) < 50:
         logger.warning("Only %d candles — some indicators may be NaN", len(df))
 
     pd, ta = _get_indicator_libs()
+    n = len(df)
+    logger.info("[ind 0/5] starting indicator pipeline on %d rows", n)
+    _t0 = _time.perf_counter()
 
     # -- Trend Indicators ---------------------------------------------------
+    logger.info("[ind 1/5] trend (EMA/SMA/MACD/ADX) ...")
 
     # EMA (Exponential Moving Average)
     df["ema_9"] = ta.ema(df["close"], length=9)
@@ -61,8 +67,11 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
         df["adx"] = adx.iloc[:, 0]
         df["di_plus"] = adx.iloc[:, 1]
         df["di_minus"] = adx.iloc[:, 2]
+    logger.info("[ind 1/5] trend done in %.1fs", _time.perf_counter() - _t0)
+    _t0 = _time.perf_counter()
 
     # -- Momentum Indicators ------------------------------------------------
+    logger.info("[ind 2/5] momentum (RSI/Stoch/CCI/Williams) ...")
 
     # RSI (Relative Strength Index)
     df["rsi_14"] = ta.rsi(df["close"], length=14)
@@ -78,8 +87,11 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     # Williams %R
     df["willr_14"] = ta.willr(df["high"], df["low"], df["close"], length=14)
+    logger.info("[ind 2/5] momentum done in %.1fs", _time.perf_counter() - _t0)
+    _t0 = _time.perf_counter()
 
     # -- Volatility Indicators ----------------------------------------------
+    logger.info("[ind 3/5] volatility (BBands/ATR) ...")
 
     # Bollinger Bands
     # pandas_ta.bbands returns columns in order: [BBL, BBM, BBU, BBB, BBP]
@@ -94,8 +106,11 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     # ATR (Average True Range)
     df["atr_14"] = ta.atr(df["high"], df["low"], df["close"], length=14)
+    logger.info("[ind 3/5] volatility done in %.1fs", _time.perf_counter() - _t0)
+    _t0 = _time.perf_counter()
 
     # -- Volume Indicators --------------------------------------------------
+    logger.info("[ind 4/5] volume (OBV/VWAP) ...")
 
     if df["volume"].sum() > 0:
         # OBV (On Balance Volume)
@@ -122,7 +137,11 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
                 logger.warning("VWAP calculation failed: %s", e)
                 df["vwap"] = float("nan")
 
+    logger.info("[ind 4/5] volume done in %.1fs", _time.perf_counter() - _t0)
+    _t0 = _time.perf_counter()
+
     # -- Derived Signals ----------------------------------------------------
+    logger.info("[ind 5/5] derived signals ...")
 
     # EMA Crossover signals
     df["ema_cross_9_21"] = (df["ema_9"].astype(float) > df["ema_21"].astype(float)).astype(int)
@@ -136,6 +155,7 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
     if "adx" in df.columns:
         df["strong_trend"] = (df["adx"].astype(float) > 25).astype(int)
 
+    logger.info("[ind 5/5] derived done in %.1fs", _time.perf_counter() - _t0)
     return df
 
 

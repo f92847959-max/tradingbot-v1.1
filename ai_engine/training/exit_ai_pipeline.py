@@ -86,7 +86,7 @@ def train_exit_ai_specialist(
     X_val_scaled = scaler.transform(val_df)[feature_names].values.astype(np.float32)
     X_test_scaled = scaler.transform(test_df)[feature_names].values.astype(np.float32)
 
-    model = _fit_exit_ai_classifier(X_train_scaled, y_train, X_val_scaled, y_val)
+    model = _fit_exit_ai_classifier(X_train_scaled, y_train, X_val_scaled, y_val, feature_names=feature_names)
     probabilities = _predict_probabilities(model, X_test_scaled)
     predictions = np.argmax(probabilities, axis=1)
     metrics = _classification_metrics(y_test, predictions, probabilities)
@@ -310,6 +310,7 @@ def _fit_exit_ai_classifier(
     y_train: np.ndarray,
     X_val: np.ndarray,
     y_val: np.ndarray,
+    feature_names: list[str] | None = None,
 ) -> Any:
     unique_classes = np.unique(y_train)
     if len(unique_classes) < 2:
@@ -335,6 +336,7 @@ def _fit_exit_ai_classifier(
             X_train,
             y_train,
             eval_set=[(X_val, y_val)],
+            feature_name=feature_names if feature_names else "auto",
             callbacks=[
                 lgb.early_stopping(stopping_rounds=20, verbose=False),
                 lgb.log_evaluation(period=0),
@@ -406,7 +408,7 @@ def _run_exit_ai_window(
     y_val = val_frame["action_label"].to_numpy(dtype=int)
     y_test = test_frame["action_label"].to_numpy(dtype=int)
 
-    model = _fit_exit_ai_classifier(X_fit, y_fit, X_val, y_val)
+    model = _fit_exit_ai_classifier(X_fit, y_fit, X_val, y_val, feature_names=feature_names)
     probabilities = _predict_probabilities(model, X_test)
     predictions = np.argmax(probabilities, axis=1)
     predicted_actions = [LABEL_TO_ACTION[int(label)] for label in predictions]

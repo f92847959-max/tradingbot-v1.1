@@ -242,63 +242,59 @@ class LabelGenerator:
         sell_sl_dist: float,
     ) -> np.ndarray:
         """
-        Vectorized label calculation with NumPy.
-
-        For each candle i:
-        1. Calculate BUY TP/SL prices
-        2. Check in the next max_candles whether TP or SL is hit first
-        3. Same for SELL
-        4. The faster winning direction wins
-
-        If TP and SL are hit in the same candle -> conservative: SL wins.
+        Fully vectorized label calculation with NumPy sliding windows.
         """
-        labels = np.zeros(n, dtype=int)
         max_c = self.max_candles
+        if n <= max_c:
+            return np.zeros(n, dtype=int)
 
-        for i in range(n - max_c):
-            entry = close[i]
+        from numpy.lib.stride_tricks import sliding_window_view
 
-            # === BUY direction ===
-            buy_tp_price = entry + buy_tp_dist
-            buy_sl_price = entry - buy_sl_dist
-            future_high = high[i + 1: i + 1 + max_c]
-            future_low = low[i + 1: i + 1 + max_c]
+        # Prepare future windows (n-max_c, max_c)
+        future_high = sliding_window_view(high[1:], max_c)[:n-max_c]
+        future_low = sliding_window_view(low[1:], max_c)[:n-max_c]
 
-            # Where is TP/SL hit first?
-            buy_tp_hits = np.where(future_high >= buy_tp_price)[0]
-            buy_sl_hits = np.where(future_low <= buy_sl_price)[0]
+        # Entries (n-max_c,)
+        entries = close[:n-max_c]
 
-            buy_tp_candle = buy_tp_hits[0] if len(buy_tp_hits) > 0 else max_c + 1
-            buy_sl_candle = buy_sl_hits[0] if len(buy_sl_hits) > 0 else max_c + 1
+        # === BUY direction ===
+        buy_tp_prices = entries + buy_tp_dist
+        buy_sl_prices = entries - buy_sl_dist
 
-            # BUY successful? (TP before SL, not in same candle)
-            buy_won = buy_tp_candle < buy_sl_candle
+        # Find first hit per row
+        # (n-max_c, max_c)
+        buy_tp_hits = future_high >= buy_tp_prices[:, np.newaxis]
+        buy_sl_hits = future_low <= buy_sl_prices[:, np.newaxis]
 
-            # === SELL direction ===
-            sell_tp_price = entry - sell_tp_dist
-            sell_sl_price = entry + sell_sl_dist
+        # Get first index of True along axis 1
+        # argmax returns first index of max value (True=1, False=0)
+        # If no True found, it returns 0, so we need a mask
+        buy_tp_candle = np.where(buy_tp_hits.any(axis=1), buy_tp_hits.argmax(axis=1), max_c + 1)
+        buy_sl_candle = np.where(buy_sl_hits.any(axis=1), buy_sl_hits.argmax(axis=1), max_c + 1)
 
-            sell_tp_hits = np.where(future_low <= sell_tp_price)[0]
-            sell_sl_hits = np.where(future_high >= sell_sl_price)[0]
+        buy_won = buy_tp_candle < buy_sl_candle
 
-            sell_tp_candle = sell_tp_hits[0] if len(sell_tp_hits) > 0 else max_c + 1
-            sell_sl_candle = sell_sl_hits[0] if len(sell_sl_hits) > 0 else max_c + 1
+        # === SELL direction ===
+        sell_tp_prices = entries - sell_tp_dist
+        sell_sl_prices = entries + sell_sl_dist
 
-            sell_won = sell_tp_candle < sell_sl_candle
+        sell_tp_hits = future_low <= sell_tp_prices[:, np.newaxis]
+        sell_sl_hits = future_high >= sell_sl_prices[:, np.newaxis]
 
-            # === Decision ===
-            if buy_won and sell_won:
-                # Both win -> faster direction
-                if buy_tp_candle <= sell_tp_candle:
-                    labels[i] = 1   # BUY
-                else:
-                    labels[i] = -1  # SELL
-            elif buy_won:
-                labels[i] = 1   # BUY
-            elif sell_won:
-                labels[i] = -1  # SELL
-            else:
-                labels[i] = 0   # HOLD
+        sell_tp_candle = np.where(sell_tp_hits.any(axis=1), sell_tp_hits.argmax(axis=1), max_c + 1)
+        sell_sl_candle = np.where(sell_sl_hits.any(axis=1), sell_sl_hits.argmax(axis=1), max_c + 1)
+
+        sell_won = sell_tp_candle < sell_sl_candle
+
+        # === Decision ===
+        labels = np.zeros(n, dtype=int)
+
+        # 1: BUY wins
+        labels[:n-max_c] = np.where(
+            buy_won & (~sell_won | (buy_tp_candle <= sell_tp_candle)),
+            1,
+            np.where(sell_won, -1, 0)
+        )
 
         return labels
 
@@ -314,55 +310,55 @@ class LabelGenerator:
         sell_sl_dist: np.ndarray,
     ) -> np.ndarray:
         """
-        Vectorized label calculation with per-candle ATR-based TP/SL distances.
-
-        Same logic as _vectorized_labeling but uses per-candle arrays instead
-        of scalar distances. Kept separate for clarity and performance.
+        Fully vectorized label calculation with dynamic ATR distances.
         """
-        labels = np.zeros(n, dtype=int)
         max_c = self.max_candles
+        if n <= max_c:
+            return np.zeros(n, dtype=int)
 
-        for i in range(n - max_c):
-            entry = close[i]
+        from numpy.lib.stride_tricks import sliding_window_view
 
-            # === BUY direction ===
-            buy_tp_price = entry + buy_tp_dist[i]
-            buy_sl_price = entry - buy_sl_dist[i]
-            future_high = high[i + 1: i + 1 + max_c]
-            future_low = low[i + 1: i + 1 + max_c]
+        future_high = sliding_window_view(high[1:], max_c)[:n-max_c]
+        future_low = sliding_window_view(low[1:], max_c)[:n-max_c]
+        entries = close[:n-max_c]
 
-            buy_tp_hits = np.where(future_high >= buy_tp_price)[0]
-            buy_sl_hits = np.where(future_low <= buy_sl_price)[0]
+        # Per-candle distances
+        b_tp_d = buy_tp_dist[:n-max_c]
+        b_sl_d = buy_sl_dist[:n-max_c]
+        s_tp_d = sell_tp_dist[:n-max_c]
+        s_sl_d = sell_sl_dist[:n-max_c]
 
-            buy_tp_candle = buy_tp_hits[0] if len(buy_tp_hits) > 0 else max_c + 1
-            buy_sl_candle = buy_sl_hits[0] if len(buy_sl_hits) > 0 else max_c + 1
+        # === BUY direction ===
+        buy_tp_prices = entries + b_tp_d
+        buy_sl_prices = entries - b_sl_d
 
-            buy_won = buy_tp_candle < buy_sl_candle
+        buy_tp_hits = future_high >= buy_tp_prices[:, np.newaxis]
+        buy_sl_hits = future_low <= buy_sl_prices[:, np.newaxis]
 
-            # === SELL direction ===
-            sell_tp_price = entry - sell_tp_dist[i]
-            sell_sl_price = entry + sell_sl_dist[i]
+        buy_tp_candle = np.where(buy_tp_hits.any(axis=1), buy_tp_hits.argmax(axis=1), max_c + 1)
+        buy_sl_candle = np.where(buy_sl_hits.any(axis=1), buy_sl_hits.argmax(axis=1), max_c + 1)
 
-            sell_tp_hits = np.where(future_low <= sell_tp_price)[0]
-            sell_sl_hits = np.where(future_high >= sell_sl_price)[0]
+        buy_won = buy_tp_candle < buy_sl_candle
 
-            sell_tp_candle = sell_tp_hits[0] if len(sell_tp_hits) > 0 else max_c + 1
-            sell_sl_candle = sell_sl_hits[0] if len(sell_sl_hits) > 0 else max_c + 1
+        # === SELL direction ===
+        sell_tp_prices = entries - s_tp_d
+        sell_sl_prices = entries + s_sl_d
 
-            sell_won = sell_tp_candle < sell_sl_candle
+        sell_tp_hits = future_low <= sell_tp_prices[:, np.newaxis]
+        sell_sl_hits = future_high >= sell_sl_prices[:, np.newaxis]
 
-            # === Decision ===
-            if buy_won and sell_won:
-                if buy_tp_candle <= sell_tp_candle:
-                    labels[i] = 1   # BUY
-                else:
-                    labels[i] = -1  # SELL
-            elif buy_won:
-                labels[i] = 1   # BUY
-            elif sell_won:
-                labels[i] = -1  # SELL
-            else:
-                labels[i] = 0   # HOLD
+        sell_tp_candle = np.where(sell_tp_hits.any(axis=1), sell_tp_hits.argmax(axis=1), max_c + 1)
+        sell_sl_candle = np.where(sell_sl_hits.any(axis=1), sell_sl_hits.argmax(axis=1), max_c + 1)
+
+        sell_won = sell_tp_candle < sell_sl_candle
+
+        # === Decision ===
+        labels = np.zeros(n, dtype=int)
+        labels[:n-max_c] = np.where(
+            buy_won & (~sell_won | (buy_tp_candle <= sell_tp_candle)),
+            1,
+            np.where(sell_won, -1, 0)
+        )
 
         return labels
 

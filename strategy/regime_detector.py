@@ -94,14 +94,15 @@ class RegimeDetector:
         last = df.iloc[-1]
 
         # ADX column lookup: try 'adx' first, then 'adx_14'
-        adx_val = last.get("adx", last.get("adx_14", 0.0))
-        if pd.isna(adx_val):
+        adx_val = last.get("adx", last.get("adx_14"))
+        if adx_val is None or pd.isna(adx_val):
+            logger.debug("ADX is missing or NaN, defaulting to 0.0")
             adx_val = 0.0
 
         # ATR
-        atr_val = last.get("atr_14", 0.0)
-        if pd.isna(atr_val):
-            logger.debug("ATR is NaN, defaulting to RANGING with confidence 0")
+        atr_val = last.get("atr_14", last.get("atr"))
+        if atr_val is None or pd.isna(atr_val):
+            logger.debug("ATR is missing or NaN, defaulting to RANGING with confidence 0")
             return RegimeState(
                 regime=MarketRegime.RANGING,
                 adx=float(adx_val),
@@ -115,10 +116,14 @@ class RegimeDetector:
 
         # Compute rolling ATR average for ratio
         lookback = min(self.lookback_periods, len(df))
-        atr_col = df["atr_14"].iloc[-lookback:]
-        atr_avg = atr_col.mean()
-        if pd.isna(atr_avg) or atr_avg == 0:
-            atr_avg = atr_val if atr_val > 0 else 1.0
+        atr_col_name = "atr_14" if "atr_14" in df.columns else "atr"
+        if atr_col_name not in df.columns:
+             atr_avg = atr_val if atr_val > 0 else 1.0
+        else:
+            atr_col = df[atr_col_name].iloc[-lookback:]
+            atr_avg = atr_col.mean()
+            if pd.isna(atr_avg) or atr_avg == 0:
+                atr_avg = atr_val if atr_val > 0 else 1.0
 
         atr_ratio = atr_val / atr_avg
 

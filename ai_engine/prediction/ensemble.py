@@ -606,8 +606,10 @@ class EnsemblePredictor:
                 feature_names = scaler_features
             df = self._scaler.transform(df)
 
-        for feature in feature_names:
-            if feature not in df.columns:
+        # Ensure all required features are present (more efficient than loop)
+        missing_features = [f for f in feature_names if f not in df.columns]
+        if missing_features:
+            for feature in missing_features:
                 df[feature] = 0.0
 
         X_latest = df[feature_names].values[-1:].astype(np.float32)
@@ -769,22 +771,25 @@ class EnsemblePredictor:
 
         adx_trending = int(_safe_float("adx_trending", 0.0))
         if adx_trending == 1 and abs(base_score) > 0.01:
-            base_score *= 1.10
-            components["adx_boost"] = 0.10 * np.sign(base_score)
+            adx_impact = base_score * 0.10
+            base_score += adx_impact
+            components["adx_boost"] = adx_impact
         else:
             components["adx_boost"] = 0.0
 
         tf_alignment = int(_safe_float("tf_alignment", 1.0))
         if tf_alignment == 0 and abs(base_score) > 0.01:
-            base_score *= 0.85
-            components["tf_alignment_penalty"] = -0.05 * np.sign(base_score)
+            penalty = base_score * -0.15
+            base_score += penalty
+            components["tf_alignment_penalty"] = penalty
         else:
             components["tf_alignment_penalty"] = 0.0
 
         bb_squeeze = int(_safe_float("bb_squeeze", 0.0))
         if bb_squeeze == 1:
-            base_score *= 0.95
-            components["bb_squeeze_penalty"] = -0.02 * np.sign(base_score)
+            penalty = base_score * -0.05
+            base_score += penalty
+            components["bb_squeeze_penalty"] = penalty
         else:
             components["bb_squeeze_penalty"] = 0.0
 
@@ -793,8 +798,9 @@ class EnsemblePredictor:
         if atr_mean > 0:
             vola_ratio = atr_last / atr_mean
             if vola_ratio > 1.5:
-                base_score *= 0.85
-                components["volatility_penalty"] = -0.05 * np.sign(base_score)
+                penalty = base_score * -0.15
+                base_score += penalty
+                components["volatility_penalty"] = penalty
             else:
                 components["volatility_penalty"] = 0.0
         else:

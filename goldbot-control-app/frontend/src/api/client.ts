@@ -1,5 +1,6 @@
 import type {
   ActionLogEntry,
+  AIDecisionResponse,
   BotMetricsResponse,
   BotStatusResponse,
   CommandRequest,
@@ -88,4 +89,8 @@ export function fetchSettings(): Promise<SettingsResponse> {
 
 export function fetchTradeChartPoints(days = 14, limit = 400): Promise<TradeChartPoint[]> {
   return request<TradeChartPoint[]>(`/trades/chart?days=${days}&limit=${limit}`);
+}
+
+export function fetchAIDecision(): Promise<AIDecisionResponse> {
+  return request<AIDecisionResponse>("/ai/decisions/latest");
 }

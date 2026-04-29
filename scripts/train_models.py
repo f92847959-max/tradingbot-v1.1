@@ -26,6 +26,32 @@ from ai_engine.training.trainer import ModelTrainer
 logger = logging.getLogger(__name__)
 
 
+def _require_min_candles(df: pd.DataFrame, *, min_candles: int, timeframe: str) -> None:
+    """Fail before training if the selected data source returned too few candles."""
+    if min_candles <= 0:
+        return
+    if len(df) < min_candles:
+        raise ValueError(
+            f"Insufficient candles for {timeframe}: received {len(df)}, "
+            f"minimum {min_candles} required"
+        )
+
+
+def _ensure_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    """Add base technical indicators (atr_14, rsi_14, ema_*, ...) if missing.
+
+    The training pipeline's feature engineer expects these as input columns;
+    raw OHLCV CSVs (e.g. from scripts/fetch_bulk_history.py) do not include
+    them. Idempotent: skips when atr_14 is already present.
+    """
+    if "atr_14" in df.columns:
+        return df
+    from market_data.indicators import calculate_indicators
+
+    logger.info("Computing technical indicators (atr_14, rsi_14, ema_*, ...)")
+    return calculate_indicators(df)
+
+
 def _warn_if_credentials_in_onedrive() -> None:
     """Warn when broker credentials are loaded from a OneDrive-synced .env file.
 
@@ -170,6 +196,12 @@ def main() -> None:
         help="Generate N synthetic candles for testing",
     )
     parser.add_argument("--count", type=int, default=1000, help="Number of candles to fetch from broker")
+    parser.add_argument(
+        "--min-candles",
+        type=int,
+        default=0,
+        help="Minimum candles required before training starts (0 = disabled)",
+    )
     parser.add_argument("--timeframe", type=str, default="5m", help="Candle timeframe")
     parser.add_argument(
         "--output", type=str, default="ai_engine/saved_models",
@@ -239,6 +271,10 @@ def main() -> None:
             timeframe=args.timeframe,
             save_csv=effective_save_csv,
         ))
+        df = _ensure_indicators(df)
+        _require_min_candles(
+            df, min_candles=args.min_candles, timeframe=args.timeframe,
+        )
         if args.dry_run:
             logger.info(
                 "DRY-RUN: would train on %d real broker candles "
@@ -259,13 +295,24 @@ def main() -> None:
                 args.csv, args.output,
             )
             return
-        results = trainer.train_from_csv(
-            args.csv, timeframe=args.timeframe,
-            min_data_months=args.min_data_months,
+        df = pd.read_csv(args.csv)
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
+            df.set_index("timestamp", inplace=True)
+        df = _ensure_indicators(df)
+        _require_min_candles(
+            df, min_candles=args.min_candles, timeframe=args.timeframe,
+        )
+        results = trainer.train_all(
+            df, timeframe=args.timeframe, min_data_months=args.min_data_months,
         )
     elif args.synthetic > 0:
         print(f"Generating {args.synthetic} synthetic candles...")
         df = generate_synthetic_data(args.synthetic)
+        df = _ensure_indicators(df)
+        _require_min_candles(
+            df, min_candles=args.min_candles, timeframe=args.timeframe,
+        )
         if args.dry_run:
             logger.info(
                 "DRY-RUN: would train on %d synthetic candles and save to %s. Skipped.",

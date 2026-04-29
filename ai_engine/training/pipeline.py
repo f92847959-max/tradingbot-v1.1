@@ -55,13 +55,8 @@ class TrainingPipeline:
         min_feature_importance: float = 0.005,
         min_data_months: int = 6,
     ) -> Dict[str, Any]:
-        """Run the walk-forward training pipeline.
-
-        Steps 1-5 run once on the full dataset (data validation, feature
-        engineering, label generation, warmup removal, feature/label separation).
-        Steps 6-7 use walk-forward validation across expanding windows,
-        then save models and metadata from the final window.
-        """
+        """Run the walk-forward training pipeline."""
+        df = df.copy()  # Prevent SettingWithCopyWarning
         start_time = time.time()
         results: Dict[str, Any] = {}
 

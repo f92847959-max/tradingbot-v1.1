@@ -136,3 +136,46 @@ class TradeChartPoint(BaseModel):
     exit_price: float | None = None
     lot_size: float | None = None
     net_pnl: float | None = None
+
+
+class CoreAIDecision(BaseModel):
+    """Core entry signal from the XGBoost+LightGBM ensemble."""
+
+    action: str = Field(description="BUY | SELL | HOLD")
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class SpecialistAIDecision(BaseModel):
+    """Specialist agreement layer (regime/timeframe-aware)."""
+
+    agree: bool
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class ExitAIDecision(BaseModel):
+    """Exit-AI signal for currently open positions."""
+
+    signal: str = Field(description="HOLD | TIGHTEN | EXIT")
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class RiskAIDecision(BaseModel):
+    """Risk gatekeeper verdict."""
+
+    decision: str = Field(description="ALLOW | BLOCK")
+    heat: str = Field(description="LOW | MEDIUM | HIGH")
+
+
+class AIDecisionResponse(BaseModel):
+    """Full AI decision-stack snapshot for the Mission-Control UI."""
+
+    core: CoreAIDecision
+    specialist: SpecialistAIDecision
+    exit: ExitAIDecision
+    risk: RiskAIDecision
+    final_action: str = Field(
+        description="ENTER | WAIT_FOR_EXECUTION_WINDOW | REJECT | HOLD",
+    )
+    regime: str = Field(description="BREAKOUT | TREND | RANGE | UNKNOWN")
+    ai_mode: str = Field(description="LIVE_SHADOW | LIVE_REAL | PAUSED")
+    timestamp: datetime

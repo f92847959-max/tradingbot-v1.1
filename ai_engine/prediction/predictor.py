@@ -85,7 +85,7 @@ class AIPredictor:
                     maybe_data = data_provider.get_all_timeframes(count=5000)
                 elif hasattr(data_provider, "get_multi_timeframe_data"):
                     maybe_data = data_provider.get_multi_timeframe_data(
-                        timeframes=["5m", "15m", "1h"],
+                        timeframes=["5m", "15m", "1h", "4h", "1d"],
                         count=None,
                     )
                 else:

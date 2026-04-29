@@ -181,6 +181,8 @@ class FeatureEngineer:
             )
             return self._cache.get()
 
+        import time as _time
+
         logger.info(f"Creating features for timeframe {timeframe} "
                      f"({len(df)} candles)...")
 
@@ -190,29 +192,43 @@ class FeatureEngineer:
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
 
-        # 1. Technical features (derived from indicators)
-        df = self._technical.calculate(df)
+        def _step(idx: int, total: int, name: str, fn):
+            t0 = _time.perf_counter()
+            logger.info("  [feat %d/%d] %s ...", idx, total, name)
+            result = fn()
+            logger.info("  [feat %d/%d] %s done in %.1fs",
+                        idx, total, name, _time.perf_counter() - t0)
+            return result
 
-        # 2. Price and candle features
-        df = self._price.calculate(df)
+        total = 8 + (1 if include_specialist else 0) + (1 if multi_tf_data else 0)
+        idx = 0
 
-        # 3. Time features
-        df = self._time.calculate(df)
-
-        # 4. Gold-specific features
-        df = self._gold.calculate(df)
-        df = self._micro.calculate(df)
-        df = self._orderflow.calculate(df)
-        df = self._sr.calculate(df)
-        df = self._correlation.calculate(df, correlation_snapshot)
+        idx += 1; df = _step(idx, total, "technical (derived from indicators)",
+                              lambda: self._technical.calculate(df))
+        idx += 1; df = _step(idx, total, "price and candle features",
+                              lambda: self._price.calculate(df))
+        idx += 1; df = _step(idx, total, "time features",
+                              lambda: self._time.calculate(df))
+        idx += 1; df = _step(idx, total, "gold-specific features",
+                              lambda: self._gold.calculate(df))
+        idx += 1; df = _step(idx, total, "microstructure features",
+                              lambda: self._micro.calculate(df))
+        idx += 1; df = _step(idx, total, "orderflow features",
+                              lambda: self._orderflow.calculate(df))
+        idx += 1; df = _step(idx, total, "support/resistance features",
+                              lambda: self._sr.calculate(df))
+        idx += 1; df = _step(idx, total, "correlation features",
+                              lambda: self._correlation.calculate(df, correlation_snapshot))
         if include_specialist:
-            df = self._specialist.calculate(df)
+            idx += 1; df = _step(idx, total, "specialist features",
+                                  lambda: self._specialist.calculate(df))
 
-        # 5. Multi-timeframe features (if available)
+        # Multi-timeframe features (if available)
         if multi_tf_data:
-            df = self._add_multi_tf_features(df, multi_tf_data)
+            idx += 1; df = _step(idx, total, "multi-timeframe features",
+                                  lambda: self._add_multi_tf_features(df, multi_tf_data))
 
-        # 6. Cleanup: NaN -> 0.0, bool -> int
+        # Cleanup: NaN -> 0.0, bool -> int
         feature_names = self.get_feature_names(include_specialist=include_specialist)
         df = self._cleanup_features(df, feature_names)
 

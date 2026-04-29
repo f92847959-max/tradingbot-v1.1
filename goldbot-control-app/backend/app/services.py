@@ -16,6 +16,7 @@ from backend.app.models import ActionLog, AppSettings, ErrorLog
 from integration.goldbot_adapter import GoldBotAdapter
 from shared.contracts import (
     ActionLogEntry,
+    AIDecisionResponse,
     BotMetricsResponse,
     BotStatusResponse,
     CommandRequest,
@@ -93,6 +94,10 @@ class ControlService:
     def get_metrics(self) -> BotMetricsResponse:
         payload = self._adapter.get_metrics()
         return BotMetricsResponse(**payload)
+
+    def get_ai_decision(self) -> AIDecisionResponse:
+        payload = self._adapter.get_ai_decision()
+        return AIDecisionResponse(**payload)
 
     def submit_command(self, command: CommandRequest) -> CommandResponse:
         with get_session() as session:

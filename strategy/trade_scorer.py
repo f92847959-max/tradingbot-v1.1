@@ -97,7 +97,8 @@ class TradeScorer:
                 else:
                     trend_score = 0.0
         else:
-            trend_score = 7.5  # neutral when unknown
+            # More conservative fallback for missing trend data
+            trend_score = 5.0
         total += trend_score
 
         # 4. Session Quality (0-15)
@@ -124,25 +125,44 @@ class TradeScorer:
                 else:
                     vol_score = 0.0
         else:
-            vol_score = 7.5  # neutral when unknown
+            # More conservative fallback for missing volatility data
+            vol_score = 5.0
         total += vol_score
 
         # 6. Risk/Reward Ratio (0-10)
-        entry = signal.get("entry_price", 0.0)
+        entry = signal.get("entry_price")
         sl = signal.get("stop_loss")
         tp = signal.get("take_profit")
-        if entry and sl and tp:
-            rr = risk_reward_ratio(float(entry), float(sl), float(tp))
-            if rr >= 2.5:
-                rr_score = 10.0
-            elif rr >= 2.0:
-                rr_score = 8.0
-            elif rr >= 1.5:
-                rr_score = 5.0
-            else:
+
+        if entry is not None and sl is not None and tp is not None:
+            try:
+                rr = risk_reward_ratio(float(entry), float(sl), float(tp))
+
+                # Dynamic RR scoring based on regime
+                # If regime is known, we can be more specific
+                if regime == MarketRegime.RANGING:
+                    # Ranging: accept lower RR
+                    if rr >= 2.0: rr_score = 10.0
+                    elif rr >= 1.5: rr_score = 8.0
+                    elif rr >= 1.2: rr_score = 5.0
+                    else: rr_score = 0.0
+                elif regime == MarketRegime.TRENDING:
+                    # Trending: expect higher RR
+                    if rr >= 3.0: rr_score = 10.0
+                    elif rr >= 2.5: rr_score = 8.0
+                    elif rr >= 2.0: rr_score = 5.0
+                    else: rr_score = 0.0
+                else:
+                    # Default / Volatile
+                    if rr >= 2.5: rr_score = 10.0
+                    elif rr >= 2.0: rr_score = 8.0
+                    elif rr >= 1.5: rr_score = 5.0
+                    else: rr_score = 0.0
+            except (ValueError, ZeroDivisionError):
                 rr_score = 0.0
         else:
-            rr_score = 5.0  # neutral when SL/TP not set
+            # If entry/SL/TP are missing, we can't calculate RR
+            rr_score = 0.0
         total += rr_score
 
         result = int(round(total))

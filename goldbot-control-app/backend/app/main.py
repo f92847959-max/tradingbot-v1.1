@@ -9,7 +9,7 @@ from backend.app.auth import verify_access_token
 from backend.app.config import load_settings
 from backend.app.database import init_db
 from backend.app.rate_limit import AuthRateLimitMiddleware
-from backend.app.routers import bot, health, logs, settings, trades
+from backend.app.routers import ai, bot, health, logs, settings, trades
 from backend.app.services import build_control_service
 
 
@@ -55,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(logs.router, prefix="/api/v1", dependencies=protected)
     app.include_router(settings.router, prefix="/api/v1", dependencies=protected)
     app.include_router(trades.router, prefix="/api/v1", dependencies=protected)
+    app.include_router(ai.router, prefix="/api/v1", dependencies=protected)
 
     @app.get("/")
     def root() -> dict:

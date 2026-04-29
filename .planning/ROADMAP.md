@@ -12,25 +12,10 @@
 **Plans:** 4 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Gitignore update and German-to-English comment translation
-- [ ] 01-02-PLAN.md — main.py refactor into trading/ mixin modules + lazy import fixes
-- [ ] 01-03-PLAN.md — trainer.py split into trade_filter.py and pipeline.py
-- [ ] 01-04-PLAN.md — Full test suite verification (no regressions)
-
-**Scope:**
-- Refactor main.py into smaller modules
-- Split trainer.py into sub-modules
-- Fix lazy imports
-- Standardize comments to English
-- Add proper .gitignore
-- Verify all existing tests still pass
-
-**UAT:**
-- [ ] main.py < 200 lines, trading logic in separate module
-- [ ] trainer.py split into files < 300 lines each
-- [ ] No lazy imports inside methods
-- [ ] .gitignore covers .venv, __pycache__, .env, logs, saved_models
-- [ ] All existing tests pass
+- [x] 01-01-PLAN.md — Gitignore update and German-to-English comment translation
+- [x] 01-02-PLAN.md — main.py refactor into trading/ mixin modules + lazy import fixes
+- [x] 01-03-PLAN.md — trainer.py split into trade_filter.py and pipeline.py
+- [x] 01-04-PLAN.md — Full test suite verification (no regressions)
 
 ---
 
@@ -40,22 +25,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Walk-forward validation engine + 6-month data validation
-- [ ] 02-02-PLAN.md — Model versioning with version.json and production pointer
-- [ ] 02-03-PLAN.md — Training report generation + end-to-end integration
-
-**Scope:**
-- Implement walk-forward validation (train on rolling window, test on next period)
-- Ensure features computed after split (no data leakage)
-- Add model versioning (save metadata per training run)
-- Generate walk-forward training report
-- Ensure minimum 6 months of data used
-
-**UAT:**
-- [ ] Walk-forward validation with at least 5 windows
-- [ ] Features computed per-window, not on full dataset
-- [ ] Each model save includes version.json with date, params, metrics
-- [ ] Training report shows metrics per window
+- [x] 02-01-PLAN.md — Walk-forward validation engine + 6-month data validation
+- [x] 02-02-PLAN.md — Model versioning with version.json and production pointer
+- [x] 02-03-PLAN.md — Training report generation + end-to-end integration
 
 ---
 
@@ -65,21 +37,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — SHAP importance module + dependencies (compute_shap_importance, save_feature_importance_chart)
-- [ ] 03-02-PLAN.md — Replace feature selection with SHAP pruning in walk-forward windows
-- [ ] 03-03-PLAN.md — Wire SHAP persistence into pipeline and version directory
-
-**Scope:**
-- Integrate SHAP for feature importance analysis
-- Automatic pruning of low-importance features
-- Compare model performance with full vs pruned feature sets
-- Visualize feature importance
-
-**UAT:**
-- [ ] SHAP values computed and saved per training run
-- [ ] Feature pruning removes bottom 50% by importance
-- [ ] Pruned model performance >= full model performance
-- [ ] Feature importance chart saved with training report
+- [x] 03-01-PLAN.md — SHAP importance module + dependencies
+- [x] 03-02-PLAN.md — Replace feature selection with SHAP pruning in walk-forward windows
+- [x] 03-03-PLAN.md — Wire SHAP persistence into pipeline and version directory
 
 ---
 
@@ -89,21 +49,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Regime detection foundation (MarketRegime enum, RegimeDetector, REGIME_PARAMS)
-- [ ] 04-02-PLAN.md — Dynamic ATR-based label generation and backtester alignment
-- [ ] 04-03-PLAN.md — Regime-aware strategy parameters and ATR position sizing
-
-**Scope:**
-- Replace fixed 50/30 pip TP/SL with ATR-based dynamic levels
-- Implement market regime detection (trending/ranging/volatile)
-- Adjust strategy parameters per regime
-- ATR-based position sizing
-
-**UAT:**
-- [ ] TP/SL calculated from ATR, not hardcoded
-- [ ] Regime detector classifies market into at least 3 states
-- [ ] Different strategy params applied per regime
-- [ ] Position size adapts to ATR
+- [x] 04-01-PLAN.md — Regime detection foundation
+- [x] 04-02-PLAN.md — Dynamic ATR-based label generation and backtester alignment
+- [x] 04-03-PLAN.md — Regime-aware strategy parameters and ATR position sizing
 
 ---
 
@@ -113,400 +61,210 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [x] 05-01-PLAN.md — Commission support, BacktestRunner, and BacktestReport with consistency checks
+- [x] 05-01-PLAN.md — Commission support, BacktestRunner, and BacktestReport
 - [x] 05-02-PLAN.md — CLI backtest script and end-to-end integration test
-
-**Scope:**
-- Build/improve backtesting framework with realistic costs
-- Run walk-forward backtest across multiple time periods
-- Generate comprehensive performance report
-- Validate consistency across periods
-
-**UAT:**
-- [x] Backtest includes spread, slippage, commissions
-- [x] Report shows Sharpe ratio, max drawdown, win rate, profit factor
-- [x] Walk-forward backtest shows positive results in >60% of windows
-- [x] No single window has >20% drawdown
 
 ---
 
 ### Phase 6: MiroFish Swarm Intelligence Integration
 **Goal:** MiroFish multi-agent prediction engine integrated to enhance gold trading signals with swarm intelligence
 **Requirements:** MIRO-01, MIRO-02, MIRO-03, MIRO-04, MIRO-05, MIRO-06
-**Plans:** 3/3 plans complete
+**Plans:** 3 plans
 
 Plans:
-- [x] 06-01-PLAN.md — MiroFish setup: seed templates, settings extension, startup script (MIRO-01, MIRO-02, MIRO-03)
-- [x] 06-02-PLAN.md — MiroFishClient module: simulation pipeline, cache, cost limiter, veto logic, tests (MIRO-04, MIRO-05, MIRO-06)
-- [x] 06-03-PLAN.md — Trading system wiring: signal_generator veto check, lifecycle background task, integration tests
-
-**System-Profil (zugeschnitten):**
-- Windows 11, AMD Ryzen 5 4500 (6C/12T), 16 GB RAM, GTX 1650 4GB
-- Python 3.12.10, Node.js 25.6, PyTorch 2.10
-- LLM: OpenAI API (gpt-4o-mini) — Ollama gemma3:1b zu klein fuer MiroFish
-- Kein Docker, kein Neo4j (nicht noetig)
-- Package Manager: uv (noetig fuer camel-oasis Dependency)
-- Externer Dienst: Zep Cloud (kostenloser Tier, Pflicht fuer Knowledge Graph)
-
-**Scope:**
-- `uv` Package Manager installieren (camel-oasis braucht uv statt pip)
-- Zep Cloud Account anlegen (app.getzep.com, Free Tier)
-- MiroFish klonen (github.com/666ghj/MiroFish) nach `mirofish/` im Projekt
-- `.env` konfigurieren: LLM_API_KEY (OpenAI), ZEP_API_KEY, LLM_MODEL_NAME=gpt-4o-mini
-- MiroFish Backend (Flask :5001) starten und Health-Check verifizieren
-- Gold-spezifische Seed-Templates erstellen (Marktdaten + Indikatoren als Markdown/TXT)
-- MiroFish REST-API Python-Client in `ai_engine/mirofish_client.py` bauen
-- Agenten-Profile fuer Gold-Markt konfigurieren (Trader, Analysten, Zentralbanker, etc.)
-- MiroFish-Predictions in `trading/signal_generator.py` als zusaetzliches Signal einbauen
-- Ensemble-Gewichtung: XGBoost/LightGBM + MiroFish Swarm Score kombinieren
-- API-Kosten-Limiter einbauen (max Simulationen pro Tag, Token-Budget)
-
-**UAT:**
-- [ ] `uv` installiert und `uv pip install` funktioniert auf Windows 11
-- [ ] Zep Cloud API Key funktioniert (Graph-Erstellung erfolgreich)
-- [ ] MiroFish Backend startet auf localhost:5001 (Flask)
-- [ ] POST /api/graph/ontology/generate gibt JSON-Antwort mit Gold-Ontologie
-- [ ] Gold-Seed-Template mit XAUUSD-Daten erzeugt Agenten-Simulation
-- [ ] Simulation laeuft mit gpt-4o-mini als LLM (kein lokales Modell)
-- [ ] mirofish_client.py kann Simulation starten und Ergebnis abholen
-- [ ] MiroFish-Score in signal_generator.py verfuegbar als Signal-Komponente
-- [ ] API-Kosten pro Simulation unter $0.50 (gpt-4o-mini, 10-20 Agenten)
-- [ ] RAM-Verbrauch unter 4 GB waehrend Simulation (16 GB gesamt)
+- [x] 06-01-PLAN.md — MiroFish setup
+- [x] 06-02-PLAN.md — MiroFishClient module
+- [x] 06-03-PLAN.md — Trading system wiring
 
 ---
 
 ### Phase 8: Wirtschaftskalender-Integration
-**Goal:** Automatischer Schutz vor Verlusten bei High-Impact Events (NFP, FOMC, CPI) durch Trading-Pausen und Position-Management
+**Goal:** Automatischer Schutz vor Verlusten bei High-Impact Events durch Trading-Pausen und Position-Management
 **Requirements:** ECAL-01, ECAL-02, ECAL-03, ECAL-04
-**Plans:** 2/2 plans complete
+**Plans:** 2 plans
 
 Plans:
-- [x] 08-01-PLAN.md — Economic calendar module: models, fetcher, filter, rules, service facade
-- [x] 08-02-PLAN.md — Calendar wiring: trading loop veto, force-close, lifecycle refresh, 57 tests
-
-**Scope:**
-- Wirtschaftskalender-Daten abrufen (Investing.com / ForexFactory)
-- Gold-relevante Events filtern (USD, EUR, Zinsen, Inflation)
-- Trading-Regeln: kein neuer Trade 30min vor High-Impact, Position schliessen bei Extrem-Events
-- Historische Event-Daten fuer Backtesting speichern
-- Integration in signal_generator.py als Veto-Logik
-
-**UAT:**
-- [x] Kalender-Daten werden regelmaessig abgerufen und gefiltert
-- [x] High-Impact Events blockieren neue Trades automatisch
-- [x] Bestehende Positionen werden bei Extrem-Events geschlossen
-- [x] Historische Events fuer Backtesting verfuegbar
+- [x] 08-01-PLAN.md — Economic calendar module
+- [x] 08-02-PLAN.md — Calendar wiring
 
 ---
 
 ### Phase 9: Advanced Risk & Position Sizing
 **Goal:** Dynamische Positionsgroessen-Berechnung mit Kelly Criterion, Volatilitaets-Anpassung und Portfolio Heat Management
 **Requirements:** RISK-01, RISK-02, RISK-03, RISK-04, RISK-05
+**Plans:** 3 plans
 
-**Scope:**
-- Kelly Criterion (optimal f) basierend auf Win-Rate und RRR
-- Volatilitaets-basiertes Sizing (ATR-normalisiert)
-- Portfolio Heat: max 5% Gesamt-Risiko offen
-- Monte Carlo Simulation (1000 Pfade, Drawdown-Verteilung)
-- Equity Curve Filter (kein Trading bei Drawdown > Threshold)
-
-**UAT:**
-- [x] Position Size berechnet sich dynamisch nach Kelly/Volatilitaet
-- [x] Portfolio Heat ueberschreitet nie 5% des Kontostands
-- [x] Monte Carlo zeigt Drawdown-Verteilung und Confidence Intervals
-- [x] Equity Curve Filter stoppt Trading bei starkem Drawdown
-- [x] Alle Sizing-Entscheidungen geloggt mit Begruendung
+Plans:
+- [x] 09-01-PLAN.md — Kelly Criterion and advanced position sizing
+- [x] 09-02-PLAN.md — Monte Carlo simulation and drawdown distribution
+- [x] 09-03-PLAN.md — Portfolio Heat Management and Equity Curve Filter
 
 ---
 
 ### Phase 10: Smart Exit Engine
 **Goal:** Intelligentes dynamisches TP/SL-Management statt fixer Werte — ATR, Struktur und Trailing fuer bessere Exits
 **Requirements:** EXIT-01, EXIT-02, EXIT-03, EXIT-04, EXIT-05
-**Plans:** 3/3 plans complete
+**Plans:** 3 plans
 
 Plans:
 - [x] 10-01-PLAN.md — Dynamic SL/TP core and exit signal detector
 - [x] 10-02-PLAN.md — ATR trailing stop with breakeven after +1R
 - [x] 10-03-PLAN.md — TP1 partial close decision manager
 
-**Scope:**
-- Dynamischer SL: ATR-basiert + unter/ueber Struktur-Level
-- Dynamischer TP: Fibonacci Extensions, naechste S/R-Zone
-- Trailing Stop: ATR-Trail, Breakeven nach +1R
-- Partial Close: 50% bei TP1, Rest mit Trailing
-- Exit-Signale: Reversal-Kerzen, Momentum-Divergenz
-
-**UAT:**
-- [x] SL wird dynamisch aus ATR + Struktur berechnet, nicht fix
-- [x] TP passt sich an Marktbedingungen an (Fibonacci/S/R)
-- [x] Trailing Stop aktiviert sich nach definiertem Gewinn
-- [x] Partial Close schliesst Teilposition bei TP1
-- [x] Exit-Signale erkennen Reversals und schliessen frueh
-
----
-
 ---
 
 ### Phase 11: News-Sentiment-Analyse
 **Goal:** Echtzeit-Nachrichtenanalyse mit automatischer Sentiment-Bewertung als ML-Feature und MiroFish-Input
 **Requirements:** SENT-01, SENT-02, SENT-03, SENT-04, SENT-05
+**Plans:** 2 plans
 
-**Scope:**
-- RSS-Feed Parser: Reuters, Bloomberg, Investing.com, Kitco Gold News
-- Gold-relevante Keywords filtern (Fed, Inflation, Zinsen, Krieg, Dollar)
-- NLP Sentiment-Scoring (FinBERT / VADER, -1.0 bis +1.0)
-- Quellen-Gewichtung + Aktualitaets-Decay
-- Aggregation: 1h, 4h, 24h rollierend + Sentiment-Momentum + Divergenz
-- ML-Features: sentiment_1h, sentiment_4h, sentiment_24h, momentum, divergenz, news_count
-- MiroFish Seed-Template Integration
-
-**UAT:**
-- [ ] RSS-Feeds werden alle 5min abgerufen und Gold-relevant gefiltert
-- [ ] Sentiment-Score pro Nachricht berechnet (-1.0 bis +1.0)
-- [ ] Aggregierte Sentiment-Werte (1h/4h/24h) verfuegbar
-- [ ] Sentiment-Features im ML-Modell als Input nutzbar
-- [ ] Historische Sentiment-Daten fuer Backtesting gespeichert
+Plans:
+- [x] 11-01-PLAN.md — News sentiment database and models
+- [ ] 11-02-PLAN.md — RSS fetcher and FinBERT scoring
 
 ---
 
 ### Phase 12: Korrelations-Engine
 **Goal:** Inter-Market-Korrelationen (DXY, US10Y, Silber, VIX) als zusaetzliche Signalquelle
 **Requirements:** CORR-01, CORR-02, CORR-03, CORR-04
+**Plans:** 2 plans
 
-**Scope:**
-- Asset-Daten abrufen: DXY, US10Y, Silber, VIX, S&P500
-- Rolling Correlation berechnen (20/60/120 Perioden)
-- Korrelations-Regime erkennen (normal, breakdown, inversion)
-- Divergenz-Scanner: Gold vs. DXY, Gold vs. Anleihen
-- Lead-Lag Analyse: welches Asset fuehrt Gold?
-- ML-Features: correlation_dxy, correlation_us10y, divergence_score, lead_lag_score
-
-**UAT:**
-- [ ] Mindestens 4 korrelierte Assets werden regelmaessig abgerufen
-- [ ] Rolling Correlation ueber mehrere Zeitfenster berechnet
-- [ ] Korrelations-Breakdowns werden erkannt und gemeldet
-- [ ] Divergenz-Signale als ML-Features verfuegbar
+Plans:
+- [x] 12-01-PLAN.md — Asset fetcher and correlation calculator
+- [ ] 12-02-PLAN.md — Correlation divergence signals and ML features
 
 ---
 
-### Phase 12.1 (INSERTED): AI Confidence Calibration & Decision Governance
-**Goal:** Kalibrierte AI-Confidence und datenbasierte Decision-Governance einfuehren, damit Buy/Sell/Hold-Gates nachvollziehbar, versioniert und rolloutsicher sind.
+### Phase 12.1: AI Confidence Calibration & Decision Governance
+**Goal:** Kalibrierte AI-Confidence und datenbasierte Decision-Governance einfuehren
 **Requirements:** CONF-01, CONF-02, CONF-03, CONF-04, CONF-05
-**Depends on:** Phase 12
-**Plans:** 3/3 plans complete
+**Plans:** 3 plans
 
 Plans:
-- [x] 12.1-01-PLAN.md - Calibration artifacts, threshold tuning, and walk-forward integration
-- [x] 12.1-02-PLAN.md - DecisionGovernor runtime integration in EnsemblePredictor
-- [x] 12.1-03-PLAN.md - Governance audit logging, champion/challenger, retraining triggers
-
-**Scope:**
-- Confidence Calibration fuer Modell- und Ensemble-Scores
-- Datenbasierte Buy/Sell/Hold-Schwellen statt fixer Confidence-Grenzen
-- Regime-spezifische Gate-Logik fuer Signal-Freigabe
-- Decision Logging fuer Confidence, Konflikte und Ablehnungsgruende
-- Vorbereitung fuer Champion/Challenger- und Auto-Retraining-Entscheidungen
-
-**UAT:**
-- [x] Modell- und Ensemble-Confidence wird gegen reale Trefferquoten kalibriert
-- [x] Thresholds sind versioniert und datenbasiert ableitbar
-- [x] Regime-spezifische Gates koennen schwache Signale konsistent blockieren
-- [x] Live-Entscheidungen loggen Confidence, Threshold und Gate-Reason
+- [x] 12.1-01-PLAN.md — Calibration artifacts and threshold tuning
+- [x] 12.1-02-PLAN.md — DecisionGovernor runtime integration
+- [x] 12.1-03-PLAN.md — Governance audit logging and monitoring
 
 ---
 
-### Phase 12.3 (INSERTED): AI Indicator Specialist Training
-**Goal:** Zusaetzliches Specialist-AI-Modell fuer einen zweiten Indikator-/Feature-Block trainieren und als separate Stimme in das Ensemble laden.
+### Phase 12.3: AI Indicator Specialist Training
+**Goal:** Specialist-AI-Modell fuer einen zweiten Indikator-/Feature-Block trainieren
 **Requirements:** AITRAIN-01, AITRAIN-02, AITRAIN-03, AITRAIN-04
-**Depends on:** Phase 12.1
-**Plans:** 3/3 plans complete
+**Plans:** 3 plans
 
 Plans:
-- [x] 12.3-01-PLAN.md - Specialist feature block and leakage-safe feature-engineering integration
-- [x] 12.3-02-PLAN.md - Specialist training pipeline, storage, and walk-forward uplift comparison
-- [x] 12.3-03-PLAN.md - Runtime specialist overlay and governance-compatible logging
-
-**Scope:**
-- Zweites AI-Modell als Specialist laden, getrennt von XGBoost/LightGBM Core-Ensemble
-- Kandidat-Indikator: Market-Structure/Liquidity-Sweep/Fair-Value-Gap-Features als Gold-spezifischer Signalblock
-- Eigene Trainingspipeline fuer den Specialist mit Walk-Forward-Validation und Feature-Leakage-Schutz
-- Specialist-Output als `specialist_score`, `specialist_confidence`, `specialist_reason` ins Ensemble geben
-- Governance aus Phase 12.1 nutzen: Specialist darf Signale bestaetigen, abschwaechen oder vetoen, aber nicht ungeprueft alleine traden
-- Vergleich gegen Baseline: Core-Ensemble vs. Core+Specialist mit Profit Factor, Drawdown, Calibration und Trade Count
-
-**UAT:**
-- [x] Specialist-Feature-Block wird berechnet und versioniert
-- [x] Specialist-AI-Modell wird separat trainiert und geladen
-- [x] Walk-Forward-Vergleich zeigt messbaren Mehrwert oder blockiert Rollout
-- [x] Ensemble loggt Core-Score, Specialist-Score und finale Governance-Entscheidung
+- [x] 12.3-01-PLAN.md — Specialist feature block
+- [x] 12.3-02-PLAN.md — Specialist training pipeline
+- [x] 12.3-03-PLAN.md — Runtime specialist overlay
 
 ---
 
-### Phase 12.4 (INSERTED): Exit AI Training & Baseline Evaluation
-**Goal:** Exit-AI als separates Modell aus Smart-Exit-Engine- und Trade-Lifecycle-Daten trainieren, leakage-sicher gegen die bestehende Exit-Logik vergleichen und fuer einen spaeteren Runtime-Rollout vorbereiten.
+### Phase 12.4: Exit AI Training & Baseline Evaluation
+**Goal:** Exit-AI als separates Modell trainieren und leakage-sicher vergleichen
 **Requirements:** EXITAI-01, EXITAI-02, EXITAI-03, EXITAI-04
-**Depends on:** Phase 10, Phase 12.1
 **Plans:** 3 plans
 
 Plans:
-- [x] 12.4-01-PLAN.md - Exit snapshot dataset, action labels, and leakage-safe sample builder
-- [x] 12.4-02-PLAN.md - Exit AI training pipeline, specialist storage, and walk-forward baseline comparison
-- [x] 12.4-03-PLAN.md - Exit AI calibration, promotion gate, and training/reporting entrypoints
-
-**Scope:**
-- Kausale Exit-Snapshots aus offenen Trades, Candle-Kontext und Smart-Exit-Empfehlungen erzeugen
-- Exit-Action-Space definieren: `HOLD`, `TIGHTEN_SL`, `PARTIAL_CLOSE`, `FULL_EXIT`
-- Separates Exit-AI-Modell trainieren, versionieren und gegen die Smart-Exit-Baseline vergleichen
-- Promotion-/Calibration-Gate fuer Exit-AI vorbereiten
-
-**UAT:**
-- [x] Trade-Lifecycle-Snapshots und Smart-Exit-Signale werden kausal in Trainingssamples ueberfuehrt
-- [x] Exit-AI-Modell wird separat trainiert und versioniert
-- [x] Walk-Forward-/Baseline-Vergleich misst Schutz vs. Upside sauber
-- [x] Promotion-Gate blockiert schwache oder leakage-verdaechtige Kandidaten
+- [x] 12.4-01-PLAN.md — Exit snapshot dataset and action labels
+- [x] 12.4-02-PLAN.md — Exit AI training pipeline and baseline comparison
+- [x] 12.4-03-PLAN.md — Exit AI calibration and promotion gate
 
 ---
 
-### Phase 12.5 (INSERTED): Exit AI Runtime Integration & Governance
-**Goal:** Exit-AI als governter Overlay-Entscheider in das Live-Trade-Management integrieren, ohne Risiko zu vergroessern oder neue Entries zu erzeugen.
+### Phase 12.5: Exit AI Runtime Integration & Governance
+**Goal:** Exit-AI als governter Overlay-Entscheider integrieren
 **Requirements:** EXITAI-05, EXITAI-06, EXITAI-07, EXITAI-08
-**Depends on:** Phase 12.4
 **Plans:** 3 plans
 
 Plans:
-- [x] 12.5-01-PLAN.md - Exit AI runtime loader, advisor contract, and no-risk-widening guardrails
-- [x] 12.5-02-PLAN.md - Order manager integration for tighten-SL, partial-close, and full-exit actions
-- [x] 12.5-03-PLAN.md - Exit AI audit logging, drift monitoring, and reconciliation checks
-
-**Scope:**
-- Runtime-Loader und Advisor-Contract fuer Exit-AI-Artefakte
-- Governte Anwendung ueber bestehende `modify_position`, `close_trade` und Partial-Close-Pfade
-- Audit Logging, Monitoring und Drift/Reconciliation fuer Exit-AI-Entscheidungen
-- Harte no-op Fallbacks, wenn Exit-AI deaktiviert oder nicht verfuegbar ist
-
-**UAT:**
-- [x] Runtime-Exit-AI reduziert nur Risiko und eroefnet keine Trades
-- [x] Live-Integration nutzt bestehende Modify-/Close-/Partial-Close-Pfade
-- [x] Exit-AI-Entscheidungen werden mit Baseline-Kontext und Ergebnis geloggt
-- [x] Drift/Reconciliation zwischen Empfehlung und Outcome ist nachvollziehbar
+- [x] 12.5-01-PLAN.md — Exit AI runtime loader and no-risk-widening guardrails
+- [x] 12.5-02-PLAN.md — Order manager integration for exit actions
+- [x] 12.5-03-PLAN.md — Exit AI audit logging and drift monitoring
 
 ---
 
-### Phase 12.6 (INSERTED): Existing AI Autonomy Distillation
-**Goal:** Die bestehende KI-Kette live-nah autonomer machen, indem Entscheidungslogik aus Ensemble-, Governance-, Strategie-, Kalender- und Risk-Systemen kausal distilliert wird, waehrend harte Runtime-Guards bestehen bleiben.
+### Phase 12.6: Existing AI Autonomy Distillation
+**Goal:** Bestehende KI-Kette autonomer machen durch Kausale Distillation
 **Requirements:** AUTOAI-01, AUTOAI-02, AUTOAI-03, AUTOAI-04, AUTOAI-05, AUTOAI-06
-**Depends on:** Phase 12.1, Phase 12.3, Phase 12.5
 **Plans:** 3 plans
 
 Plans:
-- [x] 12.6-01-PLAN.md - Teacher snapshot capture, hierarchical labels, and distillation dataset manifest
-- [x] 12.6-02-PLAN.md - Learned decision head, calibration reuse, and walk-forward promotion gate
-- [x] 12.6-03-PLAN.md - Shadow rollout, challenger logging, and guarded runtime selection
-
-**Scope:**
-- Kausale Decision-Snapshots pro Tick aus bestehender Teacher-Kette erfassen
-- Hierarchisches Label-Schema fuer `preliminary_action`, `policy_action`, `final_action` und `block_stage`
-- Gelernter Decision-Head innerhalb des bestehenden Ensemble-Pfads, kein neuer Service
-- Shadow-Mode und spaetere Runtime-Auswahl mit Champion/Challenger, ohne Kill-Switch-, Kalender-, Strategie- oder Risk-Guards zu umgehen
-
-**UAT:**
-- [x] Teacher-Snapshots enthalten Ensemble-, Governance-, Strategie-, Kalender-, Risk- und Execution-Kontext ohne Lookahead
-- [x] Distillation-Dataset trennt echte HOLDs von geblockten HOLDs ueber strukturiertes `block_stage` / `block_codes`
-- [x] Decision-Head wird versioniert, kalibriert und walk-forward gegen den bestehenden Champion verglichen
-- [x] Shadow-/Primary-Rollout laesst bestehende Runtime-Guards unangetastet und loggt Disagreements strukturiert
+- [x] 12.6-01-PLAN.md — Teacher snapshot capture
+- [x] 12.6-02-PLAN.md — Learned decision head and promotion gate
+- [x] 12.6-03-PLAN.md — Shadow rollout and guarded runtime selection
 
 ---
 
-### Phase 12.7 (INSERTED): AI Training Pipeline Hardening
-**Goal:** Die AI-Trainingspipeline so haerten, dass nur Modelle mit belastbarer historischer Datenabdeckung, kausalen Labels, Walk-Forward-Uplift, Kalibrierung und Promotion-Gates in Shadow- oder Runtime-Nutzung gelangen.
+### Phase 12.7: AI Training Pipeline Hardening
+**Goal:** Haerten der Pipeline fuer belastbare historische Datenabdeckung und Promotion-Gates
 **Requirements:** AITRAIN2-01, AITRAIN2-02, AITRAIN2-03, AITRAIN2-04, AITRAIN2-05
-**Depends on:** Phase 2, Phase 12.1, Phase 12.3, Phase 12.6
 **Plans:** 3 plans
 
 Plans:
-- [ ] 12.7-01-PLAN.md - Historical data coverage preflight, row-loss telemetry, and dataset manifest
-- [ ] 12.7-02-PLAN.md - Causal label builder, specialist feature sets, and leakage-safe training splits
-- [ ] 12.7-03-PLAN.md - Walk-forward promotion gate, calibration report, and shadow-training workflow
-
-**Scope:**
-- DB-backed historical data as the primary backfill path; broker fetches only for fresh incremental data
-- Preflight checks for actual trainable time span before expensive training starts
-- Row-loss telemetry across received candles, saved candles, feature-ready rows, and label-ready samples
-- Causal labels for entry, hold/abstain, exit, confidence, and risk-aware decisions without future leakage
-- Reusable training manifest with data source, feature set, label version, split windows, metrics, and artifact paths
-- Promotion gate requiring net-of-cost walk-forward uplift, calibration stability, drawdown limits, and shadow-readiness
-
-**UAT:**
-- [ ] Training aborts before fitting when trainable historical span is below the configured threshold
-- [ ] Training report shows received, saved, feature-ready, label-ready, and dropped-row counts with reasons
-- [ ] Walk-forward validation compares candidate vs current champion on identical time windows
-- [ ] Promotion is blocked unless calibration, drawdown, profit factor, and confidence-bucket gates pass
-- [ ] Shadow-training output can be logged without changing live trading decisions
+- [ ] 12.7-01-PLAN.md — Data coverage preflight and row-loss telemetry
+- [ ] 12.7-02-PLAN.md — Causal label builder and leakage-safe splits
+- [ ] 12.7-03-PLAN.md — Walk-forward promotion gate and calibration report
 
 ---
 
 ### Phase 13: Orderbuch-Analyse
-**Goal:** Order Flow / DOM Analyse zur Erkennung institutioneller Aktivitaet und grosser Bewegungen
+**Goal:** Order Flow / DOM Analyse zur Erkennung institutioneller Aktivitaet
 **Requirements:** FLOW-01, FLOW-02, FLOW-03, FLOW-04
 **Plans:** 3 plans
 
 Plans:
-- [x] 13-01-PLAN.md - OHLCV-derived order-flow feature core
-- [x] 13-02-PLAN.md - Optional Capital.com L1 quote-flow enrichment
-- [x] 13-03-PLAN.md - FeatureEngineer/ML integration and UAT gate
-
-**Scope:**
-- Bid/Ask Walls erkennen (grosse Orders im Orderbuch)
-- Delta berechnen: Kauf- vs. Verkaufsdruck pro Kerze
-- Liquiditaets-Zonen identifizieren (Stop-Loss Cluster)
-- Absorption erkennen (grosse Orders aufgesaugt = Reversal-Signal)
-- Order Flow Features fuer ML-Modell
-
-**UAT:**
-- [x] Order Flow Daten werden abgerufen und verarbeitet
-- [x] Delta (Kauf/Verkaufsdruck) pro Kerze berechnet
-- [x] Liquiditaets-Zonen und Bid/Ask Walls erkannt
-- [x] Order Flow Features im ML-Modell nutzbar
+- [x] 13-01-PLAN.md — OHLCV-derived order-flow feature core
+- [x] 13-02-PLAN.md — Optional L1 quote-flow enrichment
+- [x] 13-03-PLAN.md — FeatureEngineer/ML integration
 
 ---
 
-**Total phases:** 20
-**Total requirements:** 81 (31 v1 + 50 new)
-
-### Phase 14: Elliott Wave Theorie Integration — automatische Wellenzaehlung (1-5 Impuls, A-B-C Korrektur), Fibonacci-Targets aus Wellen-Verhaeltnissen, Wellen-Position als ML-Feature, Integration in signal_generator.py und MiroFish-Seed-Templates
-
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 13
-**Plans:** 1/3 plans executed
+### Phase 14: Elliott Wave Theorie Integration
+**Goal:** Automatische Wellenzaehlung und Fibonacci-Targets aus Wellen-Verhaeltnissen
+**Requirements:** EWT-01, EWT-02, EWT-03, EWT-04
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD (run /gsd:plan-phase 14 to break down)
+- [ ] 14-01-PLAN.md — Wave detection core (1-5, A-B-C)
+- [ ] 14-02-PLAN.md — Fibonacci targets from wave ratios
+- [ ] 14-03-PLAN.md — Strategy integration and ML features
 
 ---
 
-### Phase 15: Demo Trading Validation
+### Phase 15: Fibonacci Engine & S/R Zones
+**Goal:** Automatisierung der S/R-Zonen-Erkennung und Fibonacci-Analyse zur Identifizierung von Confluence-Zonen.
+**Requirements:** SR-01, FIB-01, TREND-01, CONF-01, FEAT-15
+**Plans:** 3 plans
+
+Plans:
+- [ ] 15-01-PLAN.md — Support/Resistance & Fibonacci Core Engines (SR-01, FIB-01)
+- [ ] 15-02-PLAN.md — Trendline Engine & Confluence Scoring (TREND-01, CONF-01)
+- [ ] 15-03-PLAN.md — System Integration & ML Features (FEAT-15)
+
+---
+
+### Phase 16: Channel Formation (Kanalbildung)
+**Goal:** Automatische Erkennung von Preis-Kanaelen und Trendlinien mit SMC Fakeout-Schutz.
+**Requirements:** CHAN-01, CHAN-02, CHAN-03, CHAN-04
+**Plans:** 3 plans
+
+Plans:
+- [x] 16-01-PLAN.md — Statistical Channel Engine (LR Channels)
+- [x] 16-02-PLAN.md — Structural Trendline Engine (Pivot Trendlines)
+- [x] 16-03-PLAN.md — Breakout Detection & SMC Integration
+
+---
+
+### Phase 17: Demo Trading Validation
 **Goal:** Bot runs profitably on demo account, proving the system works
 **Requirements:** DEMO-01, DEMO-02, DEMO-03, DEMO-04
 **Plans:** 3 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Stability hardening (keepalive, heartbeat, reasoning defaults, daily stats)
-- [ ] 15-02-PLAN.md — Operational scripts (preflight check, demo report, PowerShell restart wrapper)
-- [ ] 15-03-PLAN.md — Demo readiness verification and operator checkpoint
-
-**Scope:**
-- Deploy bot on Capital.com demo account
-- Run for 2+ weeks continuously
-- Monitor and log all trades
-- Evaluate profitability
-
-**UAT:**
-- [ ] Bot runs 24+ hours without crashes
-- [ ] Trades open and close automatically
-- [ ] Positive P&L over 2-week period
-- [ ] All trades logged with full details
+- [ ] 17-01-PLAN.md — Stability hardening (keepalive, heartbeat, reasoning defaults, daily stats)
+- [ ] 17-02-PLAN.md — Operational scripts (preflight check, demo report, PowerShell restart wrapper)
+- [ ] 17-03-PLAN.md — Demo readiness verification and operator checkpoint
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-04-25 — Phase 13 executed and verified*
+*Last updated: 2026-04-28 — Phase 16 planned and Phase 17 renumbered*

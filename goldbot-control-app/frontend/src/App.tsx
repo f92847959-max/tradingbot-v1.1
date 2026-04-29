@@ -18,6 +18,7 @@ import {
   type ParticleFieldHandle,
 } from "./components/ParticleField";
 import { Sidebar, type Page } from "./components/Sidebar";
+import { BackgroundScene } from "./components/singularity/BackgroundScene";
 import { ToastStack } from "./components/ToastStack";
 import { useDashboardData } from "./hooks/useDashboardData";
 import type { ToastMessage } from "./types/viewModels";
@@ -28,7 +29,7 @@ const CUSTOM_PRESET_STORAGE_KEY = "goldbot-dashboard-custom-preset-v1";
 const STUDIO_VERSION = 1;
 
 type ThemeMode = "dark" | "light";
-type UiPresetId = "minimal" | "professional" | "cinematic";
+type UiPresetId = "minimal" | "professional" | "cinematic" | "singularity";
 
 type ThemeConfig = {
   mode: ThemeMode;
@@ -87,7 +88,10 @@ const PRESET_LABELS: Record<UiPresetId, string> = {
   minimal: "Minimal",
   professional: "Professional",
   cinematic: "Cinematic",
+  singularity: "Singularity",
 };
+
+const DEFAULT_PRESET: UiPresetId = "singularity";
 
 const COMMAND_PARTICLE_SIGNAL: Record<
   CommandType,
@@ -110,7 +114,12 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function isPreset(value: unknown): value is UiPresetId {
-  return value === "minimal" || value === "professional" || value === "cinematic";
+  return (
+    value === "minimal" ||
+    value === "professional" ||
+    value === "cinematic" ||
+    value === "singularity"
+  );
 }
 
 function normalizeHex(value: string, fallback: string): string {
@@ -234,6 +243,44 @@ function createPreset(id: UiPresetId): Omit<StudioConfig, "preset"> {
     };
   }
 
+  if (id === "singularity") {
+    return {
+      theme: {
+        mode: "dark",
+        primary: "#f5cc5b",
+        accent: "#65d6ff",
+        error: "#ff4d6d",
+        background: "#03040a",
+        contrast: 108,
+        fontSans: "\"Inter\", system-ui, sans-serif",
+        fontMono: "\"Roboto Mono\", ui-monospace, monospace",
+        fontSize: 14,
+      },
+      layout: {
+        kpiColumns: 4,
+        panelGap: 16,
+        splitLeftRatio: 1.4,
+        compactCards: false,
+        lockWidgets: false,
+      },
+      visibility: {
+        header: true,
+        statusStrip: true,
+        chart: true,
+        activity: true,
+        errors: true,
+      },
+      motion: {
+        enabled: true,
+        intensity: 72,
+        density: 14,
+        durationMs: 640,
+        delayMs: 18,
+        direction: "radial",
+      },
+    };
+  }
+
   return {
     theme: {
       mode: "dark",
@@ -273,8 +320,8 @@ function createPreset(id: UiPresetId): Omit<StudioConfig, "preset"> {
 
 function defaultStudio(): StudioConfig {
   return {
-    preset: "professional",
-    ...createPreset("professional"),
+    preset: DEFAULT_PRESET,
+    ...createPreset(DEFAULT_PRESET),
   };
 }
 
@@ -520,7 +567,9 @@ export function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.theme = studio.theme.mode;
+    root.dataset.theme =
+      studio.preset === "singularity" ? "singularity" : studio.theme.mode;
+    root.dataset.preset = studio.preset;
     root.dataset.compact = studio.layout.compactCards ? "1" : "0";
     root.style.setProperty("--font-sans", studio.theme.fontSans);
     root.style.setProperty("--font-mono", studio.theme.fontMono);
@@ -857,12 +906,27 @@ export function App() {
   const currentPageTitle = PAGE_TITLES[activePage];
   const statusLabel = normalizedStatus?.state ?? "STOPPED";
 
+  const showSingularityBg = studio.preset === "singularity";
+  const singularityIntensity = prefersReducedMotion
+    ? 0.25
+    : Math.max(0.3, studio.motion.intensity / 100);
+
   if (isLocked) {
-    return <LoginGate onUnlock={handleUnlock} hint={authHint} />;
+    return (
+      <>
+        {showSingularityBg ? (
+          <BackgroundScene enabled intensity={singularityIntensity} />
+        ) : null}
+        <LoginGate onUnlock={handleUnlock} hint={authHint} />
+      </>
+    );
   }
 
   return (
     <div className="app-layout">
+      {showSingularityBg ? (
+        <BackgroundScene enabled intensity={singularityIntensity} />
+      ) : null}
       <Sidebar
         activePage={activePage}
         onNavigate={setActivePage}
@@ -1097,7 +1161,7 @@ export function App() {
               </div>
 
               <div className="preset-row">
-                {(["minimal", "professional", "cinematic"] as UiPresetId[]).map((presetId) => (
+                {(["singularity", "minimal", "professional", "cinematic"] as UiPresetId[]).map((presetId) => (
                   <button
                     key={presetId}
                     type="button"

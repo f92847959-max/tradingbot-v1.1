@@ -87,3 +87,42 @@ export interface TradeChartPoint {
   lot_size?: number | null;
   net_pnl?: number | null;
 }
+
+export type CoreAIAction = "BUY" | "SELL" | "HOLD";
+export type ExitAISignal = "HOLD" | "TIGHTEN" | "EXIT";
+export type RiskDecision = "ALLOW" | "BLOCK";
+export type RiskHeat = "LOW" | "MEDIUM" | "HIGH";
+export type FinalAction = "ENTER" | "WAIT_FOR_EXECUTION_WINDOW" | "REJECT" | "HOLD";
+export type AIMode = "LIVE_SHADOW" | "LIVE_REAL" | "PAUSED";
+export type Regime = "BREAKOUT" | "TREND" | "RANGE" | "UNKNOWN" | string;
+
+export interface CoreAIDecision {
+  action: CoreAIAction | string;
+  confidence: number;
+}
+
+export interface SpecialistAIDecision {
+  agree: boolean;
+  confidence: number;
+}
+
+export interface ExitAIDecision {
+  signal: ExitAISignal | string;
+  confidence: number;
+}
+
+export interface RiskAIDecision {
+  decision: RiskDecision | string;
+  heat: RiskHeat | string;
+}
+
+export interface AIDecisionResponse {
+  core: CoreAIDecision;
+  specialist: SpecialistAIDecision;
+  exit: ExitAIDecision;
+  risk: RiskAIDecision;
+  final_action: FinalAction | string;
+  regime: Regime;
+  ai_mode: AIMode | string;
+  timestamp: string;
+}

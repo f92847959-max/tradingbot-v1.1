@@ -9,8 +9,6 @@ import os
 from typing import TYPE_CHECKING
 
 from config.settings import Settings
-from database.connection import init_db, close_db, get_session
-from database.repositories.trade_repo import TradeRepository
 from market_data.broker_client import CapitalComClient
 from market_data.data_provider import DataProvider
 from market_data.historical import download_historical_candles
@@ -49,7 +47,11 @@ class LifecycleMixin:
             max_trades_per_day=settings.max_trades_per_day,
             kill_switch_drawdown_pct=settings.kill_switch_drawdown_pct,
         )
-        self.orders = OrderManager(self.broker)
+        self.orders = OrderManager(
+            self.broker,
+            exit_ai_enabled=settings.exit_ai_enabled,
+            exit_ai_saved_models_dir=settings.exit_ai_saved_models_dir,
+        )
         self.notifications = NotificationManager(
             enabled=settings.notifications_enabled,
         )
@@ -130,6 +132,8 @@ class LifecycleMixin:
 
         # 1. Database
         try:
+            from database.connection import init_db
+
             await init_db()
             logger.info("[OK] Database initialized")
         except Exception as e:
@@ -204,6 +208,8 @@ class LifecycleMixin:
         )
 
         # Load risk metrics cache from DB
+        from database.connection import get_session
+
         async with get_session() as session:
             await self.risk.metrics_cache.load_from_db(session)
 
@@ -218,6 +224,8 @@ class LifecycleMixin:
         logger.info("Historical data ready")
 
         # Recover open positions from database
+        from database.repositories.trade_repo import TradeRepository
+
         async with get_session() as session:
             trade_repo = TradeRepository(session)
             open_trades = await trade_repo.get_open_trades()
@@ -392,7 +400,12 @@ class LifecycleMixin:
         except Exception as e:
             logger.error("Error closing broker connection: %s", e)
 
-        await close_db()
+        try:
+            from database.connection import close_db
+
+            await close_db()
+        except Exception as e:
+            logger.error("Error closing database connection: %s", e)
         logger.info("Shutdown complete")
 
     def set_trading_mode(self: TradingSystem, mode: str) -> None:

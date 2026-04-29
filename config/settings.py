@@ -158,6 +158,10 @@ class Settings(BaseSettings):
     correlation_cache_ttl_seconds: int = 3600    # 1h TTL (RESEARCH Pitfall 3: yfinance rate limits)
     correlation_lookback_days: int = 200          # Need >=120 for corr_*_120 (RESEARCH Pitfall 2)
 
+    # -- Exit AI Specialist (Phase 14) ----------------------------------------
+    exit_ai_enabled: bool = False               # Opt-in for AI-driven trade management
+    exit_ai_saved_models_dir: str = "ai_engine/saved_models"
+
     # -- Order Flow / Orderbuch Analysis (Phase 13) ---------------------------
     orderflow_enabled: bool = False              # Opt-in; False = graceful OHLCV-only fallback
     orderflow_quote_enrichment_enabled: bool = False  # Optional Capital.com L1 quote quantities

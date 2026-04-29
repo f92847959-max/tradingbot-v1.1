@@ -1,15 +1,14 @@
 """Order Manager — orchestrates the full trade lifecycle."""
 
+from __future__ import annotations
+
 import asyncio
 import inspect
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from market_data.broker_client import CapitalComClient, Position, BrokerError
-from database.connection import get_session
-from database.repositories.trade_repo import TradeRepository, OrderLogRepository
-from database.models import Trade
 from shared.constants import TradeStatus, PIP_SIZE
 
 from exit_engine.partial_close import PartialCloseManager
@@ -17,12 +16,24 @@ from .order_executor import OrderExecutor
 from .position_monitor import PositionMonitor
 from .trailing_stop import TrailingStopManager
 
+if TYPE_CHECKING:
+    from database.models import Trade
+
 logger = logging.getLogger(__name__)
 
 # Number of attempts for DB writes that MUST succeed after a broker
 # side-effect (open/close) has already occurred.
 _DB_PERSIST_RETRIES: int = 3
 _DB_PERSIST_BACKOFF_SECONDS: float = 0.5
+
+
+def _get_db_dependencies():
+    """Load SQLAlchemy-backed repositories only when order persistence is needed."""
+    from database.connection import get_session
+    from database.models import Trade
+    from database.repositories.trade_repo import OrderLogRepository, TradeRepository
+
+    return get_session, Trade, TradeRepository, OrderLogRepository
 
 
 class OrderManager:
@@ -218,6 +229,7 @@ class OrderManager:
                 logger.warning("Could not fetch spread at entry: %s", e)
 
             # Persist to database
+            get_session, Trade, TradeRepository, OrderLogRepository = _get_db_dependencies()
             trade = Trade(
                 deal_id=result.deal_id,
                 opened_at=datetime.now(timezone.utc),
@@ -364,6 +376,7 @@ class OrderManager:
         except BrokerError as e:
             logger.error("Failed to open trade: %s", e)
             try:
+                get_session, _, _, OrderLogRepository = _get_db_dependencies()
                 async with get_session() as session:
                     log_repo = OrderLogRepository(session)
                     await log_repo.log_action(
@@ -382,6 +395,8 @@ class OrderManager:
         2. Close at broker
         3. Mark as CLOSED with P&L (or CLOSE_FAILED on error)
         """
+        get_session, _, TradeRepository, OrderLogRepository = _get_db_dependencies()
+
         # Phase 1: Mark as CLOSING in DB
         try:
             async with get_session() as session:
@@ -490,6 +505,7 @@ class OrderManager:
         results = await self.executor.close_all()
         count = sum(1 for r in results if r.status != "REJECTED")
         logger.critical("Kill switch: closed %d/%d positions", count, len(results))
+        get_session, _, TradeRepository, _ = _get_db_dependencies()
 
         # Persist closed status to DB for each successfully closed position
         for r in results:

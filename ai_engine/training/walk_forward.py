@@ -249,10 +249,10 @@ class WalkForwardValidator:
         }
 
         if trainer._xgboost.is_trained:
-            # Compute SHAP importance on TEST data (not training data)
+            # Compute SHAP importance on VALIDATION data (not test data to avoid leakage)
             shap_importance = compute_shap_importance(
                 model=trainer._xgboost.model,
-                X_data=X_test_scaled,
+                X_data=X_val_scaled,
                 feature_names=feature_names,
                 max_samples=2000,
             )
@@ -304,7 +304,9 @@ class WalkForwardValidator:
                     pruning_accepted = True  # Default accept if can't compare
                     if full_model_eval and full_model_eval.get("n_trades", 0) > 0:
                         try:
-                            y_probs_pruned = trainer._xgboost.predict(X_test_pruned)
+                            # Convert to DataFrame to keep feature names and avoid LightGBM warnings
+                            X_test_pruned_df = pd.DataFrame(X_test_pruned, columns=kept_features)
+                            y_probs_pruned = trainer._xgboost.predict(X_test_pruned_df.values)
                             pruned_eval = trainer._evaluator.evaluate_trading(
                                 y_test,
                                 probs_to_trade_signals(
@@ -399,8 +401,12 @@ class WalkForwardValidator:
             if not model.is_trained:
                 continue
             try:
-                y_probs_test_raw = model.predict(X_test_scaled)
-                y_probs_val_raw = model.predict(X_val_scaled)
+                # Use DataFrames to keep feature names and avoid LightGBM warnings
+                X_test_scaled_df = pd.DataFrame(X_test_scaled, columns=selected_features)
+                X_val_scaled_df = pd.DataFrame(X_val_scaled, columns=selected_features)
+
+                y_probs_test_raw = model.predict(X_test_scaled_df)
+                y_probs_val_raw = model.predict(X_val_scaled_df)
 
                 calibrator = fit_calibrator(
                     y_probs_val_raw,

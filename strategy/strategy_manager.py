@@ -101,22 +101,22 @@ class StrategyManager:
             df = mtf_data["5m"]
             if not df.empty:
                 last = df.iloc[-1]
-                adx = float(last.get("adx", 0) or 0) or None
-                atr = float(last.get("atr_14", 0) or 0) or None
+                # Flexible indicator lookup
+                adx = float(last.get("adx", last.get("adx_14", 0)) or 0) or None
+                atr_col = "atr_14" if "atr_14" in df.columns else "atr"
+                atr = float(last.get(atr_col, 0) or 0) or None
                 if atr and len(df) >= 20:
-                    atr_average = float(df["atr_14"].tail(20).mean()) if "atr_14" in df.columns else None
+                    atr_average = float(df[atr_col].tail(20).mean()) if atr_col in df.columns else None
 
         # 6. Detect market regime
         regime_state: Optional[RegimeState] = None
         regime = MarketRegime.RANGING  # safest default fallback
         if mtf_data and "5m" in mtf_data:
             df = mtf_data["5m"]
-            # Warmup: need at least 50 candles AND a non-empty atr_14
-            # column. A short window can produce NaN-only ATR which
-            # would otherwise leak a bogus RANGING classification.
+            atr_col = "atr_14" if "atr_14" in df.columns else "atr"
             has_atr = (
-                "atr_14" in df.columns
-                and not df["atr_14"].isna().all()
+                atr_col in df.columns
+                and not df[atr_col].isna().all()
             )
             if not df.empty and len(df) >= 50 and has_atr:
                 regime_state = self.regime_detector.detect(df)
@@ -126,6 +126,13 @@ class StrategyManager:
         regime_params = get_regime_params(regime)
         effective_min_confidence = regime_params["min_confidence"]
         effective_min_score = regime_params["min_trade_score"]
+
+        # Dynamic Threshold Adjustment (Research-based improvement)
+        # If regime detection is low confidence, be more selective.
+        if regime_state and regime_state.confidence < 0.6:
+            effective_min_score += 5
+            logger.debug("Regime confidence low (%.2f), increasing min_score to %d",
+                         regime_state.confidence, effective_min_score)
 
         # 7. Re-check confidence against regime-specific threshold
         if confidence < effective_min_confidence:
@@ -148,9 +155,10 @@ class StrategyManager:
 
         if trade_score < effective_min_score:
             logger.info(
-                "Signal rejected: score %d < %d regime minimum (action=%s, conf=%.3f, session=%s, align=%.2f, regime=%s)",
+                "Signal rejected: score %d < %d required (action=%s, conf=%.3f, session=%s, align=%.2f, regime=%s, regime_conf=%.2f)",
                 trade_score, effective_min_score, action, confidence,
                 current_session, mtf_alignment, regime.value,
+                regime_state.confidence if regime_state else 0.0
             )
             return None
 
