@@ -207,7 +207,7 @@ def summarize_dataframe(df: pd.DataFrame, source: str, timeframe: str) -> Dict[s
     rows = int(len(df))
     start_ts = _to_iso(df["timestamp"].iloc[0]) if rows > 0 else None
     end_ts = _to_iso(df["timestamp"].iloc[-1]) if rows > 0 else None
-    return {
+    summary = {
         "source": source,
         "timeframe": timeframe,
         "rows": rows,
@@ -215,6 +215,13 @@ def summarize_dataframe(df: pd.DataFrame, source: str, timeframe: str) -> Dict[s
         "end_timestamp": end_ts,
         "columns": list(df.columns),
     }
+    if rows >= 2:
+        timestamps = pd.to_datetime(df["timestamp"], utc=True, errors="coerce").dropna()
+        if len(timestamps) >= 2:
+            duration_hours = (timestamps.iloc[-1] - timestamps.iloc[0]).total_seconds() / 3600.0
+            summary["duration_hours"] = round(duration_hours, 6)
+            summary["duration_days"] = round(duration_hours / 24.0, 6)
+    return summary
 
 
 def ensure_min_rows(df: pd.DataFrame, min_rows: int) -> None:

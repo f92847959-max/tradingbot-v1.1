@@ -9,9 +9,11 @@ Usage:
 
 import argparse
 import asyncio
+import json
 import logging
 import sys
 import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -21,6 +23,19 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ai_engine.training.trainer import ModelTrainer
+from ai_engine.training.data_coverage import (
+    build_dataset_manifest,
+    build_row_loss_report,
+    calculate_trainable_span,
+    write_dataset_manifest,
+)
+from ai_engine.training.data_source import (
+    DataSourceError,
+    DataLoadResult,
+    load_auto,
+    load_from_db,
+    load_from_file,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +65,108 @@ def _ensure_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     logger.info("Computing technical indicators (atr_14, rsi_14, ema_*, ...)")
     return calculate_indicators(df)
+
+
+def _source_details(source: str, timeframe: str, rows: int, **extra) -> dict:
+    details = {"source": source, "timeframe": timeframe, "rows": int(rows)}
+    details.update({key: value for key, value in extra.items() if value is not None})
+    return details
+
+
+def _load_json_file(path: str | None) -> dict | None:
+    if not path:
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _preflight_dataset(
+    df: pd.DataFrame,
+    source_details: dict,
+    *,
+    args,
+) -> dict:
+    """Run coverage preflight and optionally write a dataset manifest."""
+    stage_counts = {
+        "received": int(source_details.get("rows", len(df))),
+        "saved": int(len(df)),
+        "normalized": int(len(df)),
+        "feature_ready": int(len(df)),
+        "label_ready": int(len(df)),
+    }
+    row_loss = build_row_loss_report(stage_counts)
+    manifest = build_dataset_manifest(
+        source_details,
+        df,
+        row_loss,
+        feature_set="core",
+        label_set="entry",
+        min_months=args.min_data_months,
+    )
+    if not args.allow_short_data:
+        calculate_trainable_span(df, min_months=args.min_data_months)
+    if args.manifest_out:
+        manifest_path = write_dataset_manifest(manifest, args.manifest_out)
+        logger.info("Dataset manifest written to %s", manifest_path)
+    return manifest
+
+
+def _normalise_loaded_result(result: DataLoadResult) -> tuple[pd.DataFrame, dict]:
+    df = result.dataframe
+    details = dict(result.details)
+    details.setdefault("source", result.source)
+    details.setdefault("timeframe", result.timeframe)
+    details.setdefault("rows", len(df))
+    return df, details
+
+
+async def _load_configured_source(args) -> tuple[pd.DataFrame, dict]:
+    if args.source == "auto":
+        return _normalise_loaded_result(
+            await load_auto(
+                timeframe=args.timeframe,
+                count=args.count,
+                file_path=args.csv,
+                with_indicators=False,
+            )
+        )
+    if args.source == "db":
+        return _normalise_loaded_result(
+            await load_from_db(
+                timeframe=args.timeframe,
+                count=args.count,
+                with_indicators=False,
+            )
+        )
+    if args.source == "csv":
+        if not args.csv:
+            raise DataSourceError("--source csv requires --csv <path>")
+        return _normalise_loaded_result(
+            load_from_file(
+                args.csv,
+                timeframe=args.timeframe,
+                with_indicators=False,
+            )
+        )
+    if args.source == "broker":
+        save_path = args.save_csv or f"data/gold_{args.timeframe}.csv"
+        effective_save_csv = None if args.dry_run else save_path
+        df = await fetch_broker_data(
+            count=args.count,
+            timeframe=args.timeframe,
+            save_csv=effective_save_csv,
+        )
+        return df, _source_details(
+            "broker",
+            args.timeframe,
+            len(df),
+            save_csv=effective_save_csv,
+        )
+    if args.source == "synthetic":
+        candles = args.synthetic if args.synthetic > 0 else args.count
+        df = generate_synthetic_data(candles)
+        return df, _source_details("synthetic", args.timeframe, len(df))
+    raise DataSourceError(f"Unsupported --source value: {args.source}")
 
 
 def _warn_if_credentials_in_onedrive() -> None:
@@ -189,6 +306,12 @@ async def fetch_broker_data(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train Gold trading models")
+    parser.add_argument(
+        "--source",
+        choices=["auto", "db", "csv", "broker", "synthetic"],
+        default=None,
+        help="Training data source. Omit to keep legacy --broker/--csv/--synthetic behavior.",
+    )
     parser.add_argument("--csv", type=str, help="Path to CSV with OHLCV data")
     parser.add_argument("--broker", action="store_true", help="Fetch real data from Capital.com API")
     parser.add_argument(
@@ -216,6 +339,24 @@ def main() -> None:
     parser.add_argument(
         "--min-data-months", type=int, default=6,
         help="Minimum months of data required for training (default: 6)",
+    )
+    parser.add_argument(
+        "--manifest-out",
+        type=str,
+        default=None,
+        help="Optional path for dataset coverage manifest JSON.",
+    )
+    parser.add_argument(
+        "--allow-short-data",
+        action="store_true",
+        default=False,
+        help="Skip trainable-span preflight and pass min_data_months=0 to training.",
+    )
+    parser.add_argument(
+        "--champion-report",
+        type=str,
+        default=None,
+        help="Optional JSON report for promotion-gate comparison.",
     )
     parser.add_argument(
         "--dynamic-atr", action="store_true", default=True,
@@ -258,8 +399,33 @@ def main() -> None:
         tp_atr_multiplier=args.tp_atr_mult,
         sl_atr_multiplier=args.sl_atr_mult,
     )
+    effective_min_months = 0 if args.allow_short_data else args.min_data_months
+    champion_report = _load_json_file(args.champion_report)
+    dataset_manifest = None
 
-    if args.broker:
+    if args.source:
+        df, details = asyncio.run(_load_configured_source(args))
+        df = _ensure_indicators(df)
+        _require_min_candles(
+            df, min_candles=args.min_candles, timeframe=args.timeframe,
+        )
+        dataset_manifest = _preflight_dataset(df, details, args=args)
+        if args.dry_run:
+            logger.info(
+                "DRY-RUN: would train on %d %s candles from %s and save to %s. Skipped.",
+                len(df), args.timeframe, details.get("source"), args.output,
+            )
+            return
+        results = trainer.train_all(
+            df,
+            timeframe=args.timeframe,
+            min_data_months=effective_min_months,
+            champion_report=champion_report,
+            enforce_promotion_gate=champion_report is not None,
+            dataset_manifest=dataset_manifest,
+        )
+
+    elif args.broker:
         save_path = args.save_csv or f"data/gold_{args.timeframe}.csv"
         print(f"Fetching real data from Capital.com (count={args.count}, tf={args.timeframe})...")
         # Dry-run: do not persist fetched candles to CSV.
@@ -275,6 +441,11 @@ def main() -> None:
         _require_min_candles(
             df, min_candles=args.min_candles, timeframe=args.timeframe,
         )
+        dataset_manifest = _preflight_dataset(
+            df,
+            _source_details("broker", args.timeframe, len(df), save_csv=effective_save_csv),
+            args=args,
+        )
         if args.dry_run:
             logger.info(
                 "DRY-RUN: would train on %d real broker candles "
@@ -285,7 +456,12 @@ def main() -> None:
         print(f"Training on {len(df)} real broker candles...")
         print(f"  TP={args.tp_pips} pips, SL={args.sl_pips} pips, max_holding={args.max_holding}")
         results = trainer.train_all(
-            df, timeframe=args.timeframe, min_data_months=args.min_data_months,
+            df,
+            timeframe=args.timeframe,
+            min_data_months=effective_min_months,
+            champion_report=champion_report,
+            enforce_promotion_gate=champion_report is not None,
+            dataset_manifest=dataset_manifest,
         )
     elif args.csv:
         print(f"Loading data from: {args.csv}")
@@ -303,8 +479,18 @@ def main() -> None:
         _require_min_candles(
             df, min_candles=args.min_candles, timeframe=args.timeframe,
         )
+        dataset_manifest = _preflight_dataset(
+            df,
+            _source_details("csv", args.timeframe, len(df), file_path=args.csv),
+            args=args,
+        )
         results = trainer.train_all(
-            df, timeframe=args.timeframe, min_data_months=args.min_data_months,
+            df,
+            timeframe=args.timeframe,
+            min_data_months=effective_min_months,
+            champion_report=champion_report,
+            enforce_promotion_gate=champion_report is not None,
+            dataset_manifest=dataset_manifest,
         )
     elif args.synthetic > 0:
         print(f"Generating {args.synthetic} synthetic candles...")
@@ -313,6 +499,11 @@ def main() -> None:
         _require_min_candles(
             df, min_candles=args.min_candles, timeframe=args.timeframe,
         )
+        dataset_manifest = _preflight_dataset(
+            df,
+            _source_details("synthetic", args.timeframe, len(df)),
+            args=args,
+        )
         if args.dry_run:
             logger.info(
                 "DRY-RUN: would train on %d synthetic candles and save to %s. Skipped.",
@@ -320,7 +511,12 @@ def main() -> None:
             )
             return
         results = trainer.train_all(
-            df, timeframe=args.timeframe, min_data_months=args.min_data_months,
+            df,
+            timeframe=args.timeframe,
+            min_data_months=effective_min_months,
+            champion_report=champion_report,
+            enforce_promotion_gate=champion_report is not None,
+            dataset_manifest=dataset_manifest,
         )
     else:
         print("Provide --broker, --csv <path>, or --synthetic <count>")
@@ -365,6 +561,14 @@ def main() -> None:
         best_pf = agg.get(best, {}).get("profit_factor", 0)
         print(f"  Best model: {best.upper()} (PF={best_pf:.2f})")
 
+    promotion = results.get("promotion_decision", {})
+    if promotion:
+        print(
+            "  Promotion: "
+            f"{'approved' if promotion.get('approved') else 'blocked'} "
+            f"({', '.join(promotion.get('reasons', [])) or promotion.get('mode', '')})"
+        )
+
     # Feature pruning summary
     pruning = results.get("feature_pruning", {})
     if pruning:
@@ -388,6 +592,9 @@ def main() -> None:
     if version_dir:
         report_path = os.path.join(version_dir, "training_report.json")
         print(f"  Training report: {report_path}")
+        print(f"  Promotion decision: {os.path.join(version_dir, 'promotion_decision.json')}")
+        if promotion.get("approved"):
+            print(f"  Shadow manifest: {os.path.join(version_dir, 'shadow_training_manifest.json')}")
 
 
 if __name__ == "__main__":

@@ -40,6 +40,8 @@ def test_load_from_file_normalizes_and_sorts(tmp_path) -> None:
     assert out["timestamp"].is_monotonic_increasing
     assert isinstance(out.index, pd.DatetimeIndex)
     assert set(["open", "high", "low", "close", "volume"]).issubset(out.columns)
+    assert loaded.details["duration_days"] > 0
+    assert loaded.details["duration_hours"] > 0
 
 
 def test_load_from_file_missing_required_column(tmp_path) -> None:

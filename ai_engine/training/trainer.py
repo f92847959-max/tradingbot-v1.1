@@ -122,12 +122,18 @@ class ModelTrainer:
         feature_selection: bool = True,
         min_feature_importance: float = 0.005,
         min_data_months: int = 6,
+        champion_report: Dict[str, Any] | None = None,
+        enforce_promotion_gate: bool = False,
+        dataset_manifest: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         """Train all models using walk-forward pipeline."""
         pipeline = TrainingPipeline(self)
         return pipeline.run(
             df, timeframe, feature_selection, min_feature_importance,
             min_data_months=min_data_months,
+            champion_report=champion_report,
+            enforce_promotion_gate=enforce_promotion_gate,
+            dataset_manifest=dataset_manifest,
         )
 
     def train_from_csv(

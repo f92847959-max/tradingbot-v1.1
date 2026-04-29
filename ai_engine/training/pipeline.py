@@ -28,6 +28,18 @@ from .model_versioning import (
     update_production_pointer,
     cleanup_old_versions,
 )
+from .causal_training_labels import (
+    CausalLabelConfig,
+    build_causal_label_frame,
+    build_label_manifest,
+    build_split_manifest,
+)
+from .data_coverage import build_row_loss_report
+from .promotion_gate import (
+    build_shadow_training_manifest,
+    evaluate_training_promotion,
+    write_promotion_decision,
+)
 from .shap_importance import save_feature_importance_chart
 from .walk_forward import (
     WalkForwardValidator,
@@ -54,6 +66,9 @@ class TrainingPipeline:
         feature_selection: bool = True,
         min_feature_importance: float = 0.005,
         min_data_months: int = 6,
+        champion_report: Dict[str, Any] | None = None,
+        enforce_promotion_gate: bool = False,
+        dataset_manifest: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         """Run the walk-forward training pipeline."""
         df = df.copy()  # Prevent SettingWithCopyWarning
@@ -66,6 +81,11 @@ class TrainingPipeline:
         logger.info(f"\n{'='*60}")
         logger.info(f"1/7 Validating data... ({len(df)} candles)")
         logger.info(f"{'='*60}")
+        row_counts: Dict[str, int] = {
+            "received": int(len(df)),
+            "saved": int(len(df)),
+            "normalized": int(len(df)),
+        }
 
         required_cols = ["open", "high", "low", "close"]
         missing = [c for c in required_cols if c not in df.columns]
@@ -89,6 +109,7 @@ class TrainingPipeline:
         logger.info("\n2/7 Computing features...")
         df = self._t._feature_engineer.create_features(df, timeframe=timeframe)
         feature_names = self._t._feature_engineer.get_feature_names()
+        row_counts["feature_ready"] = int(len(df))
         logger.info(f"  -> {len(feature_names)} features created")
 
         # ================================================================
@@ -98,7 +119,19 @@ class TrainingPipeline:
             f"\n3/7 Generating labels "
             f"(Triple Barrier + Spread={self._t.spread_pips} pips)..."
         )
-        df["label"] = self._t._label_generator.generate_labels(df)
+        label_config = CausalLabelConfig.from_label_generator(
+            self._t._label_generator,
+        )
+        causal_labels = build_causal_label_frame(
+            df,
+            self._t._label_generator,
+            label_config,
+        )
+        df["label"] = causal_labels["entry_label"]
+        results["label_manifest"] = build_label_manifest(
+            label_config,
+            list(causal_labels.columns),
+        )
         raw_label_stats = self._t._label_generator.get_label_stats(df["label"])
         results["label_stats_raw"] = raw_label_stats
 
@@ -107,6 +140,8 @@ class TrainingPipeline:
         # ================================================================
         logger.info("\n4/7 Removing warmup period...")
         df = self._t._data_prep.remove_warmup_period(df, warmup_candles=200)
+        row_counts["label_ready"] = int(len(df))
+        results["row_loss"] = build_row_loss_report(row_counts)
         # NOTE: Do NOT trim the label-horizon tail here. `generate_labels()`
         # already handles horizon boundary conditions, and trimming again
         # breaks walking-forward alignment (double tail removal).
@@ -139,6 +174,12 @@ class TrainingPipeline:
             min_test_samples=200,
         )
         windows = validator.calculate_windows(len(X))
+        results["split_manifest"] = build_split_manifest(
+            windows,
+            purge_gap=dynamic_purge_gap,
+            feature_names=feature_names,
+            label_columns=results["label_manifest"]["label_columns"],
+        )
         logger.info(f"  Walk-forward: {len(windows)} expanding windows")
         logger.info(f"  Purge gap: {dynamic_purge_gap} candles")
 
@@ -264,6 +305,25 @@ class TrainingPipeline:
         logger.info(f"Training report saved to: {report_path}")
 
         results["training_report"] = report
+        if champion_report is not None:
+            promotion_decision = evaluate_training_promotion(
+                candidate_report={
+                    **report,
+                    "split_manifest": results.get("split_manifest", {}),
+                },
+                champion_report=champion_report,
+            )
+        else:
+            promotion_decision = {
+                "approved": False,
+                "mode": "blocked",
+                "reasons": ["champion_report_missing"],
+                "gate_metrics": {},
+                "candidate_version": report.get("version", version_name),
+                "champion_version": None,
+                "created_at": datetime.now().isoformat(),
+            }
+        results["promotion_decision"] = promotion_decision
 
         # Save feature importance chart as PNG in version directory
         chart_path = ""
@@ -341,6 +401,10 @@ class TrainingPipeline:
             "aggregate_metrics": aggregate_metrics,
             # NEW: Training report reference
             "training_report": report,
+            "label_manifest": results["label_manifest"],
+            "split_manifest": results["split_manifest"],
+            "row_loss": results["row_loss"],
+            "promotion_decision": promotion_decision,
             # NEW Phase 3: SHAP importance data (TRAIN-03)
             "shap_importance": final_shap_importance,
             # NEW Phase 3: Feature pruning summary (TRAIN-04)
@@ -389,9 +453,32 @@ class TrainingPipeline:
                     "sharpe_ratio", 0
                 )
 
+        decision_path = write_promotion_decision(
+            promotion_decision,
+            os.path.join(version_dir, "promotion_decision.json"),
+        )
+        logger.info("Promotion decision saved to: %s", decision_path)
+
+        if promotion_decision.get("approved"):
+            manifest = build_shadow_training_manifest(
+                promotion_decision,
+                dataset_manifest or {},
+                results.get("split_manifest", {}),
+            )
+            shadow_path = os.path.join(version_dir, "shadow_training_manifest.json")
+            with open(shadow_path, "w", encoding="utf-8") as f:
+                json.dump(manifest, f, indent=2, ensure_ascii=False)
+            logger.info("Shadow training manifest saved to: %s", shadow_path)
+
         # Write version.json, update production pointer, cleanup old versions
         write_version_json(version_dir, version_data)
-        update_production_pointer(self._t.saved_models_dir, version_dir)
+        if promotion_decision.get("approved") or not enforce_promotion_gate:
+            update_production_pointer(self._t.saved_models_dir, version_dir)
+        else:
+            logger.warning(
+                "Promotion blocked; production pointer not updated: %s",
+                promotion_decision.get("reasons", []),
+            )
         cleanup_old_versions(self._t.saved_models_dir, keep=5)
 
         logger.info(f"\n{'='*60}")
