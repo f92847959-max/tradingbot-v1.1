@@ -11,6 +11,7 @@ from typing import Any, TYPE_CHECKING
 from market_data.broker_client import CapitalComClient, Position, BrokerError
 from shared.constants import TradeStatus, PIP_SIZE
 
+from database.connection import get_session
 from exit_engine.partial_close import PartialCloseManager
 from .order_executor import OrderExecutor
 from .position_monitor import PositionMonitor
@@ -29,7 +30,6 @@ _DB_PERSIST_BACKOFF_SECONDS: float = 0.5
 
 def _get_db_dependencies():
     """Load SQLAlchemy-backed repositories only when order persistence is needed."""
-    from database.connection import get_session
     from database.models import Trade
     from database.repositories.trade_repo import OrderLogRepository, TradeRepository
 

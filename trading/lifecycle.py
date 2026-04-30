@@ -9,6 +9,7 @@ import os
 from typing import TYPE_CHECKING
 
 from config.settings import Settings
+from database.connection import close_db, init_db
 from market_data.broker_client import CapitalComClient
 from market_data.data_provider import DataProvider
 from market_data.historical import download_historical_candles
@@ -133,8 +134,6 @@ class LifecycleMixin:
 
         # 1. Database
         try:
-            from database.connection import init_db
-
             await init_db()
             logger.info("[OK] Database initialized")
         except Exception as e:
@@ -421,8 +420,6 @@ class LifecycleMixin:
             logger.error("Error closing broker connection: %s", e)
 
         try:
-            from database.connection import close_db
-
             await close_db()
         except Exception as e:
             logger.error("Error closing database connection: %s", e)

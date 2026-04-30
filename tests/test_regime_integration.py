@@ -224,7 +224,10 @@ class TestTradeScorerRegime:
     def test_trending_boosts_adx_score(self):
         """Test 5: TRENDING regime boosts trend ADX score."""
         scorer = TradeScorer()
-        signal = _make_signal()
+        # Use RR=3.0 (entry=2050, sl=2047, tp=2059) so RR scoring is the
+        # maximum in every regime and the only remaining variable is the
+        # regime-adjusted trend (ADX) score this test is asserting on.
+        signal = _make_signal(tp=2059.0)
 
         # ADX=30 is in the >= 25 bucket
         # TRENDING: 12 pts, Original: 10 pts
@@ -242,7 +245,10 @@ class TestTradeScorerRegime:
     def test_ranging_reduces_adx_score(self):
         """Test 6: RANGING regime reduces trend ADX score."""
         scorer = TradeScorer()
-        signal = _make_signal()
+        # Same RR=3.0 trick as test_trending_boosts_adx_score so that the
+        # RR sub-score is identical across regimes and we only measure the
+        # ADX delta.
+        signal = _make_signal(tp=2059.0)
 
         # ADX=30 is in the >= 25 bucket
         # RANGING: 7 pts, Original: 10 pts
