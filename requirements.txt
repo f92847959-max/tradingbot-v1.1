@@ -28,3 +28,4 @@ pytest-asyncio>=1.0.0
 feedparser==6.0.12
 vaderSentiment==3.3.2
 dukascopy-python>=4.0.1  # Bulk XAU/USD historical fetcher (scripts/fetch_bulk_history.py)
+rich>=13.7.0
