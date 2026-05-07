@@ -116,6 +116,7 @@ class FeatureEngineer:
         self,
         sentiment_aggregator=None,
         sentiment_enabled: bool = False,
+        specialist_stride: int = 12,
     ) -> None:
         """Initialize the FeatureEngineer with all sub-feature calculators."""
         self._technical = TechnicalFeatures()
@@ -126,7 +127,7 @@ class FeatureEngineer:
         self._orderflow = OrderFlowFeatures()
         self._sr = SupportResistanceFeatures()
         self._correlation = CorrelationFeatures()
-        self._specialist = MarketStructureLiquidityFeatures()
+        self._specialist = MarketStructureLiquidityFeatures(stride=specialist_stride)
         self._sentiment_enabled = sentiment_enabled
         self._sentiment = SentimentFeatures(aggregator=sentiment_aggregator)
 

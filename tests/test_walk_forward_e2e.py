@@ -219,25 +219,22 @@ def test_walk_forward_e2e(tmp_path):
     assert saved_report["summary"]["n_windows"] >= 5
 
     # ================================================================
-    # Additional: production.json exists
+    # Additional: no production promotion without champion report
     # ================================================================
     production_path = os.path.join(saved_models_dir, "production.json")
-    assert os.path.isfile(production_path), "production.json missing"
-    with open(production_path, "r", encoding="utf-8") as f:
-        production = json.load(f)
-    assert production["version_dir"] == version_dirs[0]
+    assert not os.path.isfile(production_path), (
+        "production.json should not be written without a champion report"
+    )
+    assert version_data["promotion_decision"]["approved"] is False
+    assert "champion_report_missing" in version_data["promotion_decision"]["reasons"]
 
     # ================================================================
-    # Additional: model files exist in version dir and base dir
+    # Additional: model files exist in the candidate version dir
     # ================================================================
     for model_file in ["xgboost_gold.pkl", "lightgbm_gold.pkl"]:
         version_model = os.path.join(version_dir, model_file)
-        base_model = os.path.join(saved_models_dir, model_file)
         assert os.path.isfile(version_model), (
             f"{model_file} missing from version dir"
-        )
-        assert os.path.isfile(base_model), (
-            f"{model_file} missing from base dir (backward compat)"
         )
 
     # ================================================================

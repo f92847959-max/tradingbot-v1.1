@@ -22,6 +22,7 @@ from .model_versioning import (
     cleanup_old_versions,
     create_specialist_version_dir,
     get_specialist_root,
+    resolve_version_dir_from_pointer,
     update_specialist_production_pointer,
     write_version_json,
 )
@@ -158,10 +159,7 @@ def load_specialist_bundle(
     with open(pointer_path, "r", encoding="utf-8") as f:
         pointer = json.load(f)
 
-    version_dir = str(pointer.get("path") or os.path.join(
-        root_dir,
-        str(pointer.get("version_dir", "")),
-    ))
+    version_dir = resolve_version_dir_from_pointer(root_dir, pointer)
     feature_block_path = os.path.join(version_dir, "feature_block.json")
     version_json_path = os.path.join(version_dir, "specialist_version.json")
     if not os.path.exists(version_json_path):

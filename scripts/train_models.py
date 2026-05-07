@@ -367,6 +367,18 @@ def main() -> None:
         help="Use fixed pip TP/SL (legacy mode)",
     )
     parser.add_argument(
+        "--exit-aware-labels",
+        action="store_true",
+        default=True,
+        help="Demote entry labels when deterministic exit logic would bail early (default).",
+    )
+    parser.add_argument(
+        "--no-exit-aware-labels",
+        dest="exit_aware_labels",
+        action="store_false",
+        help="Disable exit-aware label demotion.",
+    )
+    parser.add_argument(
         "--tp-atr-mult", type=float, default=2.0,
         help="ATR multiplier for take-profit (default: 2.0)",
     )
@@ -398,6 +410,7 @@ def main() -> None:
         use_dynamic_atr=args.dynamic_atr,
         tp_atr_multiplier=args.tp_atr_mult,
         sl_atr_multiplier=args.sl_atr_mult,
+        exit_aware_labels=args.exit_aware_labels,
     )
     effective_min_months = 0 if args.allow_short_data else args.min_data_months
     champion_report = _load_json_file(args.champion_report)
@@ -533,6 +546,7 @@ def main() -> None:
     print(f"  Features: {meta.get('n_features_selected', 0)}")
     print(f"  Samples:  {meta.get('n_samples_total', 0)}")
     print(f"  Dynamic ATR: {'enabled' if args.dynamic_atr else 'disabled'}")
+    print(f"  Exit-aware labels: {'enabled' if args.exit_aware_labels else 'disabled'}")
     if args.dynamic_atr:
         print(f"  ATR multipliers: TP={args.tp_atr_mult}x, SL={args.sl_atr_mult}x")
 
@@ -584,6 +598,13 @@ def main() -> None:
         chart_file = os.path.join(version_dir, "feature_importance.png")
         if os.path.exists(chart_file):
             print(f"  Feature importance chart: {chart_file}")
+        diagnostic_dir = os.path.join(version_dir, "charts")
+        if os.path.isdir(diagnostic_dir):
+            chart_count = len([
+                name for name in os.listdir(diagnostic_dir)
+                if name.lower().endswith(".png")
+            ])
+            print(f"  Diagnostic charts: {chart_count} -> {diagnostic_dir}")
 
     print(f"  Version dir: {version_dir}")
     print(f"  Models saved to: {args.output}")

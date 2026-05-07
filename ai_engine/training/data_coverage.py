@@ -27,10 +27,26 @@ def _timestamps(df: pd.DataFrame) -> pd.Series:
     return ts.sort_values().reset_index(drop=True)
 
 
+def _weekend_seconds_between(start: pd.Timestamp, end: pd.Timestamp) -> float:
+    if end <= start:
+        return 0.0
+
+    total = 0.0
+    cursor = start
+    while cursor < end:
+        next_day = cursor.normalize() + pd.Timedelta(days=1)
+        segment_end = min(next_day, end)
+        if cursor.weekday() >= 5:
+            total += (segment_end - cursor).total_seconds()
+        cursor = segment_end
+    return total
+
+
 def _span_payload(df: pd.DataFrame, min_months: int = 6) -> dict[str, Any]:
     ts = _timestamps(df)
     rows = int(len(df))
     minimum_days = float(min_months) * 30.44
+    minimum_rows = max(10, int(min_months) * 20)
 
     if len(ts) < 2:
         return {
@@ -39,6 +55,10 @@ def _span_payload(df: pd.DataFrame, min_months: int = 6) -> dict[str, Any]:
             "trainable_hours": 0.0,
             "available_months": 0.0,
             "minimum_days": minimum_days,
+            "minimum_rows": minimum_rows,
+            "timestamp_rows": int(len(ts)),
+            "coverage_ratio": 0.0,
+            "median_interval_seconds": None,
             "start_timestamp": ts.iloc[0].isoformat() if len(ts) == 1 else None,
             "end_timestamp": ts.iloc[-1].isoformat() if len(ts) == 1 else None,
         }
@@ -47,12 +67,37 @@ def _span_payload(df: pd.DataFrame, min_months: int = 6) -> dict[str, Any]:
     end = ts.iloc[-1]
     hours = (end - start).total_seconds() / 3600.0
     days = hours / 24.0
+    deltas = ts.diff().dropna().dt.total_seconds()
+    median_interval = float(deltas.median()) if len(deltas) else 0.0
+    if median_interval > 0:
+        total_seconds = (end - start).total_seconds()
+        expected_rows = total_seconds / median_interval + 1.0
+        coverage_ratio = min(float(len(ts)) / max(expected_rows, 1.0), 1.0)
+        active_seconds = max(
+            median_interval,
+            total_seconds - _weekend_seconds_between(start, end),
+        )
+        active_expected_rows = active_seconds / median_interval + 1.0
+        weekday_market_coverage_ratio = min(
+            float(len(ts)) / max(active_expected_rows, 1.0),
+            1.0,
+        )
+    else:
+        coverage_ratio = 0.0
+        weekday_market_coverage_ratio = 0.0
     return {
         "rows": rows,
         "trainable_days": round(days, 6),
         "trainable_hours": round(hours, 6),
         "available_months": round(days / 30.44, 6),
         "minimum_days": minimum_days,
+        "minimum_rows": minimum_rows,
+        "timestamp_rows": int(len(ts)),
+        "coverage_ratio": round(coverage_ratio, 6),
+        "weekday_market_coverage_ratio": round(
+            weekday_market_coverage_ratio, 6
+        ),
+        "median_interval_seconds": round(median_interval, 6) if median_interval else None,
         "start_timestamp": start.isoformat(),
         "end_timestamp": end.isoformat(),
     }
@@ -64,11 +109,36 @@ def calculate_trainable_span(
 ) -> dict[str, Any]:
     """Return trainable span metadata and fail if it is below min_months."""
     payload = _span_payload(df, min_months=min_months)
+    if payload["timestamp_rows"] < payload["minimum_rows"]:
+        raise DataCoverageError(
+            "Insufficient trainable rows: "
+            f"timestamp_rows={payload['timestamp_rows']} "
+            f"minimum_rows={payload['minimum_rows']} "
+            f"trainable_days={payload['trainable_days']} "
+            f"start_timestamp={payload['start_timestamp']} "
+            f"end_timestamp={payload['end_timestamp']} "
+            f"rows={payload['rows']}"
+        )
     if payload["trainable_days"] < payload["minimum_days"]:
         raise DataCoverageError(
             "Insufficient trainable history: "
             f"trainable_days={payload['trainable_days']} "
             f"minimum_days={payload['minimum_days']} "
+            f"start_timestamp={payload['start_timestamp']} "
+            f"end_timestamp={payload['end_timestamp']} "
+            f"rows={payload['rows']}"
+        )
+    if (
+        payload["coverage_ratio"] < 0.80
+        and payload.get("weekday_market_coverage_ratio", 0.0) < 0.80
+    ):
+        raise DataCoverageError(
+            "Insufficient timestamp coverage density: "
+            f"coverage_ratio={payload['coverage_ratio']} "
+            f"weekday_market_coverage_ratio="
+            f"{payload.get('weekday_market_coverage_ratio', 0.0)} "
+            f"median_interval_seconds={payload['median_interval_seconds']} "
+            f"timestamp_rows={payload['timestamp_rows']} "
             f"start_timestamp={payload['start_timestamp']} "
             f"end_timestamp={payload['end_timestamp']} "
             f"rows={payload['rows']}"
@@ -137,6 +207,10 @@ def build_dataset_manifest(
         "trainable_hours": span["trainable_hours"],
         "available_months": span["available_months"],
         "minimum_days": span["minimum_days"],
+        "minimum_rows": span["minimum_rows"],
+        "timestamp_rows": span["timestamp_rows"],
+        "coverage_ratio": span["coverage_ratio"],
+        "median_interval_seconds": span["median_interval_seconds"],
         "start_timestamp": span["start_timestamp"],
         "end_timestamp": span["end_timestamp"],
         "dropped_rows": row_loss.get("dropped_rows", {}),

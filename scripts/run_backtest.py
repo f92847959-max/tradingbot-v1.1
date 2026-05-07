@@ -97,7 +97,10 @@ def main() -> None:
     sl_pips = label_params.get("sl_pips", 30.0)
     spread_pips = label_params.get("spread_pips", 2.5)
     pip_size = label_params.get("pip_size", 0.01)
-    max_holding = label_params.get("max_holding_candles", 15)
+    max_holding = label_params.get(
+        "max_holding_candles",
+        label_params.get("max_candles", 15),
+    )
     use_dynamic_atr = label_params.get("use_dynamic_atr", False)
     tp_atr_mult = label_params.get("tp_atr_multiplier", 2.0)
     sl_atr_mult = label_params.get("sl_atr_multiplier", 1.5)
@@ -113,7 +116,7 @@ def main() -> None:
         tp_atr_multiplier=tp_atr_mult,
         sl_atr_multiplier=sl_atr_mult,
     )
-    df = lg.generate_labels(df)
+    df["label"] = lg.generate_labels(df)
 
     # 5. Extract ATR if needed
     atr_values = None
@@ -132,8 +135,20 @@ def main() -> None:
     df = df.iloc[warmup:].copy()
     if atr_values is not None:
         atr_values = atr_values[warmup:]
+    close_prices = df["close"].to_numpy()
+    high_prices = df["high"].to_numpy() if "high" in df.columns else None
+    low_prices = df["low"].to_numpy() if "low" in df.columns else None
 
-    # 7. Extract X and y
+    # 7. Extract X and y. Missing model features fail closed.
+    model_feature_names = version_info.get("feature_names") or feature_names
+    missing_features = [f for f in model_feature_names if f not in df.columns]
+    if missing_features:
+        logger.error(
+            "%d model feature(s) missing from backtest data: %s",
+            len(missing_features),
+            missing_features,
+        )
+        sys.exit(1)
     X = df[feature_names].values
     y = df["label"].values
 
@@ -150,7 +165,10 @@ def main() -> None:
             X=X, 
             y=y, 
             feature_names=feature_names, 
-            atr_values=atr_values
+            atr_values=atr_values,
+            close_prices=close_prices,
+            high_prices=high_prices,
+            low_prices=low_prices,
         )
     except Exception as e:
         logger.error(f"Backtest failed: {e}")

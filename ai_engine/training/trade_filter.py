@@ -20,7 +20,7 @@ def probs_to_trade_signals(
 ) -> np.ndarray:
     """Convert class probabilities [SELL, HOLD, BUY] to signal labels [-1, 0, 1]."""
     probs = np.asarray(y_probs, dtype=np.float64)
-    if probs.ndim != 2 or probs.shape[1] < 3:
+    if probs.ndim != 2 or probs.shape[1] != 3:
         raise ValueError("y_probs must be 2D with shape [n_samples, 3].")
 
     class_idx = np.argmax(probs, axis=1)  # 0=SELL,1=HOLD,2=BUY

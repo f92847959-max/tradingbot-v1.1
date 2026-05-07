@@ -79,21 +79,36 @@ def fetch_one(asset_key: str, period: str = "730d", interval: str = "1h") -> pd.
     raise RuntimeError(f"Keine Daten für {asset['label']} verfügbar")
 
 
+def _csv_path(asset_key: str, interval: str) -> Path:
+    if interval == "1h":
+        return DATA_DIR / ASSETS[asset_key]["csv"]
+    safe_interval = "".join(ch for ch in interval.lower() if ch.isalnum())
+    if not safe_interval:
+        safe_interval = "custom"
+    return DATA_DIR / f"{asset_key}_{safe_interval}.csv"
+
+
 def save_csv(df: pd.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(path)
     logger.info("Gespeichert: %s (%d Zeilen, %.1f KB)", path, len(df), path.stat().st_size / 1024)
 
 
-def fetch_assets(asset_keys: list[str], force: bool = False) -> dict[str, Path]:
+def fetch_assets(
+    asset_keys: list[str],
+    force: bool = False,
+    *,
+    period: str = "730d",
+    interval: str = "1h",
+) -> dict[str, Path]:
     out: dict[str, Path] = {}
     for key in asset_keys:
-        csv_path = DATA_DIR / ASSETS[key]["csv"]
+        csv_path = _csv_path(key, interval)
         if not force and _is_fresh(csv_path):
             logger.info("Cache OK für %s (%s) — übersprungen", ASSETS[key]["label"], csv_path)
             out[key] = csv_path
             continue
-        df = fetch_one(key)
+        df = fetch_one(key, period=period, interval=interval)
         save_csv(df, csv_path)
         out[key] = csv_path
     return out
@@ -110,7 +125,12 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
     keys = ["gold", "silver"] if args.asset == "both" else [args.asset]
-    paths = fetch_assets(keys, force=args.force)
+    paths = fetch_assets(
+        keys,
+        force=args.force,
+        period=args.period,
+        interval=args.interval,
+    )
 
     print("\nFertig:")
     for key, path in paths.items():

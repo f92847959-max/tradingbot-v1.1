@@ -166,6 +166,9 @@ class BacktestRunner:
         y: np.ndarray,
         feature_names: List[str],
         atr_values: Optional[np.ndarray] = None,
+        close_prices: Optional[np.ndarray] = None,
+        high_prices: Optional[np.ndarray] = None,
+        low_prices: Optional[np.ndarray] = None,
     ) -> Dict[str, Any]:
         """Run out-of-sample walk-forward backtest.
 
@@ -174,7 +177,8 @@ class BacktestRunner:
         2. Creates DataFrame and transforms with loaded scaler
         3. Predicts with loaded XGBoost model
         4. Applies trade filter (confidence + margin)
-        5. Runs Backtester.run_simple() with fresh 10k balance
+        5. Runs candle-path backtest with fresh 10k balance when OHLC
+           prices are provided; otherwise falls back to legacy label scoring
         6. Collects per-window results
 
         Args:
@@ -183,6 +187,8 @@ class BacktestRunner:
             feature_names: List of feature column names matching X columns.
             atr_values: Optional per-candle ATR values for dynamic TP/SL.
                 Required if use_dynamic_atr is True in version.json.
+            close_prices/high_prices/low_prices: Optional price path arrays.
+                When provided, PnL is resolved from prices, not true labels.
 
         Returns:
             Dict with per_window_results, report, and consistency.
@@ -197,6 +203,13 @@ class BacktestRunner:
             )
 
         windows = self._get_window_boundaries(len(X))
+        if self.stored_windows and len(windows) > 1:
+            logger.warning(
+                "Final promoted model is only causally valid for the last "
+                "stored walk-forward window; restricting standalone backtest "
+                "to that final test window."
+            )
+            windows = windows[-1:]
         if not windows:
             logger.warning("No walk-forward windows found")
             return {
@@ -223,19 +236,30 @@ class BacktestRunner:
             if len(X_test) == 0:
                 logger.warning(f"Window {wid}: empty test slice, skipping")
                 continue
+            if test_end > len(y):
+                logger.warning(f"Window {wid}: test slice exceeds label array, skipping")
+                continue
 
             # Create DataFrame and scale features
             # Use the feature names from version.json (may be a subset after
             # SHAP pruning), matching against the provided feature_names
             use_features = self.feature_names or feature_names
             df_test = pd.DataFrame(X_test, columns=feature_names)
+            missing_model_features = [f for f in use_features if f not in df_test.columns]
+            if missing_model_features:
+                raise ValueError(
+                    f"Window {wid}: input data missing {len(missing_model_features)} "
+                    f"model feature(s): {missing_model_features}"
+                )
 
             # Select only the features the model was trained on
             if set(use_features) != set(feature_names):
-                missing = set(use_features) - set(feature_names)
-                if missing:
-                    logger.warning(
-                        f"Window {wid}: missing features: {missing}"
+                extra = set(feature_names) - set(use_features)
+                if extra:
+                    logger.info(
+                        "Window %s: ignoring %d extra input feature(s)",
+                        wid,
+                        len(extra),
                     )
 
             df_scaled = self.scaler.transform(df_test)
@@ -264,8 +288,25 @@ class BacktestRunner:
                 commission_per_trade_pips=self.commission_per_trade_pips,
             )
 
+            close_test = close_prices[test_start:test_end] if close_prices is not None else None
+            high_test = high_prices[test_start:test_end] if high_prices is not None else None
+            low_test = low_prices[test_start:test_end] if low_prices is not None else None
+            atr_test = atr_values[test_start:test_end] if atr_values is not None else None
+
             # Run backtest
-            if self.use_dynamic_atr and atr_values is not None:
+            if close_test is not None:
+                result = bt.run(
+                    predictions=signals,
+                    actual_labels=y_test,
+                    close_prices=close_test,
+                    high_prices=high_test,
+                    low_prices=low_test,
+                    atr_values=atr_test if self.use_dynamic_atr else None,
+                    tp_atr_multiplier=self.tp_atr_multiplier,
+                    sl_atr_multiplier=self.sl_atr_multiplier,
+                )
+                result["pnl_source"] = "price_path"
+            elif self.use_dynamic_atr and atr_values is not None:
                 atr_test = atr_values[test_start:test_end]
                 result = bt.run_simple(
                     predictions=signals,
@@ -274,11 +315,13 @@ class BacktestRunner:
                     tp_atr_multiplier=self.tp_atr_multiplier,
                     sl_atr_multiplier=self.sl_atr_multiplier,
                 )
+                result["pnl_source"] = "true_label_legacy"
             else:
                 result = bt.run_simple(
                     predictions=signals,
                     actual_labels=y_test,
                 )
+                result["pnl_source"] = "true_label_legacy"
 
             # Annotate with window metadata
             result["window_id"] = wid

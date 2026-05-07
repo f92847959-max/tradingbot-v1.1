@@ -31,18 +31,20 @@ from dotenv import load_dotenv
 
 # Add project root to path (same pattern as train_models.py)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 from ai_engine.training.trainer import ModelTrainer
+from ai_engine.training.model_versioning import update_production_pointer
 from market_data.broker_client import CapitalComClient, CandleData
 
 
 logger = logging.getLogger("overnight_training")
 
-MODEL_ARTIFACT_FILES = (
+REQUIRED_VERSION_ARTIFACT_FILES = (
     "xgboost_gold.pkl",
     "lightgbm_gold.pkl",
     "feature_scaler.pkl",
-    "model_metadata.json",
+    "version.json",
 )
 
 
@@ -757,31 +759,40 @@ def _evaluate_quality_gate(
     }
 
 
-def _atomic_copy(src: Path, dst: Path) -> None:
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dst.with_suffix(dst.suffix + ".tmp")
-    shutil.copy2(src, tmp)
-    os.replace(tmp, dst)
+def _copy_candidate_version(candidate_version_dir: Path, accepted_dir: Path) -> Path:
+    accepted_dir.mkdir(parents=True, exist_ok=True)
+    base_name = candidate_version_dir.name
+    target = accepted_dir / base_name
+    suffix = 1
+    while target.exists():
+        target = accepted_dir / f"{base_name}_{suffix}"
+        suffix += 1
+
+    tmp = accepted_dir / f".{target.name}.tmp.{os.getpid()}"
+    shutil.copytree(candidate_version_dir, tmp)
+    os.replace(tmp, target)
+    return target
 
 
-def _promote_candidate_models(candidate_dir: Path, accepted_dir: Path) -> list[str]:
+def _promote_candidate_models(candidate_version_dir: Path, accepted_dir: Path) -> list[str]:
     missing = [
         name
-        for name in MODEL_ARTIFACT_FILES
-        if not (candidate_dir / name).exists()
+        for name in REQUIRED_VERSION_ARTIFACT_FILES
+        if not (candidate_version_dir / name).exists()
     ]
     if missing:
         raise RuntimeError(
-            "Candidate model artifacts missing: " + ", ".join(missing)
+            "Candidate version artifacts missing: " + ", ".join(missing)
         )
 
-    promoted: list[str] = []
-    for name in MODEL_ARTIFACT_FILES:
-        src = candidate_dir / name
-        dst = accepted_dir / name
-        _atomic_copy(src, dst)
-        promoted.append(name)
-    return promoted
+    accepted_version_dir = _copy_candidate_version(candidate_version_dir, accepted_dir)
+    update_production_pointer(str(accepted_dir), str(accepted_version_dir))
+    return [
+        *REQUIRED_VERSION_ARTIFACT_FILES,
+        "model_metadata.json",
+        "production.json",
+        f"version_dir:{accepted_version_dir.name}",
+    ]
 
 
 async def _fetch_with_retries(
@@ -827,7 +838,8 @@ async def _fetch_with_retries(
 
 
 async def _run(args: argparse.Namespace) -> int:
-    load_dotenv()
+    env_path = os.getenv("GOLD_ENV_PATH")
+    load_dotenv(env_path or PROJECT_ROOT / ".env")
 
     if args.dry_run:
         logger.warning(
@@ -1253,8 +1265,16 @@ async def _run(args: argparse.Namespace) -> int:
                         "accepted_output_dir": str(accepted_output_dir),
                     }
                     if gate["accepted"]:
+                        raw_version_dir = result.get("version_dir")
+                        if not raw_version_dir:
+                            raise RuntimeError("Training result did not include version_dir")
+                        candidate_version_dir = Path(raw_version_dir)
+                        if not candidate_version_dir.exists():
+                            raise RuntimeError(
+                                f"Training result version_dir is missing: {candidate_version_dir}"
+                            )
                         promoted_files = _promote_candidate_models(
-                            candidate_output_dir, accepted_output_dir
+                            candidate_version_dir, accepted_output_dir
                         )
                         promoted_runs += 1
                         last_promotion_utc = datetime.now(timezone.utc).isoformat()

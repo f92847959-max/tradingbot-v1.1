@@ -20,6 +20,14 @@ def _as_int(metrics: dict[str, Any], key: str, default: int = 0) -> int:
     return int(value)
 
 
+def _missing(metrics: dict[str, Any], required: tuple[str, ...]) -> list[str]:
+    return [
+        key
+        for key in required
+        if key not in metrics or metrics.get(key) is None
+    ]
+
+
 def _sanitize_artifact_version(value: str | None) -> str | None:
     if not value:
         return None
@@ -42,6 +50,24 @@ def evaluate_candidate_promotion(
 ) -> dict[str, Any]:
     """Compare a challenger against the champion using calibrated metrics."""
     reasons: list[str] = []
+    candidate_required = (
+        "trade_count",
+        "brier_score",
+        "log_loss",
+        "profit_factor",
+        "max_drawdown_pct",
+    )
+    champion_required = (
+        "brier_score",
+        "log_loss",
+        "profit_factor",
+        "max_drawdown_pct",
+    )
+    for metric in _missing(candidate_metrics, candidate_required):
+        reasons.append(f"candidate_missing_{metric}")
+    for metric in _missing(champion_metrics, champion_required):
+        reasons.append(f"champion_missing_{metric}")
+
     candidate_trades = _as_int(candidate_metrics, "trade_count")
     if candidate_trades < min_trade_count:
         reasons.append(
@@ -117,6 +143,18 @@ def evaluate_retraining_trigger(
 ) -> dict[str, Any]:
     """Decide if retraining should trigger from calibrated degradation evidence."""
     reasons: list[str] = []
+    required = (
+        "trade_count",
+        "avg_confidence",
+        "win_rate",
+        "mean_brier_score",
+        "profit_factor",
+        "max_drawdown_pct",
+        "degradation_streak",
+    )
+    for metric in _missing(metrics, required):
+        reasons.append(f"missing_{metric}")
+
     trade_count = _as_int(metrics, "trade_count")
     avg_confidence = _as_float(metrics, "avg_confidence")
     win_rate = _as_float(metrics, "win_rate")
@@ -124,6 +162,21 @@ def evaluate_retraining_trigger(
     profit_factor = _as_float(metrics, "profit_factor")
     drawdown = _as_float(metrics, "max_drawdown_pct")
     degradation_streak = _as_int(metrics, "degradation_streak")
+
+    if reasons:
+        return {
+            "trigger_retraining": False,
+            "reasons": reasons,
+            "metrics": {
+                "trade_count": trade_count,
+                "avg_confidence": avg_confidence,
+                "win_rate": win_rate,
+                "mean_brier_score": mean_brier_score,
+                "profit_factor": profit_factor,
+                "max_drawdown_pct": drawdown,
+                "degradation_streak": degradation_streak,
+            },
+        }
 
     if trade_count < min_trade_count:
         return {

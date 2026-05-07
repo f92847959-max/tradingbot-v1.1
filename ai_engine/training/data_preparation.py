@@ -11,6 +11,8 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
+from .data_coverage import calculate_trainable_span
+
 logger = logging.getLogger(__name__)
 
 
@@ -122,9 +124,10 @@ class DataPreparation:
         # Check if all features are present
         missing = [f for f in feature_names if f not in df.columns]
         if missing:
-            logger.warning(f"Missing features: {missing}")
-            for feat in missing:
-                df[feat] = 0.0
+            raise ValueError(
+                f"Missing required training feature(s): {missing}. "
+                "Refusing to synthesize zero-valued model inputs."
+            )
 
         X = np.asarray(df[feature_names].values.astype(np.float32))
         y = np.asarray(df[label_column].values.astype(int))
@@ -215,18 +218,19 @@ class DataPreparation:
                 f"DataFrame has only {len(df)} rows, cannot validate duration"
             )
 
-        duration = df.index[-1] - df.index[0]
-        months = duration.days / 30.44  # Average days per month
-
-        if months < min_months:
+        try:
+            span = calculate_trainable_span(df, min_months=min_months)
+        except Exception as exc:
+            duration = df.index[-1] - df.index[0]
+            months = duration.days / 30.44
             raise ValueError(
                 f"Insufficient data: {months:.1f} months available, "
                 f"minimum {min_months} months required. "
                 f"Date range: {df.index[0]} to {df.index[-1]}"
-            )
+            ) from exc
 
         logger.info(
-            f"Data duration validated: {months:.1f} months "
+            f"Data duration validated: {span['available_months']:.1f} months "
             f"(>= {min_months} required)"
         )
 
@@ -249,7 +253,7 @@ class DataPreparation:
             logger.warning(f"DataFrame has only {len(df)} rows, warmup={warmup_candles}!")
             return df
 
-        df_clean = df.iloc[warmup_candles:].reset_index(drop=True)
+        df_clean = df.iloc[warmup_candles:].copy()
         logger.info(f"Warmup removed: {warmup_candles} candles -- {len(df_clean)} remaining")
         return df_clean
 

@@ -40,6 +40,11 @@ class BaseModel(ABC):
         """Return whether the model has been trained."""
         return self._is_trained
 
+    def reset_training_state(self) -> None:
+        """Clear fitted model state before starting a new fit attempt."""
+        self.model = None
+        self._is_trained = False
+
     @abstractmethod
     def train(
         self,
@@ -148,6 +153,49 @@ class BaseModel(ABC):
         dir_path = os.path.dirname(path)
         if dir_path:
             os.makedirs(dir_path, exist_ok=True)
+
+    @staticmethod
+    def _align_class_probabilities(
+        probs: np.ndarray,
+        classes: np.ndarray | list[int] | None,
+    ) -> np.ndarray:
+        """Align estimator probabilities to class order [SELL, HOLD, BUY].
+
+        Tree libraries omit probability columns for missing training classes.
+        Runtime code expects the stable class-space order [0, 1, 2], so the
+        wrapper must place returned columns by estimator `classes_`, not by
+        position.
+        """
+        arr = np.asarray(probs, dtype=np.float64)
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+        if arr.ndim != 2:
+            raise ValueError("probabilities must be a 2D array")
+
+        if classes is None:
+            if arr.shape[1] != 3:
+                raise ValueError(
+                    "probabilities without class labels must have exactly 3 columns"
+                )
+            aligned = arr
+        else:
+            class_arr = np.asarray(classes, dtype=int)
+            if len(class_arr) != arr.shape[1]:
+                raise ValueError(
+                    "probability column count does not match estimator classes"
+                )
+            aligned = np.zeros((arr.shape[0], 3), dtype=np.float64)
+            for col_idx, class_idx in enumerate(class_arr):
+                if class_idx < 0 or class_idx > 2:
+                    raise ValueError(f"unexpected class label from estimator: {class_idx}")
+                aligned[:, class_idx] = arr[:, col_idx]
+
+        row_sums = aligned.sum(axis=1, keepdims=True)
+        invalid = row_sums.squeeze(axis=1) <= 0
+        if np.any(invalid):
+            aligned[invalid, 1] = 1.0
+            row_sums = aligned.sum(axis=1, keepdims=True)
+        return aligned / row_sums
 
     def __repr__(self) -> str:
         status = "trained" if self._is_trained else "not trained"

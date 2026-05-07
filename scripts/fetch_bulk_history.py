@@ -272,8 +272,9 @@ def _fetch_timeframe_directly(
     *,
     retries: int,
     sleep_seconds: float,
+    use_existing: bool = True,
 ) -> pd.DataFrame:
-    existing = _load_existing(csv_path)
+    existing = _load_existing(csv_path) if use_existing else pd.DataFrame()
     chunks = _month_chunks(start, end)
     pieces: list[pd.DataFrame] = [existing] if not existing.empty else []
 
@@ -304,6 +305,10 @@ def _fetch_timeframe_directly(
             print(f"    no candles returned for {timeframe} chunk")
             continue
         pieces.append(chunk_df)
+        combined = pd.concat(pieces).sort_index()
+        combined = combined[~combined.index.duplicated(keep="last")]
+        _write_csv(combined, csv_path)
+        print(f"    saved progress: {len(combined)} rows -> {csv_path}")
 
     if not pieces:
         print(f"  [{timeframe}] no data to write")
@@ -342,6 +347,11 @@ def main() -> int:
         ),
     )
     parser.add_argument("--output-dir", type=str, default=str(DATA_DIR_DEFAULT))
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Ignore an existing output CSV and rebuild it from the requested range.",
+    )
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument(
         "--sleep-seconds", type=float, default=2.0,
@@ -380,7 +390,9 @@ def main() -> int:
         print(f"\nFetching base timeframe {base_tf} -> {base_csv}")
         base_df = _fetch_timeframe_directly(
             dukascopy_python, base_tf, start, end, base_csv,
-            retries=args.retries, sleep_seconds=args.sleep_seconds,
+            retries=args.retries,
+            sleep_seconds=args.sleep_seconds,
+            use_existing=not args.overwrite,
         )
         if base_df.empty:
             print("ERROR: base timeframe fetch returned no data; aborting")
@@ -403,7 +415,9 @@ def main() -> int:
             print(f"\nFetching timeframe {tf} -> {csv_path}")
             _fetch_timeframe_directly(
                 dukascopy_python, tf, start, end, csv_path,
-                retries=args.retries, sleep_seconds=args.sleep_seconds,
+                retries=args.retries,
+                sleep_seconds=args.sleep_seconds,
+                use_existing=not args.overwrite,
             )
 
     print("\nDone. Run training with the cached data via:")

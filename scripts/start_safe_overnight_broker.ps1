@@ -1,14 +1,15 @@
 param(
     [double]$Hours = 8,
     [double]$IntervalMinutes = 0,
-    [int]$Count = 200000,
-    [int]$MinCandles = 200000
+    [int]$Count = 20000,
+    [int]$MinCandles = 500
 )
 
 $ErrorActionPreference = "Stop"
 
-$Root = "C:\Users\roder\gold_bot"
-$Py = "C:\Users\roder\tradingsystem\.venv\Scripts\python.exe"
+$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$VenvPy = Join-Path $Root ".venv\Scripts\python.exe"
+$Py = if (Test-Path $VenvPy) { $VenvPy } else { "python" }
 $EnvPath = Join-Path $Root ".env"
 # NOTE: PowerShell's Start-Process -RedirectStandardOutput/Error does NOT
 # rotate these files. train_real_overnight.py has its own in-process

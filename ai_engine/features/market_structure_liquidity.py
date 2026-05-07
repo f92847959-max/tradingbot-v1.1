@@ -39,10 +39,34 @@ class MarketStructureLiquidityFeatures:
         "ms_lower_wick_atr",
     ]
 
-    def __init__(self, swing_window: int = 5) -> None:
+    def __init__(self, swing_window: int = 5, stride: int = 1) -> None:
         self._swing_window = swing_window
+        self._stride = max(int(stride), 1)
 
     def calculate(self, df: pd.DataFrame) -> pd.DataFrame:
+        if self._stride > 1 and len(df) > self._stride * 4:
+            return self._calculate_strided(df)
+        return self._calculate_full(df)
+
+    def _calculate_strided(self, df: pd.DataFrame) -> pd.DataFrame:
+        out = df.copy()
+        sampled = df.iloc[:: self._stride].copy()
+        if sampled.index[-1] != df.index[-1]:
+            sampled = pd.concat([sampled, df.iloc[[-1]].copy()])
+
+        sampled_features = self._calculate_full(sampled)[self.FEATURE_NAMES]
+        aligned = sampled_features.reindex(out.index).ffill().bfill()
+        for name in self.FEATURE_NAMES:
+            out[name] = aligned[name]
+        out = cleanup_dataframe_features(out, self.FEATURE_NAMES)
+        logger.debug(
+            "Market-structure/liquidity features calculated with stride=%d: %d columns",
+            self._stride,
+            len(self.FEATURE_NAMES),
+        )
+        return out
+
+    def _calculate_full(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
 
         close = pd.to_numeric(out["close"], errors="coerce")

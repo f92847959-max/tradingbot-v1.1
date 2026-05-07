@@ -63,6 +63,23 @@ def test_decision_governor_blocks_on_conflict_ratio() -> None:
     assert any("conflict_ratio" in reason for reason in audit.gate_reasons)
 
 
+def test_decision_governor_blocks_when_margin_is_too_small() -> None:
+    governor = DecisionGovernor()
+
+    audit = governor.evaluate(
+        preliminary_action="BUY",
+        confidence=0.80,
+        global_score=0.01,
+        conflict_ratio=0.10,
+        regime=MarketRegime.TRENDING.value,
+        threshold_artifact=_artifact(),
+    )
+
+    assert audit.final_action == "HOLD"
+    assert audit.gate_decision is GateDecision.BLOCK
+    assert any("global_margin" in reason for reason in audit.gate_reasons)
+
+
 def test_decision_governor_weakens_on_higher_tf_penalty() -> None:
     governor = DecisionGovernor()
 

@@ -31,6 +31,11 @@ def evaluate_training_promotion(
     champion = _extract_metrics(champion_report)
 
     reasons: list[str] = []
+    for missing in candidate.get("missing_metrics", []):
+        reasons.append(f"candidate_missing_{missing}")
+    for missing in champion.get("missing_metrics", []):
+        reasons.append(f"champion_missing_{missing}")
+
     candidate_pf = candidate["profit_factor"]
     champion_pf = champion["profit_factor"]
     pf_uplift_ratio = candidate_pf / champion_pf if champion_pf > 0 else float("inf")
@@ -58,9 +63,12 @@ def evaluate_training_promotion(
     if non_hold_trades < cfg.min_non_hold_trades:
         reasons.append("non_hold_trade_count_below_minimum")
 
-    if _windows(candidate_report) and _windows(champion_report):
-        if _windows(candidate_report) != _windows(champion_report):
-            reasons.append("walk_forward_windows_do_not_match")
+    candidate_windows = _windows(candidate_report)
+    champion_windows = _windows(champion_report)
+    if not candidate_windows or not champion_windows:
+        reasons.append("walk_forward_windows_missing")
+    elif candidate_windows != champion_windows:
+        reasons.append("walk_forward_windows_do_not_match")
 
     approved = not reasons
     return {
@@ -129,28 +137,37 @@ def _extract_metrics(report: dict[str, Any]) -> dict[str, Any]:
         else:
             bucket_support = [int(value)]
 
+    missing_metrics: list[str] = []
+
+    profit_factor = _lookup_metric(
+        "profit_factor",
+        gate_metrics,
+        report,
+        model_metrics,
+        aliases=("profit_factor",),
+        missing_metrics=missing_metrics,
+    )
+    max_drawdown = _lookup_metric(
+        "max_drawdown",
+        gate_metrics,
+        report,
+        model_metrics,
+        aliases=("max_drawdown", "max_drawdown_pct", "max_drawdown_pcts"),
+        missing_metrics=missing_metrics,
+    )
+    calibration_error = _lookup_metric(
+        "calibration_error",
+        gate_metrics,
+        report,
+        model_metrics,
+        aliases=("calibration_error", "expected_calibration_error"),
+        missing_metrics=missing_metrics,
+    )
+
     return {
-        "profit_factor": float(
-            gate_metrics.get(
-                "profit_factor",
-                report.get("profit_factor", model_metrics.get("profit_factor", 0.0)),
-            )
-        ),
-        "max_drawdown": float(
-            gate_metrics.get(
-                "max_drawdown",
-                report.get(
-                    "max_drawdown",
-                    report.get("max_drawdown_pct", report.get("max_drawdown_pcts", 0.0)),
-                ),
-            )
-        ),
-        "calibration_error": float(
-            gate_metrics.get(
-                "calibration_error",
-                report.get("calibration_error", report.get("expected_calibration_error", 0.0)),
-            )
-        ),
+        "profit_factor": float(profit_factor),
+        "max_drawdown": float(max_drawdown),
+        "calibration_error": float(calibration_error),
         "min_confidence_bucket_support": min(bucket_support) if bucket_support else 0,
         "non_hold_trades": int(
             gate_metrics.get(
@@ -158,7 +175,25 @@ def _extract_metrics(report: dict[str, Any]) -> dict[str, Any]:
                 report.get("non_hold_trades", model_metrics.get("n_trades", 0)),
             )
         ),
+        "missing_metrics": missing_metrics,
     }
+
+
+def _lookup_metric(
+    metric_name: str,
+    gate_metrics: dict[str, Any],
+    report: dict[str, Any],
+    model_metrics: dict[str, Any],
+    *,
+    aliases: tuple[str, ...],
+    missing_metrics: list[str],
+) -> float:
+    for source in (gate_metrics, report, model_metrics):
+        for alias in aliases:
+            if alias in source and source[alias] is not None:
+                return float(source[alias])
+    missing_metrics.append(metric_name)
+    return 0.0
 
 
 def _windows(report: dict[str, Any]) -> list[Any]:

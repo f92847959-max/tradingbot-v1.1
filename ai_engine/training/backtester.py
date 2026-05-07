@@ -74,6 +74,9 @@ class Backtester:
         confidences: Optional[np.ndarray] = None,
         high_prices: Optional[np.ndarray] = None,
         low_prices: Optional[np.ndarray] = None,
+        atr_values: Optional[np.ndarray] = None,
+        tp_atr_multiplier: float = 2.0,
+        sl_atr_multiplier: float = 1.5,
     ) -> Dict[str, Any]:
         """
         Runs the backtest.
@@ -88,6 +91,9 @@ class Backtester:
                 truly leak-free candle-based SL/TP check)
             low_prices: Optional -- Low prices per candle (needed for a
                 truly leak-free candle-based SL/TP check)
+            atr_values: Optional per-candle ATR values for dynamic TP/SL
+            tp_atr_multiplier: ATR multiplier for take-profit distance
+            sl_atr_multiplier: ATR multiplier for stop-loss distance
 
         Returns:
             Dict with complete performance report
@@ -112,10 +118,6 @@ class Backtester:
         position: Optional[Dict] = None
         peak_balance = balance
 
-        # Pip distance to price distance
-        tp_dist = self.tp_pips * self.pip_size
-        sl_dist = self.sl_pips * self.pip_size
-
         def _resolve_position(
             pos: Dict, start_idx: int, end_idx: int
         ) -> Tuple[Optional[Dict], int]:
@@ -127,6 +129,8 @@ class Backtester:
             """
             entry = float(pos["entry_price"])
             direction = int(pos["direction"])
+            tp_dist = float(pos["tp_pips"]) * self.pip_size
+            sl_dist = float(pos["sl_pips"]) * self.pip_size
 
             if direction == 1:  # LONG
                 tp_level = entry + tp_dist
@@ -179,12 +183,22 @@ class Backtester:
             if pred != 0 and conf >= self.min_confidence and position is None:
                 # Open new position at the current candle close
                 risk_amount = balance * (self.risk_pct / 100)
+                tp_pips = self.tp_pips
+                sl_pips = self.sl_pips
+                if atr_values is not None:
+                    atr = float(atr_values[i])
+                    if np.isfinite(atr) and atr > 0:
+                        tp_pips = atr * tp_atr_multiplier / self.pip_size
+                        sl_pips = atr * sl_atr_multiplier / self.pip_size
+
                 position = {
                     "direction": pred,
                     "entry_price": price,
                     "entry_idx": i,
                     "risk_amount": risk_amount,
                     "confidence": conf,
+                    "tp_pips": tp_pips,
+                    "sl_pips": sl_pips,
                 }
 
                 # Resolve by walking forward until SL/TP is hit
@@ -328,9 +342,9 @@ class Backtester:
             price_diff = (exit_price - position["entry_price"]) * direction
             pnl_pips = (price_diff / self.pip_size) - self.total_cost_pips
         elif won:
-            pnl_pips = self.tp_pips - self.total_cost_pips
+            pnl_pips = float(position.get("tp_pips", self.tp_pips)) - self.total_cost_pips
         else:
-            pnl_pips = -(self.sl_pips + self.total_cost_pips)
+            pnl_pips = -(float(position.get("sl_pips", self.sl_pips)) + self.total_cost_pips)
 
         pnl_usd = pnl_pips * self.pip_value
 

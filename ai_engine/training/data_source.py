@@ -176,14 +176,18 @@ async def load_auto(
     try:
         counts = await get_db_candle_counts()
         n = int(counts.get(timeframe, 0))
-        if n > 0:
+        required = int(count) if count is not None else 1
+        if n >= required:
             logger.info("Auto-Quelle: nutze DB (%s: %d Kerzen)", timeframe, n)
             return await load_from_db(
                 timeframe=timeframe,
                 count=count,
                 with_indicators=with_indicators,
             )
-        errors.append(f"DB enthaelt keine Kerzen fuer Timeframe '{timeframe}'")
+        errors.append(
+            f"DB enthaelt zu wenige Kerzen fuer Timeframe '{timeframe}': "
+            f"{n} vorhanden, {required} benoetigt"
+        )
     except Exception as exc:
         errors.append(str(exc))
 
@@ -248,7 +252,11 @@ def _normalize_dataframe(df: pd.DataFrame, with_indicators: bool) -> pd.DataFram
             raise DataSourceError("Pflichtspalte 'timestamp' fehlt.")
 
     out["timestamp"] = pd.to_datetime(out["timestamp"], utc=True, errors="coerce")
-    out = out.dropna(subset=["timestamp"]).copy()
+    invalid_timestamps = int(out["timestamp"].isna().sum())
+    if invalid_timestamps:
+        raise DataSourceError(
+            f"Ungueltige Timestamp-Daten: {invalid_timestamps} Zeile(n) konnten nicht geparst werden."
+        )
 
     for col in ["open", "high", "low", "close", "volume"]:
         if col not in out.columns:

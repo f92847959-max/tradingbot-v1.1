@@ -90,10 +90,7 @@ class ExitAIAdvisor:
                 self._bundle.model.predict_proba(scaled),
                 dtype=float,
             )
-            if probabilities.shape[1] != len(EXIT_AI_ACTIONS):
-                padded = np.zeros((1, len(EXIT_AI_ACTIONS)), dtype=float)
-                padded[:, : probabilities.shape[1]] = probabilities
-                probabilities = padded
+            probabilities = _align_probabilities(self._bundle.model, probabilities)
 
             scores = probabilities[0]
             label = int(np.argmax(scores))
@@ -196,3 +193,29 @@ class ExitAIAdvisor:
         if direction == "SELL":
             return float(proposed_stop_loss) < float(current_stop_loss)
         return False
+
+
+def _align_probabilities(model: Any, probabilities: np.ndarray) -> np.ndarray:
+    probs = np.asarray(probabilities, dtype=float)
+    if probs.ndim != 2:
+        raise ValueError("Exit-AI probabilities must be 2D")
+    classes = getattr(model, "classes_", None)
+    if classes is None:
+        if probs.shape[1] != len(EXIT_AI_ACTIONS):
+            raise ValueError("Exit-AI probabilities must include every action")
+        aligned = probs
+    else:
+        class_arr = np.asarray(classes, dtype=int)
+        if len(class_arr) != probs.shape[1]:
+            raise ValueError("Exit-AI probability columns do not match classes_")
+        aligned = np.zeros((probs.shape[0], len(EXIT_AI_ACTIONS)), dtype=float)
+        for col_idx, class_idx in enumerate(class_arr):
+            if class_idx < 0 or class_idx >= len(EXIT_AI_ACTIONS):
+                raise ValueError(f"Unexpected Exit-AI class label: {class_idx}")
+            aligned[:, class_idx] = probs[:, col_idx]
+    row_sums = aligned.sum(axis=1, keepdims=True)
+    invalid = row_sums.squeeze(axis=1) <= 0
+    if np.any(invalid):
+        aligned[invalid, EXIT_AI_ACTIONS.index("HOLD")] = 1.0
+        row_sums = aligned.sum(axis=1, keepdims=True)
+    return aligned / row_sums

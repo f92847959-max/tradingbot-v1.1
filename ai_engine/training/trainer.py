@@ -57,6 +57,7 @@ class ModelTrainer:
         use_dynamic_atr: bool = True,
         tp_atr_multiplier: float = 2.0,
         sl_atr_multiplier: float = 1.5,
+        exit_aware_labels: bool = False,
     ) -> None:
         """
         Initialize the ModelTrainer.
@@ -72,6 +73,7 @@ class ModelTrainer:
             use_dynamic_atr: Use ATR-based dynamic TP/SL for labels (default True)
             tp_atr_multiplier: ATR multiplier for take-profit distance
             sl_atr_multiplier: ATR multiplier for stop-loss distance
+            exit_aware_labels: Demote labels when exit logic would bail early
         """
         self.saved_models_dir = saved_models_dir
         self.tp_pips = tp_pips
@@ -93,6 +95,7 @@ class ModelTrainer:
             use_dynamic_atr=use_dynamic_atr,
             tp_atr_multiplier=tp_atr_multiplier,
             sl_atr_multiplier=sl_atr_multiplier,
+            exit_aware=exit_aware_labels,
         )
         self._data_prep = DataPreparation(
             train_ratio=0.70,
@@ -123,7 +126,7 @@ class ModelTrainer:
         min_feature_importance: float = 0.005,
         min_data_months: int = 6,
         champion_report: Dict[str, Any] | None = None,
-        enforce_promotion_gate: bool = False,
+        enforce_promotion_gate: bool = True,
         dataset_manifest: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         """Train all models using walk-forward pipeline."""

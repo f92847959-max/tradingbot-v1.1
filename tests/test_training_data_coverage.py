@@ -54,6 +54,31 @@ def test_calculate_trainable_span_accepts_datetime_index() -> None:
     assert span["rows"] == len(df)
 
 
+def test_calculate_trainable_span_accepts_weekend_market_gaps() -> None:
+    timestamps = pd.date_range(
+        "2025-01-01T00:00:00Z",
+        "2025-08-01T00:00:00Z",
+        freq="4h",
+        tz="UTC",
+    )
+    timestamps = timestamps[timestamps.weekday < 5]
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": 2040.0,
+            "high": 2041.0,
+            "low": 2039.0,
+            "close": 2040.5,
+            "volume": 1000,
+        }
+    )
+
+    span = calculate_trainable_span(df, min_months=6)
+
+    assert span["coverage_ratio"] < 0.80
+    assert span["weekday_market_coverage_ratio"] >= 0.80
+
+
 def test_row_loss_report_tracks_stage_drops() -> None:
     report = build_row_loss_report(
         {

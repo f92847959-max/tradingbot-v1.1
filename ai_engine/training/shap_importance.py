@@ -112,3 +112,135 @@ def save_feature_importance_chart(
     plt.close(fig)
 
     return output_path
+
+
+def save_training_diagnostic_charts(
+    report: dict,
+    label_stats: dict,
+    output_dir: str,
+) -> list[str]:
+    """Write the 8 standard training diagnostic PNGs."""
+    os.makedirs(output_dir, exist_ok=True)
+    chart_specs = [
+        ("01_label_distribution.png", _plot_label_distribution),
+        ("02_trade_label_balance.png", _plot_trade_label_balance),
+        ("03_profit_factor_by_window.png", _plot_window_metric("profit_factor", "Profit Factor")),
+        ("04_win_rate_by_window.png", _plot_window_metric("win_rate", "Win Rate")),
+        ("05_expectancy_by_window.png", _plot_window_metric("expectancy", "Expectancy")),
+        ("06_trade_count_by_window.png", _plot_window_metric("n_trades", "Trades")),
+        ("07_aggregate_model_quality.png", _plot_aggregate_quality),
+        ("08_feature_pruning_by_window.png", _plot_feature_pruning),
+    ]
+    paths: list[str] = []
+    for filename, plotter in chart_specs:
+        path = os.path.join(output_dir, filename)
+        plotter(report, label_stats, path)
+        paths.append(path)
+    return paths
+
+
+def _save_or_placeholder(path: str, title: str, draw_fn) -> None:
+    fig, ax = plt.subplots(figsize=(10, 6))
+    try:
+        draw_fn(ax)
+    except Exception as exc:  # pragma: no cover - defensive diagnostics only
+        ax.text(0.5, 0.5, f"No chart data\n{exc}", ha="center", va="center")
+        ax.set_axis_off()
+    ax.set_title(title)
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def _plot_label_distribution(_report: dict, label_stats: dict, path: str) -> None:
+    def draw(ax):
+        labels = ["SELL", "HOLD", "BUY"]
+        values = [
+            label_stats.get("sell", 0),
+            label_stats.get("hold", 0),
+            label_stats.get("buy", 0),
+        ]
+        ax.bar(labels, values, color=["#d62728", "#7f7f7f", "#2ca02c"])
+        ax.set_ylabel("Rows")
+
+    _save_or_placeholder(path, "Label Distribution", draw)
+
+
+def _plot_trade_label_balance(_report: dict, label_stats: dict, path: str) -> None:
+    def draw(ax):
+        sell = max(float(label_stats.get("sell", 0)), 0.0)
+        buy = max(float(label_stats.get("buy", 0)), 0.0)
+        hold = max(float(label_stats.get("hold", 0)), 0.0)
+        ax.pie(
+            [sell, buy, hold],
+            labels=["SELL", "BUY", "HOLD"],
+            autopct="%1.1f%%",
+            colors=["#d62728", "#2ca02c", "#7f7f7f"],
+        )
+
+    _save_or_placeholder(path, "Trade Label Balance", draw)
+
+
+def _plot_window_metric(metric: str, label: str):
+    def plot(report: dict, _label_stats: dict, path: str) -> None:
+        def draw(ax):
+            windows = report.get("per_window", [])
+            x = [w.get("window_id", idx) for idx, w in enumerate(windows)]
+            for model_key, color in (("xgboost", "#1f77b4"), ("lightgbm", "#ff7f0e")):
+                y = [
+                    _finite_or_zero(w.get(model_key, {}).get(metric, 0.0))
+                    for w in windows
+                ]
+                ax.plot(x, y, marker="o", label=model_key.upper(), color=color)
+            ax.set_xlabel("Window")
+            ax.set_ylabel(label)
+            ax.legend()
+            ax.grid(True, alpha=0.25)
+
+        _save_or_placeholder(path, f"{label} by Window", draw)
+
+    return plot
+
+
+def _plot_aggregate_quality(report: dict, _label_stats: dict, path: str) -> None:
+    def draw(ax):
+        aggregate = report.get("aggregate", {})
+        labels = ["XGB PF", "LGB PF", "XGB Sharpe", "LGB Sharpe"]
+        values = [
+            _finite_or_zero(aggregate.get("xgboost", {}).get("profit_factor", 0.0)),
+            _finite_or_zero(aggregate.get("lightgbm", {}).get("profit_factor", 0.0)),
+            _finite_or_zero(aggregate.get("xgboost", {}).get("sharpe", 0.0)),
+            _finite_or_zero(aggregate.get("lightgbm", {}).get("sharpe", 0.0)),
+        ]
+        ax.bar(labels, values, color=["#1f77b4", "#ff7f0e", "#aec7e8", "#ffbb78"])
+        ax.set_ylabel("Value")
+
+    _save_or_placeholder(path, "Aggregate Model Quality", draw)
+
+
+def _plot_feature_pruning(report: dict, _label_stats: dict, path: str) -> None:
+    def draw(ax):
+        windows = report.get("per_window", [])
+        x = [w.get("window_id", idx) for idx, w in enumerate(windows)]
+        kept = [
+            w.get("feature_pruning", {}).get("kept_count", 0)
+            for w in windows
+        ]
+        pruned = [
+            w.get("feature_pruning", {}).get("pruned_count", 0)
+            for w in windows
+        ]
+        ax.bar(x, kept, label="kept", color="#2ca02c")
+        ax.bar(x, pruned, bottom=kept, label="pruned", color="#d62728")
+        ax.set_xlabel("Window")
+        ax.set_ylabel("Features")
+        ax.legend()
+
+    _save_or_placeholder(path, "Feature Pruning by Window", draw)
+
+
+def _finite_or_zero(value) -> float:
+    try:
+        value_f = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return value_f if np.isfinite(value_f) else 0.0

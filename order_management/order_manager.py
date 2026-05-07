@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from database.models import Trade
 
 logger = logging.getLogger(__name__)
+Trade: Any = None
+TradeRepository: Any = None
+OrderLogRepository: Any = None
 
 # Number of attempts for DB writes that MUST succeed after a broker
 # side-effect (open/close) has already occurred.
@@ -30,8 +33,22 @@ _DB_PERSIST_BACKOFF_SECONDS: float = 0.5
 
 def _get_db_dependencies():
     """Load SQLAlchemy-backed repositories only when order persistence is needed."""
-    from database.models import Trade
-    from database.repositories.trade_repo import OrderLogRepository, TradeRepository
+    global OrderLogRepository, Trade, TradeRepository
+
+    if Trade is None:
+        from database.models import Trade as _Trade
+
+        Trade = _Trade
+    if TradeRepository is None or OrderLogRepository is None:
+        from database.repositories.trade_repo import (
+            OrderLogRepository as _OrderLogRepository,
+            TradeRepository as _TradeRepository,
+        )
+
+        if TradeRepository is None:
+            TradeRepository = _TradeRepository
+        if OrderLogRepository is None:
+            OrderLogRepository = _OrderLogRepository
 
     return get_session, Trade, TradeRepository, OrderLogRepository
 

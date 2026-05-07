@@ -17,10 +17,19 @@ DEFAULT_CONFIDENCE_GRID = (0.34, 0.40, 0.46, 0.52, 0.58, 0.64, 0.70)
 DEFAULT_MARGIN_GRID = (0.00, 0.03, 0.06, 0.09, 0.12)
 
 
-def _ensure_class_labels(y_true: np.ndarray) -> np.ndarray:
+def _ensure_class_labels(y_true: np.ndarray, label_space: str = "signal") -> np.ndarray:
     labels = np.asarray(y_true, dtype=np.int64)
-    if labels.min() < 0:
+    if labels.size == 0:
+        raise ValueError("y_true must not be empty")
+    if label_space == "signal":
         labels = labels + 1
+    elif label_space == "class":
+        labels = labels.copy()
+    elif label_space == "auto":
+        if labels.min() < 0:
+            labels = labels + 1
+    else:
+        raise ValueError("label_space must be one of: signal, class, auto")
     if labels.min() < 0 or labels.max() > 2:
         raise ValueError("y_true must be in signal-space [-1, 0, 1] or class-space [0, 1, 2]")
     return labels
@@ -111,9 +120,10 @@ def tune_thresholds(
     min_support: int | None = None,
     confidence_grid: Iterable[float] = DEFAULT_CONFIDENCE_GRID,
     margin_grid: Iterable[float] = DEFAULT_MARGIN_GRID,
+    label_space: str = "signal",
 ) -> dict[str, Any]:
     probs = _ensure_probabilities(y_probs)
-    labels = _ensure_class_labels(y_true)
+    labels = _ensure_class_labels(y_true, label_space=label_space)
     y_true_signal = labels - 1
 
     if min_support is None:

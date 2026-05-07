@@ -40,7 +40,10 @@ from .promotion_gate import (
     evaluate_training_promotion,
     write_promotion_decision,
 )
-from .shap_importance import save_feature_importance_chart
+from .shap_importance import (
+    save_feature_importance_chart,
+    save_training_diagnostic_charts,
+)
 from .walk_forward import (
     WalkForwardValidator,
     generate_training_report,
@@ -67,7 +70,7 @@ class TrainingPipeline:
         min_feature_importance: float = 0.005,
         min_data_months: int = 6,
         champion_report: Dict[str, Any] | None = None,
-        enforce_promotion_gate: bool = False,
+        enforce_promotion_gate: bool = True,
         dataset_manifest: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         """Run the walk-forward training pipeline."""
@@ -264,6 +267,7 @@ class TrainingPipeline:
 
         calibration_path = ""
         threshold_path = ""
+        calibration_payload_for_metadata: Dict[str, Any] | None = None
         if final_calibration_artifacts:
             calibration_payload = dict(final_calibration_artifacts)
             model_entries = dict(calibration_payload.get("models", {}))
@@ -278,6 +282,7 @@ class TrainingPipeline:
                 version_dir,
                 calibration_payload,
             )
+            calibration_payload_for_metadata = calibration_payload
 
         if final_threshold_artifacts:
             threshold_payload = dict(final_threshold_artifacts)
@@ -334,6 +339,12 @@ class TrainingPipeline:
                 top_n=20,
             )
             logger.info(f"Feature importance chart saved to: {chart_path}")
+        diagnostic_chart_paths = save_training_diagnostic_charts(
+            report=report,
+            label_stats=results.get("label_stats", {}),
+            output_dir=os.path.join(version_dir, "charts"),
+        )
+        logger.info("Training diagnostic charts saved: %d", len(diagnostic_chart_paths))
 
         # Build index of window boundaries from walk-forward results
         # (window_results contains test_start/test_end but report["per_window"] does not)
@@ -411,11 +422,15 @@ class TrainingPipeline:
             "feature_pruning": last_window.get("feature_pruning", {}),
             # NEW Phase 3: Chart reference
             "feature_importance_chart": os.path.basename(chart_path) if chart_path else None,
+            "diagnostic_charts": [
+                os.path.join("charts", os.path.basename(path))
+                for path in diagnostic_chart_paths
+            ],
         }
 
         if calibration_path:
             version_data["calibration_artifact"] = os.path.basename(calibration_path)
-            version_data["calibration"] = final_calibration_artifacts
+            version_data["calibration"] = calibration_payload_for_metadata or final_calibration_artifacts
         if threshold_path:
             version_data["threshold_artifact"] = os.path.basename(threshold_path)
             version_data["decision_thresholds"] = final_threshold_artifacts
@@ -472,7 +487,7 @@ class TrainingPipeline:
 
         # Write version.json, update production pointer, cleanup old versions
         write_version_json(version_dir, version_data)
-        if promotion_decision.get("approved") or not enforce_promotion_gate:
+        if promotion_decision.get("approved"):
             update_production_pointer(self._t.saved_models_dir, version_dir)
         else:
             logger.warning(

@@ -36,6 +36,28 @@ class TestBacktesterCommission:
         assert bt.commission_per_trade_pips == 0.0
         assert bt.total_cost_pips == pytest.approx(3.0)
 
+    def test_price_path_backtest_does_not_use_true_label_for_pnl(self):
+        """A BUY can win on price path even when the diagnostic label says SELL."""
+        bt = Backtester(
+            tp_pips=10.0,
+            sl_pips=10.0,
+            spread_pips=0.0,
+            slippage_pips=0.0,
+            min_confidence=0.0,
+        )
+
+        report = bt.run(
+            predictions=np.array([1, 0, 0]),
+            actual_labels=np.array([-1, -1, -1]),
+            close_prices=np.array([100.0, 100.05, 100.10]),
+            high_prices=np.array([100.0, 100.05, 100.10]),
+            low_prices=np.array([100.0, 100.04, 100.09]),
+        )
+
+        assert report["n_trades"] == 1
+        assert report["wins"] == 1
+        assert report["total_pips"] == pytest.approx(10.0)
+
     def test_commission_affects_run_simple(self):
         """Commission produces lower net profit per winning trade."""
         np.random.seed(42)
@@ -354,3 +376,52 @@ class TestBacktestRunnerInit:
         assert boundaries[0]["test_end"] == 200
         assert boundaries[1]["test_start"] == 300
         assert boundaries[1]["test_end"] == 400
+
+    def test_runner_limits_final_model_to_last_stored_window(self):
+        """The saved final model is not re-used across earlier OOS windows."""
+        from ai_engine.training.backtest_runner import BacktestRunner
+
+        class _Scaler:
+            def transform(self, df):
+                return df
+
+        class _Model:
+            def predict(self, X):
+                probs = np.zeros((len(X), 3), dtype=float)
+                probs[:, 2] = 1.0
+                return probs
+
+        runner = object.__new__(BacktestRunner)
+        runner.version_dir = "unused"
+        runner.version_info = {"walk_forward": {"windows": []}}
+        runner.feature_names = ["f1"]
+        runner.label_params = {}
+        runner.use_dynamic_atr = False
+        runner.tp_atr_multiplier = 2.0
+        runner.sl_atr_multiplier = 1.5
+        runner.tp_pips = 10.0
+        runner.sl_pips = 10.0
+        runner.spread_pips = 0.0
+        runner.slippage_pips = 0.0
+        runner.min_confidence = 0.0
+        runner.min_margin = 0.0
+        runner.commission_per_trade_pips = 0.0
+        runner.stored_windows = [
+            {"window_id": 0, "test_start": 0, "test_end": 3},
+            {"window_id": 1, "test_start": 3, "test_end": 6},
+        ]
+        runner.scaler = _Scaler()
+        runner.xgb_model = _Model()
+
+        results = runner.run(
+            X=np.arange(6, dtype=float).reshape(6, 1),
+            y=np.zeros(6, dtype=int),
+            feature_names=["f1"],
+            close_prices=np.array([100.0, 100.1, 100.2, 101.0, 101.1, 101.2]),
+            high_prices=np.array([100.0, 100.1, 100.2, 101.0, 101.1, 101.2]),
+            low_prices=np.array([100.0, 100.0, 100.1, 101.0, 101.0, 101.1]),
+        )
+
+        assert len(results["per_window_results"]) == 1
+        assert results["per_window_results"][0]["window_id"] == 1
+        assert results["per_window_results"][0]["pnl_source"] == "price_path"

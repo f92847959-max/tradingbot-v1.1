@@ -109,22 +109,30 @@ def _risk_buckets(df: pd.DataFrame, column: str) -> pd.Series:
 
     values = pd.to_numeric(df[column], errors="coerce")
     valid = values.dropna()
-    if valid.empty or valid.nunique() < 3:
+    if valid.empty:
         return pd.Series(["unknown"] * len(df), index=df.index, dtype="object")
 
-    low = valid.quantile(1.0 / 3.0)
-    high = valid.quantile(2.0 / 3.0)
-
-    def bucket(value: float) -> str:
+    buckets: list[str] = []
+    history: list[float] = []
+    for value in values:
         if pd.isna(value):
-            return "unknown"
-        if value <= low:
-            return "low"
-        if value <= high:
-            return "medium"
-        return "high"
+            buckets.append("unknown")
+            continue
+        history.append(float(value))
+        if len(set(history)) < 3:
+            buckets.append("unknown")
+            continue
+        hist = pd.Series(history, dtype="float64")
+        low = hist.quantile(1.0 / 3.0)
+        high = hist.quantile(2.0 / 3.0)
+        if float(value) <= low:
+            buckets.append("low")
+        elif float(value) <= high:
+            buckets.append("medium")
+        else:
+            buckets.append("high")
 
-    return values.map(bucket).astype("object")
+    return pd.Series(buckets, index=df.index, dtype="object")
 
 
 def _serialize_window(window: Any, index: int, purge_gap: int) -> dict[str, Any]:

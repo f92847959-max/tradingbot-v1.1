@@ -12,12 +12,19 @@ from sklearn.isotonic import IsotonicRegression
 from .artifacts import CLASS_LABELS
 
 
-def _ensure_class_labels(y_true: np.ndarray) -> np.ndarray:
+def _ensure_class_labels(y_true: np.ndarray, label_space: str = "signal") -> np.ndarray:
     labels = np.asarray(y_true, dtype=np.int64)
     if labels.size == 0:
         raise ValueError("y_true must not be empty")
-    if labels.min() < 0:
+    if label_space == "signal":
         labels = labels + 1
+    elif label_space == "class":
+        labels = labels.copy()
+    elif label_space == "auto":
+        if labels.min() < 0:
+            labels = labels + 1
+    else:
+        raise ValueError("label_space must be one of: signal, class, auto")
     if labels.min() < 0 or labels.max() > 2:
         raise ValueError("y_true must be in signal-space [-1, 0, 1] or class-space [0, 1, 2]")
     return labels
@@ -49,9 +56,10 @@ def fit_calibrator(
     *,
     model_name: str = "model",
     min_samples: int = 20,
+    label_space: str = "signal",
 ) -> ProbabilityCalibrator:
     probs = _ensure_probabilities(y_probs)
-    labels = _ensure_class_labels(y_true)
+    labels = _ensure_class_labels(y_true, label_space=label_space)
 
     calibrators: list[IsotonicRegression | None] = []
     class_support: dict[str, int] = {}

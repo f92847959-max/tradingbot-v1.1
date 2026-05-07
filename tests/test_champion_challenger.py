@@ -79,6 +79,28 @@ def test_candidate_promotion_accepts_better_candidate_with_safe_drawdown():
     assert result["deltas"]["profit_factor"] > 0
 
 
+def test_candidate_promotion_blocks_missing_required_metrics():
+    result = evaluate_candidate_promotion(
+        {
+            "trade_count": 180,
+            "brier_score": 0.19,
+            "log_loss": 0.41,
+            "profit_factor": 1.20,
+            "max_drawdown_pct": 0.09,
+        },
+        {
+            "trade_count": 180,
+            "brier_score": 0.15,
+            "profit_factor": 1.42,
+            "max_drawdown_pct": 0.08,
+        },
+        min_trade_count=100,
+    )
+
+    assert result["promote"] is False
+    assert "candidate_missing_log_loss" in result["reasons"]
+
+
 def test_retraining_trigger_requires_sustained_calibrated_degradation():
     result = evaluate_retraining_trigger(
         {
@@ -99,6 +121,23 @@ def test_retraining_trigger_requires_sustained_calibrated_degradation():
     assert result["trigger_retraining"] is True
     assert any("mean_brier_score" in reason for reason in result["reasons"])
     assert any("win_rate" in reason for reason in result["reasons"])
+
+
+def test_retraining_trigger_blocks_when_metrics_are_missing():
+    result = evaluate_retraining_trigger(
+        {
+            "trade_count": 80,
+            "win_rate": 0.41,
+            "mean_brier_score": 0.31,
+            "profit_factor": 0.82,
+            "max_drawdown_pct": 0.16,
+            "degradation_streak": 4,
+        },
+        min_trade_count=50,
+    )
+
+    assert result["trigger_retraining"] is False
+    assert "missing_avg_confidence" in result["reasons"]
 
 
 def test_model_monitor_uses_calibrated_metrics_for_retraining():

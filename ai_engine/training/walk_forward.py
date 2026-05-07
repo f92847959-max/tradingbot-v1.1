@@ -188,12 +188,20 @@ class WalkForwardValidator:
         X_test = X[window.test_start : window.test_end]
         y_test = y[window.test_start : window.test_end]
 
-        # 2. Split training into train (85%) and val (15%) for early stopping + tuning
-        val_split = int(len(X_train_full) * 0.85)
-        X_train = X_train_full[:val_split]
-        y_train = y_train_full[:val_split]
-        X_val = X_train_full[val_split:]
-        y_val = y_train_full[val_split:]
+        # 2. Split training into fit/validation with an inner purge gap.
+        # Horizon labels near the end of the fit slice can look forward, so
+        # the validation slice must not start immediately after fit rows.
+        val_size = max(int(len(X_train_full) * 0.15), self.min_test_samples // 2, 1)
+        val_size = min(val_size, max(len(X_train_full) // 3, 1))
+        val_start = len(X_train_full) - val_size
+        fit_end = max(val_start - self.purge_gap, 1)
+        if fit_end <= 0 or val_start >= len(X_train_full):
+            raise ValueError(f"Window {wid} cannot create a purged validation split")
+
+        X_train = X_train_full[:fit_end]
+        y_train = y_train_full[:fit_end]
+        X_val = X_train_full[val_start:]
+        y_val = y_train_full[val_start:]
 
         logger.info(
             f"    Split: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}"
@@ -257,22 +265,23 @@ class WalkForwardValidator:
                 max_samples=2000,
             )
 
-            # Save full-model eval BEFORE pruning for comparison
+            # Save full-model validation eval BEFORE pruning for comparison.
+            # Test data is reserved for final reporting only.
             full_model_eval = None
             try:
-                y_probs_full = trainer._xgboost.predict(X_test_scaled)
+                y_probs_full = trainer._xgboost.predict(X_val_scaled)
                 full_model_eval = trainer._evaluator.evaluate_trading(
-                    y_test,
+                    y_val,
                     probs_to_trade_signals(y_probs_full, min_confidence=0.4, min_margin=0.1),
                     tp_pips=trainer.tp_pips,
                     sl_pips=trainer.sl_pips,
                     spread_pips=trainer.spread_pips,
                     label_space="signal",
-                    model_name=f"XGBoost_W{wid}_full",
+                    model_name=f"XGBoost_W{wid}_full_val",
                     log_details=False,
                 )
             except Exception as e:
-                logger.warning(f"    Full-model eval failed (window {wid}): {e}")
+                logger.warning(f"    Full-model validation eval failed (window {wid}): {e}")
 
             # Rank and prune bottom 50%
             ranked = sorted(shap_importance.items(), key=lambda x: x[1], reverse=True)
@@ -285,11 +294,14 @@ class WalkForwardValidator:
                     f"    SHAP pruning: keeping {len(kept_features)}/{len(feature_names)} features"
                 )
 
-                # Slice arrays to kept features
-                sel_idx = [feature_names.index(f) for f in kept_features]
-                X_train_pruned = X_train_scaled[:, sel_idx]
-                X_val_pruned = X_val_scaled[:, sel_idx]
-                X_test_pruned = X_test_scaled[:, sel_idx]
+                selected_scaler = FeatureScaler()
+                train_selected_df = pd.DataFrame(X_train, columns=feature_names)[kept_features]
+                val_selected_df = pd.DataFrame(X_val, columns=feature_names)[kept_features]
+                test_selected_df = pd.DataFrame(X_test, columns=feature_names)[kept_features]
+                selected_scaler.fit(train_selected_df, kept_features)
+                X_train_pruned = selected_scaler.transform(train_selected_df)[kept_features].values
+                X_val_pruned = selected_scaler.transform(val_selected_df)[kept_features].values
+                X_test_pruned = selected_scaler.transform(test_selected_df)[kept_features].values
 
                 # Retrain XGBoost on pruned features
                 trainer._xgboost.set_feature_names(kept_features)
@@ -300,15 +312,15 @@ class WalkForwardValidator:
                     )
                     result["xgboost_train_pruned"] = xgb_pruned_result
 
-                    # Performance guard: compare pruned vs full
+                    # Performance guard: compare pruned vs full on validation only.
                     pruning_accepted = True  # Default accept if can't compare
                     if full_model_eval and full_model_eval.get("n_trades", 0) > 0:
                         try:
                             # Convert to DataFrame to keep feature names and avoid LightGBM warnings
-                            X_test_pruned_df = pd.DataFrame(X_test_pruned, columns=kept_features)
-                            y_probs_pruned = trainer._xgboost.predict(X_test_pruned_df.values)
+                            X_val_pruned_df = pd.DataFrame(X_val_pruned, columns=kept_features)
+                            y_probs_pruned = trainer._xgboost.predict(X_val_pruned_df.values)
                             pruned_eval = trainer._evaluator.evaluate_trading(
-                                y_test,
+                                y_val,
                                 probs_to_trade_signals(
                                     y_probs_pruned, min_confidence=0.4, min_margin=0.1
                                 ),
@@ -316,7 +328,7 @@ class WalkForwardValidator:
                                 sl_pips=trainer.sl_pips,
                                 spread_pips=trainer.spread_pips,
                                 label_space="signal",
-                                model_name=f"XGBoost_W{wid}_pruned",
+                                model_name=f"XGBoost_W{wid}_pruned_val",
                                 log_details=False,
                             )
                             full_pf = full_model_eval.get("profit_factor", 0)
@@ -340,6 +352,7 @@ class WalkForwardValidator:
                     if pruning_accepted:
                         # Accept pruning: update arrays and selected_features
                         selected_features = kept_features
+                        scaler = selected_scaler
                         X_train_scaled = X_train_pruned
                         X_val_scaled = X_val_pruned
                         X_test_scaled = X_test_pruned
@@ -364,6 +377,7 @@ class WalkForwardValidator:
                     logger.error(f"    XGBoost pruned re-training failed (window {wid}): {e}")
                     # Fall back to full features on error
                     trainer._xgboost.set_feature_names(list(feature_names))
+                    trainer._xgboost.reset_training_state()
 
         result["shap_importance"] = shap_importance
         result["feature_pruning"] = pruning_result
@@ -412,6 +426,7 @@ class WalkForwardValidator:
                     y_probs_val_raw,
                     y_val,
                     model_name=name.lower(),
+                    label_space="signal",
                 )
                 y_probs_val = apply_calibrator(calibrator, y_probs_val_raw)
                 y_probs_test = apply_calibrator(calibrator, y_probs_test_raw)
@@ -434,6 +449,7 @@ class WalkForwardValidator:
                     y_true=y_val,
                     y_probs=y_probs_val,
                     model_name=name.lower(),
+                    label_space="signal",
                 )
                 threshold_artifacts[name.lower()] = threshold_artifact
 

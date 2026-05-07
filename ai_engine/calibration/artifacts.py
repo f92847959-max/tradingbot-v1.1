@@ -53,8 +53,12 @@ def _validate_calibration_payload(payload: Mapping[str, Any]) -> None:
 
 def _write_json(path: str, payload: Mapping[str, Any]) -> str:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
+    tmp = f"{path}.tmp.{os.getpid()}"
+    with open(tmp, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, ensure_ascii=False)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, path)
     return path
 
 

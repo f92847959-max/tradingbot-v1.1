@@ -14,6 +14,7 @@ import os
 import re
 import shutil
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Iterable, List
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ def create_version_dir(base_dir: str) -> str:
     Returns:
         Full path to the newly created version directory.
     """
+    os.makedirs(base_dir, exist_ok=True)
     existing = [
         d
         for d in os.listdir(base_dir)
@@ -55,13 +57,36 @@ def create_version_dir(base_dir: str) -> str:
     else:
         next_num = 1
 
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    version_name = f"v{next_num:03d}_{timestamp}"
-    version_dir = os.path.join(base_dir, version_name)
-    os.makedirs(version_dir, exist_ok=True)
+    while True:
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+        version_name = f"v{next_num:03d}_{timestamp}"
+        version_dir = os.path.join(base_dir, version_name)
+        try:
+            os.makedirs(version_dir, exist_ok=False)
+            break
+        except FileExistsError:
+            next_num += 1
 
     logger.info(f"Created version directory: {version_name}")
     return version_dir
+
+
+def _atomic_write_json(path: str, payload: dict) -> None:
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(f".{target.name}.tmp.{os.getpid()}")
+    with tmp.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, target)
+
+
+def _atomic_copy(src: str, dst: str) -> None:
+    os.makedirs(os.path.dirname(dst) if os.path.dirname(dst) else ".", exist_ok=True)
+    tmp = f"{dst}.tmp.{os.getpid()}"
+    shutil.copy2(src, tmp)
+    os.replace(tmp, dst)
 
 
 def write_version_json(version_dir: str, version_data: dict) -> str:
@@ -79,8 +104,7 @@ def write_version_json(version_dir: str, version_data: dict) -> str:
         Full path to the written version.json file.
     """
     version_path = os.path.join(version_dir, "version.json")
-    with open(version_path, "w", encoding="utf-8") as f:
-        json.dump(version_data, f, indent=2, ensure_ascii=False)
+    _atomic_write_json(version_path, version_data)
 
     logger.info(f"Wrote version.json to {os.path.basename(version_dir)}")
     return version_path
@@ -97,21 +121,8 @@ def update_production_pointer(base_dir: str, version_dir: str) -> None:
         base_dir: Base directory for saved models.
         version_dir: Path to the version directory to promote.
     """
-    # Write production.json pointer
-    pointer_path = os.path.join(base_dir, "production.json")
-    pointer = {
-        "version_dir": os.path.basename(version_dir),
-        "updated": datetime.now(timezone.utc).isoformat(),
-        "path": version_dir,
-    }
-    with open(pointer_path, "w", encoding="utf-8") as f:
-        json.dump(pointer, f, indent=2)
-
-    logger.info(
-        f"Production pointer updated to {os.path.basename(version_dir)}"
-    )
-
-    # Copy model files to base dir for backward compatibility
+    # Copy model files to base dir for backward compatibility before
+    # publishing the pointer. Missing files clear stale flat copies.
     model_files = [
         "xgboost_gold.pkl",
         "lightgbm_gold.pkl",
@@ -125,15 +136,30 @@ def update_production_pointer(base_dir: str, version_dir: str) -> None:
         src = os.path.join(version_dir, filename)
         dst = os.path.join(base_dir, filename)
         if os.path.exists(src):
-            shutil.copy2(src, dst)
+            _atomic_copy(src, dst)
             logger.info(f"  Copied {filename} to base directory")
+        elif os.path.exists(dst):
+            os.remove(dst)
+            logger.info(f"  Removed stale {filename} from base directory")
 
     # Copy version.json as model_metadata.json for backward compatibility
     version_json_src = os.path.join(version_dir, "version.json")
     metadata_dst = os.path.join(base_dir, "model_metadata.json")
     if os.path.exists(version_json_src):
-        shutil.copy2(version_json_src, metadata_dst)
+        _atomic_copy(version_json_src, metadata_dst)
         logger.info("  Copied version.json as model_metadata.json")
+
+    pointer_path = os.path.join(base_dir, "production.json")
+    pointer = {
+        "version_dir": os.path.basename(version_dir),
+        "updated": datetime.now(timezone.utc).isoformat(),
+        "path": os.path.abspath(version_dir),
+    }
+    _atomic_write_json(pointer_path, pointer)
+
+    logger.info(
+        f"Production pointer updated to {os.path.basename(version_dir)}"
+    )
 
 
 def cleanup_old_versions(base_dir: str, keep: int = 5) -> List[str]:
@@ -183,6 +209,26 @@ def get_specialist_root(base_dir: str, specialist_name: str) -> str:
     return os.path.join(base_dir, SPECIALIST_ROOT_DIR, slug)
 
 
+def resolve_version_dir_from_pointer(root_dir: str, pointer: dict) -> str:
+    """Resolve and validate a production pointer inside an artifact root."""
+    version_name = str(pointer.get("version_dir", "")).strip()
+    if not version_name:
+        raise ValueError("production pointer missing version_dir")
+    raw_path = pointer.get("path")
+    candidate = str(raw_path) if raw_path else os.path.join(root_dir, version_name)
+    root_abs = os.path.abspath(root_dir)
+    candidate_abs = os.path.abspath(candidate)
+    try:
+        common = os.path.commonpath([root_abs, candidate_abs])
+    except ValueError as exc:
+        raise ValueError("production pointer path is outside artifact root") from exc
+    if common != root_abs:
+        raise ValueError("production pointer path is outside artifact root")
+    if version_name and os.path.basename(candidate_abs) != version_name:
+        raise ValueError("production pointer path does not match version_dir")
+    return candidate_abs
+
+
 def create_specialist_version_dir(base_dir: str, specialist_name: str) -> str:
     """Create a specialist-only version directory under the isolated root."""
     specialist_root = get_specialist_root(base_dir, specialist_name)
@@ -200,22 +246,6 @@ def update_specialist_production_pointer(
     specialist_root = get_specialist_root(base_dir, specialist_name)
     os.makedirs(specialist_root, exist_ok=True)
 
-    pointer_path = os.path.join(specialist_root, "production.json")
-    pointer = {
-        "specialist_name": specialist_name,
-        "version_dir": os.path.basename(version_dir),
-        "updated": datetime.now(timezone.utc).isoformat(),
-        "path": version_dir,
-    }
-    with open(pointer_path, "w", encoding="utf-8") as f:
-        json.dump(pointer, f, indent=2)
-
-    logger.info(
-        "Specialist production pointer updated: %s -> %s",
-        specialist_name,
-        os.path.basename(version_dir),
-    )
-
     files_to_copy = list(artifact_files or [])
     if not files_to_copy:
         files_to_copy = [
@@ -230,13 +260,31 @@ def update_specialist_production_pointer(
         src = os.path.join(version_dir, filename)
         dst = os.path.join(specialist_root, os.path.basename(filename))
         if os.path.exists(src):
-            shutil.copy2(src, dst)
+            _atomic_copy(src, dst)
             logger.info("  Copied specialist artifact %s", os.path.basename(filename))
+        elif os.path.exists(dst):
+            os.remove(dst)
+            logger.info("  Removed stale specialist artifact %s", os.path.basename(filename))
 
     version_json_src = os.path.join(version_dir, "version.json")
     metadata_dst = os.path.join(specialist_root, "specialist_model_metadata.json")
     if os.path.exists(version_json_src):
-        shutil.copy2(version_json_src, metadata_dst)
+        _atomic_copy(version_json_src, metadata_dst)
         logger.info("  Copied version.json as specialist_model_metadata.json")
+
+    pointer_path = os.path.join(specialist_root, "production.json")
+    pointer = {
+        "specialist_name": specialist_name,
+        "version_dir": os.path.basename(version_dir),
+        "updated": datetime.now(timezone.utc).isoformat(),
+        "path": os.path.abspath(version_dir),
+    }
+    _atomic_write_json(pointer_path, pointer)
+
+    logger.info(
+        "Specialist production pointer updated: %s -> %s",
+        specialist_name,
+        os.path.basename(version_dir),
+    )
 
     return pointer_path

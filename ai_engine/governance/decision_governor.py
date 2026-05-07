@@ -161,6 +161,14 @@ class DecisionGovernor:
                     f"specialist_weaken {specialist_signal.name}"
                 )
 
+        if abs(float(global_score)) < audit.threshold_margin:
+            audit.final_action = "HOLD"
+            if audit.gate_decision is not GateDecision.VETO:
+                audit.gate_decision = GateDecision.BLOCK
+            audit.gate_reasons.append(
+                f"global_margin {abs(float(global_score)):.2f} < min {audit.threshold_margin:.2f}"
+            )
+
         if audit.final_confidence < audit.threshold_confidence:
             audit.final_action = "HOLD"
             if audit.gate_decision is not GateDecision.VETO:

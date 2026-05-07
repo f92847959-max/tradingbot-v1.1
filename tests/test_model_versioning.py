@@ -13,6 +13,7 @@ import time
 from ai_engine.training.model_versioning import (
     cleanup_old_versions,
     create_version_dir,
+    resolve_version_dir_from_pointer,
     update_production_pointer,
     write_version_json,
 )
@@ -172,6 +173,20 @@ class TestUpdateProductionPointer:
         with open(meta_path, "r") as f:
             meta = json.load(f)
         assert meta["version"] == "v001"
+
+    def test_resolve_pointer_rejects_paths_outside_artifact_root(self, tmp_path):
+        outside = tmp_path.parent / "v001_outside"
+        pointer = {
+            "version_dir": "v001_outside",
+            "path": str(outside),
+        }
+
+        try:
+            resolve_version_dir_from_pointer(str(tmp_path), pointer)
+        except ValueError as exc:
+            assert "outside artifact root" in str(exc)
+        else:
+            raise AssertionError("expected pointer validation to fail")
 
 
 class TestCleanupOldVersions:

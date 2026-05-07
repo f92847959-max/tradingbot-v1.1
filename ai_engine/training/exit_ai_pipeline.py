@@ -25,6 +25,7 @@ from .model_versioning import (
     cleanup_old_versions,
     create_specialist_version_dir,
     get_specialist_root,
+    resolve_version_dir_from_pointer,
     update_specialist_production_pointer,
     write_version_json,
 )
@@ -196,10 +197,7 @@ def load_exit_ai_bundle(
 
     with open(pointer_path, "r", encoding="utf-8") as handle:
         pointer = json.load(handle)
-    version_dir = str(
-        pointer.get("path")
-        or os.path.join(root_dir, str(pointer.get("version_dir", "")))
-    )
+    version_dir = resolve_version_dir_from_pointer(root_dir, pointer)
 
     feature_block_path = os.path.join(version_dir, FEATURE_BLOCK_FILENAME)
     action_manifest_path = os.path.join(version_dir, ACTION_MANIFEST_FILENAME)
@@ -359,11 +357,26 @@ def _predict_probabilities(model: Any, X: np.ndarray) -> np.ndarray:
     probabilities = np.asarray(model.predict_proba(X), dtype=float)
     if probabilities.ndim != 2:
         raise ValueError("Model did not return a 2D probability matrix")
-    if probabilities.shape[1] != len(EXIT_AI_ACTIONS):
-        padded = np.zeros((len(X), len(EXIT_AI_ACTIONS)), dtype=float)
-        padded[:, : probabilities.shape[1]] = probabilities
-        probabilities = padded
-    return probabilities
+    classes = getattr(model, "classes_", None)
+    if classes is None:
+        if probabilities.shape[1] != len(EXIT_AI_ACTIONS):
+            raise ValueError("Exit-AI probabilities must have one column per action")
+        aligned = probabilities
+    else:
+        class_arr = np.asarray(classes, dtype=int)
+        if len(class_arr) != probabilities.shape[1]:
+            raise ValueError("Exit-AI probability columns do not match classes_")
+        aligned = np.zeros((len(X), len(EXIT_AI_ACTIONS)), dtype=float)
+        for col_idx, class_idx in enumerate(class_arr):
+            if class_idx < 0 or class_idx >= len(EXIT_AI_ACTIONS):
+                raise ValueError(f"Unexpected Exit-AI class label: {class_idx}")
+            aligned[:, class_idx] = probabilities[:, col_idx]
+    row_sums = aligned.sum(axis=1, keepdims=True)
+    invalid = row_sums.squeeze(axis=1) <= 0
+    if np.any(invalid):
+        aligned[invalid, ACTION_TO_LABEL["HOLD"]] = 1.0
+        row_sums = aligned.sum(axis=1, keepdims=True)
+    return aligned / row_sums
 
 
 def _classification_metrics(

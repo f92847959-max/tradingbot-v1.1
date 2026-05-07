@@ -63,6 +63,7 @@ class LightGBMModel(BaseModel):
         y_val: Optional[np.ndarray] = None,
         early_stopping_rounds: int = 50,
         use_recency_weight: bool = True,
+        class_weight_power: float = 1.5,
     ) -> Dict[str, Any]:
         """
         Train the LightGBM model.
@@ -74,6 +75,7 @@ class LightGBMModel(BaseModel):
             y_val: Validation labels
             early_stopping_rounds: Early stopping rounds
             use_recency_weight: Weight more recent data higher
+            class_weight_power: Exponent for inverse-frequency class weights
 
         Returns:
             Dict with training info
@@ -85,21 +87,24 @@ class LightGBMModel(BaseModel):
 
         y_train_mapped = self._map_labels(y_train)
 
-        # Recency weights (more recent data is more important)
-        sample_weights = None
-        if use_recency_weight:
-            sample_weights = np.linspace(0.5, 1.5, len(X_train))
-            sample_weights /= sample_weights.mean()
+        sample_weights = self._compute_sample_weights(
+            y_train_mapped,
+            len(X_train),
+            use_recency_weight=use_recency_weight,
+            class_weight_power=class_weight_power,
+        )
 
-        # Create model (is_unbalance=True in DEFAULT_PARAMS)
+        self.reset_training_state()
+
+        # Create model (is_unbalance=True in DEFAULT_PARAMS). Assign it only
+        # after fit succeeds so a failed retrain cannot preserve stale state.
         params = {k: v for k, v in self._params.items()
                   if k not in ("early_stopping_rounds",)}
-        self.model = lgb.LGBMClassifier(**params)
+        model = lgb.LGBMClassifier(**params)
 
         # Training
         fit_params: Dict[str, Any] = {}
-        if sample_weights is not None:
-            fit_params["sample_weight"] = sample_weights
+        fit_params["sample_weight"] = sample_weights
         if X_val is not None and y_val is not None:
             y_val_mapped = self._map_labels(y_val)
             fit_params["eval_set"] = [(X_val, y_val_mapped)]
@@ -108,7 +113,8 @@ class LightGBMModel(BaseModel):
                 lgb.log_evaluation(period=0),
             ]
 
-        self.model.fit(X_train, y_train_mapped, **fit_params)
+        model.fit(X_train, y_train_mapped, **fit_params)
+        self.model = model
         self._is_trained = True
 
         self._best_iteration = getattr(self.model, "best_iteration_", self._params["n_estimators"])
@@ -121,6 +127,29 @@ class LightGBMModel(BaseModel):
             "n_samples": X_train.shape[0],
             "n_features": X_train.shape[1],
         }
+
+    @staticmethod
+    def _compute_sample_weights(
+        y: np.ndarray,
+        n_samples: int,
+        *,
+        use_recency_weight: bool = True,
+        class_weight_power: float = 1.5,
+    ) -> np.ndarray:
+        weights = np.ones(n_samples, dtype=np.float64)
+
+        classes, counts = np.unique(y, return_counts=True)
+        total = len(y)
+        for cls, cnt in zip(classes, counts):
+            class_weight = (total / (len(classes) * cnt)) ** class_weight_power
+            weights[y == cls] *= class_weight
+
+        if use_recency_weight:
+            recency = np.linspace(0.5, 1.5, n_samples)
+            weights *= recency
+
+        weights /= weights.mean()
+        return weights
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
@@ -139,7 +168,10 @@ class LightGBMModel(BaseModel):
             X = X.reshape(1, -1)
 
         probs = self.model.predict_proba(X)
-        return probs
+        return self._align_class_probabilities(
+            probs,
+            getattr(self.model, "classes_", None),
+        )
 
     def save(self, path: str) -> None:
         """Save the LightGBM model as a .pkl file."""

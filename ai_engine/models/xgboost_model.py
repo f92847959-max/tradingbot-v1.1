@@ -66,18 +66,20 @@ class XGBoostModel(BaseModel):
         early_stopping_rounds: int = 50,
         use_class_weight: bool = True,
         use_recency_weight: bool = True,
+        class_weight_power: float = 1.5,
     ) -> Dict[str, Any]:
         """
         Train the XGBoost model.
 
         Args:
             X_train: Training features
-            y_train: Training labels (0=SELL, 1=HOLD, 2=BUY)
+            y_train: Training labels (-1=SELL, 0=HOLD, 1=BUY)
             X_val: Validation features (for early stopping)
             y_val: Validation labels
             early_stopping_rounds: Stop after N rounds without improvement
             use_class_weight: Use class weighting (balanced)
             use_recency_weight: Weight more recent data higher
+            class_weight_power: Exponent for inverse-frequency class weights
 
         Returns:
             Dict with training info
@@ -95,12 +97,16 @@ class XGBoostModel(BaseModel):
             y_train_mapped, len(X_train),
             use_class_weight=use_class_weight,
             use_recency_weight=use_recency_weight,
+            class_weight_power=class_weight_power,
         )
 
-        # Create model
+        self.reset_training_state()
+
+        # Create model. Assign it only after fit succeeds so failed retraining
+        # cannot leave the wrapper marked trained around an unfitted estimator.
         params = {k: v for k, v in self._params.items()
                   if k not in ("early_stopping_rounds",)}
-        self.model = xgb.XGBClassifier(**params)
+        model = xgb.XGBClassifier(**params)
 
         # Training with or without early stopping
         fit_params: Dict[str, Any] = {"sample_weight": sample_weights}
@@ -111,16 +117,17 @@ class XGBoostModel(BaseModel):
             # XGBoost >= 2.0 uses callbacks for early stopping
             try:
                 from xgboost.callback import EarlyStopping
-                self.model.set_params(
+                model.set_params(
                     callbacks=[EarlyStopping(rounds=early_stopping_rounds,
                                             metric_name="mlogloss",
                                             save_best=True)]
                 )
             except ImportError:
                 # Fallback for older versions
-                self.model.set_params(early_stopping_rounds=early_stopping_rounds)
+                model.set_params(early_stopping_rounds=early_stopping_rounds)
 
-        self.model.fit(X_train, y_train_mapped, **fit_params)
+        model.fit(X_train, y_train_mapped, **fit_params)
+        self.model = model
         self._is_trained = True
 
         # Best iteration
@@ -152,7 +159,10 @@ class XGBoostModel(BaseModel):
             X = X.reshape(1, -1)
 
         probs = self.model.predict_proba(X)
-        return probs
+        return self._align_class_probabilities(
+            probs,
+            getattr(self.model, "classes_", None),
+        )
 
     def save(self, path: str) -> None:
         """
@@ -216,6 +226,7 @@ class XGBoostModel(BaseModel):
         n_samples: int,
         use_class_weight: bool = True,
         use_recency_weight: bool = True,
+        class_weight_power: float = 1.5,
     ) -> np.ndarray:
         """
         Compute sample weights (class balance + recency).
@@ -225,6 +236,7 @@ class XGBoostModel(BaseModel):
             n_samples: Number of samples
             use_class_weight: Balance classes
             use_recency_weight: Weight more recent data higher
+            class_weight_power: Exponent for inverse-frequency class weights
 
         Returns:
             Weights per sample
@@ -236,7 +248,7 @@ class XGBoostModel(BaseModel):
             classes, counts = np.unique(y, return_counts=True)
             total = len(y)
             for cls, cnt in zip(classes, counts):
-                class_weight = total / (len(classes) * cnt)
+                class_weight = (total / (len(classes) * cnt)) ** class_weight_power
                 weights[y == cls] *= class_weight
 
         # Recency weighting: exponentially increasing

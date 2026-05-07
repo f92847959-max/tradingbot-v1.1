@@ -11,7 +11,10 @@ import pandas as pd
 
 from ai_engine.features.feature_scaler import FeatureScaler
 from ai_engine.training.decision_snapshot_capture import ACTIONS, LABEL_TO_ACTION
-from ai_engine.training.model_versioning import get_specialist_root
+from ai_engine.training.model_versioning import (
+    get_specialist_root,
+    resolve_version_dir_from_pointer,
+)
 
 DECISION_HEAD_NAME = "decision_head"
 MODEL_FILENAME = "decision_head_model.pkl"
@@ -58,7 +61,7 @@ class DecisionHeadRuntime:
 
             with open(production_path, "r", encoding="utf-8") as handle:
                 pointer = json.load(handle)
-            version_dir = pointer.get("path") or f"{root}/{pointer.get('version_dir', '')}"
+            version_dir = resolve_version_dir_from_pointer(root, pointer)
             with open(f"{version_dir}/{FEATURE_MANIFEST_FILENAME}", "r", encoding="utf-8") as handle:
                 manifest = json.load(handle)
             scaler = FeatureScaler()
@@ -87,11 +90,10 @@ class DecisionHeadRuntime:
         scaled = self._scaler.transform(pd.DataFrame([features]))[
             self._feature_names
         ].values.astype(np.float32)
-        probabilities = np.asarray(self._model.predict_proba(scaled), dtype=float)[0]
-        if len(probabilities) != len(ACTIONS):
-            padded = np.zeros(len(ACTIONS), dtype=float)
-            padded[: len(probabilities)] = probabilities
-            probabilities = padded
+        probabilities = _align_probabilities(
+            self._model,
+            np.asarray(self._model.predict_proba(scaled), dtype=float),
+        )[0]
         label = int(np.argmax(probabilities))
         action = LABEL_TO_ACTION.get(label, "HOLD")
         return DecisionHeadPrediction(
@@ -164,6 +166,32 @@ def _features_from_signal(signal: Mapping[str, Any], feature_names: list[str]) -
         "prob_buy": float(probabilities.get("BUY", 0.0) or 0.0),
     }
     return {name: all_features.get(name, 0.0) for name in feature_names}
+
+
+def _align_probabilities(model: Any, probabilities: np.ndarray) -> np.ndarray:
+    probs = np.asarray(probabilities, dtype=float)
+    if probs.ndim != 2:
+        raise ValueError("Decision-head probabilities must be 2D")
+    classes = getattr(model, "classes_", None)
+    if classes is None:
+        if probs.shape[1] != len(ACTIONS):
+            raise ValueError("Decision-head probabilities must include every action")
+        aligned = probs
+    else:
+        class_arr = np.asarray(classes, dtype=int)
+        if len(class_arr) != probs.shape[1]:
+            raise ValueError("Decision-head probability columns do not match classes_")
+        aligned = np.zeros((probs.shape[0], len(ACTIONS)), dtype=float)
+        for col_idx, class_idx in enumerate(class_arr):
+            if class_idx < 0 or class_idx >= len(ACTIONS):
+                raise ValueError(f"Unexpected decision-head class label: {class_idx}")
+            aligned[:, class_idx] = probs[:, col_idx]
+    row_sums = aligned.sum(axis=1, keepdims=True)
+    invalid = row_sums.squeeze(axis=1) <= 0
+    if np.any(invalid):
+        aligned[invalid, ACTIONS.index("HOLD")] = 1.0
+        row_sums = aligned.sum(axis=1, keepdims=True)
+    return aligned / row_sums
 
 
 def _prediction_payload(

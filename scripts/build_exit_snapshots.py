@@ -77,7 +77,14 @@ def _load_csv(csv_path: Path) -> pd.DataFrame:
     if "volume" not in df.columns:
         df["volume"] = 0.0
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
-    df = df.dropna(subset=["timestamp"]).reset_index(drop=True)
+    invalid_timestamps = int(df["timestamp"].isna().sum())
+    if invalid_timestamps:
+        raise ValueError(f"{csv_path}: {invalid_timestamps} invalid timestamp rows")
+    df = (
+        df.drop_duplicates(subset=["timestamp"], keep="last")
+        .sort_values("timestamp")
+        .reset_index(drop=True)
+    )
     return df
 
 
@@ -170,20 +177,19 @@ def _build_one_snapshot(
             volume_ratio = float(cur_vol / recent_vol)
     spread_pips = max(2.0, abs(float(cur_row["high"]) - float(cur_row["low"])) * 10.0)
 
-    last_idx = min(open_idx + max_holding, len(df) - 1)
-    trade_window = df.iloc[current_idx + 1: last_idx + 1]
-    future_window = df.iloc[current_idx + 1: current_idx + 1 + lookahead]
-    if future_window.empty or trade_window.empty:
+    last_idx = min(open_idx + max_holding, current_idx + lookahead, len(df) - 1)
+    outcome_window = df.iloc[current_idx + 1: last_idx + 1]
+    if outcome_window.empty:
         return None
 
     if direction == "BUY":
-        adverse_excursion = entry_price - float(trade_window["low"].min())
-        favorable_excursion = float(trade_window["high"].max()) - entry_price
+        adverse_excursion = entry_price - float(outcome_window["low"].min())
+        favorable_excursion = float(outcome_window["high"].max()) - entry_price
     else:
-        adverse_excursion = float(trade_window["high"].max()) - entry_price
-        favorable_excursion = entry_price - float(trade_window["low"].min())
+        adverse_excursion = float(outcome_window["high"].max()) - entry_price
+        favorable_excursion = entry_price - float(outcome_window["low"].min())
 
-    exit_price = float(trade_window.iloc[-1]["close"])
+    exit_price = float(outcome_window.iloc[-1]["close"])
     return_r = _signed_profit_r(direction, entry_price, exit_price, sl_dist)
     future_adverse_r = float(max(adverse_excursion / sl_dist, 0.0))
     future_favorable_r = float(max(favorable_excursion / sl_dist, 0.0))
@@ -222,14 +228,22 @@ def build_snapshots(
     snapshot_offsets: tuple[int, ...],
     lookahead: int,
 ) -> pd.DataFrame:
-    n = len(df)
-    if n < max_holding + lookahead + 50:
+    if max_holding < 2:
+        raise ValueError("max_holding must be at least 2 bars")
+    bad_offsets = [offset for offset in snapshot_offsets if offset <= 0 or offset >= max_holding]
+    if bad_offsets:
         raise ValueError(
-            f"Not enough rows ({n}) for max_holding={max_holding} + "
-            f"lookahead={lookahead}"
+            "snapshot_offsets must be inside the open trade horizon "
+            f"(1..{max_holding - 1}); got {bad_offsets}"
         )
 
-    open_indices = range(50, n - max_holding - lookahead, max(stride, 1))
+    n = len(df)
+    if n < max_holding + 50:
+        raise ValueError(
+            f"Not enough rows ({n}) for max_holding={max_holding}"
+        )
+
+    open_indices = range(50, n - max_holding, max(stride, 1))
     total = len(open_indices)
     print(f"Building snapshots: {total} virtual open-points x 2 directions "
           f"x {len(snapshot_offsets)} offsets")

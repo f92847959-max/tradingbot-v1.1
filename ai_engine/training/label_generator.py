@@ -11,11 +11,15 @@ Improvements over V1:
 """
 
 import logging
-import warnings
 from typing import Dict
 
 import numpy as np
 import pandas as pd
+
+from .exit_aware_label_generator import (
+    ExitAwareLabelConfig,
+    ExitAwareLabelDemoter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +51,9 @@ class LabelGenerator:
         sl_atr_multiplier: float = 1.5,
         min_tp_pips: float = 5.0,
         min_sl_pips: float = 3.0,
+        exit_aware: bool = False,
+        exit_aware_activation_r: float = 1.0,
+        exit_aware_max_adverse_r: float = 0.75,
     ) -> None:
         """
         Initializes the LabelGenerator.
@@ -63,6 +70,9 @@ class LabelGenerator:
             sl_atr_multiplier: ATR multiplier for stop-loss distance
             min_tp_pips: Floor to prevent unrealistically tight TP
             min_sl_pips: Floor to prevent unrealistically tight SL
+            exit_aware: Demote entry labels when exit logic would bail early
+            exit_aware_activation_r: R multiple where trailing/hold behavior activates
+            exit_aware_max_adverse_r: Max adverse excursion before activation
         """
         self.tp_pips = tp_pips
         self.sl_pips = sl_pips
@@ -75,6 +85,11 @@ class LabelGenerator:
         self.sl_atr_multiplier = sl_atr_multiplier
         self.min_tp_pips = min_tp_pips
         self.min_sl_pips = min_sl_pips
+        self.exit_aware_config = ExitAwareLabelConfig(
+            enabled=exit_aware,
+            activation_r=exit_aware_activation_r,
+            max_adverse_r_before_activation=exit_aware_max_adverse_r,
+        )
 
         # Total cost per trade (deducted from TP / added to SL)
         self.total_cost_pips = spread_pips + slippage_pips
@@ -117,11 +132,25 @@ class LabelGenerator:
         high = df["high"].values.astype(np.float64)
         low = df["low"].values.astype(np.float64)
         n = len(close)
+        invalid_ohlc = ~np.isfinite(close) | ~np.isfinite(high) | ~np.isfinite(low)
+        if np.any(invalid_ohlc):
+            raise ValueError(
+                f"Cannot generate labels: {int(invalid_ohlc.sum())} row(s) contain invalid OHLC values"
+            )
 
         if self.use_dynamic_atr:
             labels = self._generate_dynamic_atr_labels(df, close, high, low, n)
         else:
             labels = self._generate_fixed_labels(close, high, low, n)
+        if self.exit_aware_config.enabled:
+            tp_dist, sl_dist = self._label_distance_arrays(df, n)
+            labels = ExitAwareLabelDemoter(self.exit_aware_config).demote_labels(
+                df,
+                labels,
+                tp_dist=tp_dist,
+                sl_dist=sl_dist,
+                max_candles=self.max_candles,
+            )
 
         # Statistics
         buy_count = (labels == 1).sum()
@@ -184,27 +213,21 @@ class LabelGenerator:
             raise ValueError("atr_14 column required for dynamic ATR mode")
 
         atr = df["atr_14"].values.astype(np.float64).copy()
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            median_atr = np.nanmedian(atr)
+        valid_atr = np.isfinite(atr) & (atr > 0)
 
-        if np.isnan(median_atr):
+        if not np.any(valid_atr):
             # All ATR values are NaN -- fall back to fixed pips
             logger.warning(
-                "All ATR values are NaN, falling back to fixed pips "
+                "No valid ATR values, falling back to fixed pips "
                 f"(TP={self.tp_pips}, SL={self.sl_pips})"
             )
             return self._generate_fixed_labels(close, high, low, n)
 
-        # Fill NaN ATR values with median
-        nan_count = np.isnan(atr).sum()
-        if nan_count > 0:
-            logger.info(f"Filling {nan_count} NaN ATR values with median={median_atr:.4f}")
-            atr = np.where(np.isnan(atr), median_atr, atr)
-
         # Compute per-candle TP/SL distances in price units
-        tp_dist = atr * self.tp_atr_multiplier
-        sl_dist = atr * self.sl_atr_multiplier
+        fixed_tp = self.tp_pips * self.pip_size
+        fixed_sl = self.sl_pips * self.pip_size
+        tp_dist = np.where(valid_atr, atr * self.tp_atr_multiplier, fixed_tp)
+        sl_dist = np.where(valid_atr, atr * self.sl_atr_multiplier, fixed_sl)
 
         # Apply minimum floors
         tp_dist = np.maximum(tp_dist, self.min_tp_pips * self.pip_size)
@@ -221,7 +244,7 @@ class LabelGenerator:
 
         logger.info(
             f"Dynamic ATR distances: TP mean={tp_dist.mean():.4f}, "
-            f"SL mean={sl_dist.mean():.4f}, ATR median={median_atr:.4f}"
+            f"SL mean={sl_dist.mean():.4f}, valid ATR rows={int(valid_atr.sum())}/{len(atr)}"
         )
 
         return self._vectorized_labeling_dynamic(
@@ -229,6 +252,23 @@ class LabelGenerator:
             buy_tp_dist, buy_sl_dist,
             sell_tp_dist, sell_sl_dist,
         )
+
+    def _label_distance_arrays(self, df: pd.DataFrame, n: int) -> tuple[np.ndarray, np.ndarray]:
+        fixed_tp = self.tp_pips * self.pip_size
+        fixed_sl = self.sl_pips * self.pip_size
+        if not self.use_dynamic_atr or "atr_14" not in df.columns:
+            return (
+                np.full(n, fixed_tp, dtype=np.float64),
+                np.full(n, fixed_sl, dtype=np.float64),
+            )
+
+        atr = df["atr_14"].values.astype(np.float64).copy()
+        valid_atr = np.isfinite(atr) & (atr > 0)
+        tp_dist = np.where(valid_atr, atr * self.tp_atr_multiplier, fixed_tp)
+        sl_dist = np.where(valid_atr, atr * self.sl_atr_multiplier, fixed_sl)
+        tp_dist = np.maximum(tp_dist, self.min_tp_pips * self.pip_size)
+        sl_dist = np.maximum(sl_dist, self.min_sl_pips * self.pip_size)
+        return tp_dist, sl_dist
 
     def _vectorized_labeling(
         self,
@@ -373,6 +413,11 @@ class LabelGenerator:
             "slippage_pips": self.slippage_pips,
             "total_cost_pips": self.total_cost_pips,
             "use_dynamic_atr": self.use_dynamic_atr,
+            "exit_aware": self.exit_aware_config.enabled,
+            "exit_aware_activation_r": self.exit_aware_config.activation_r,
+            "exit_aware_max_adverse_r": (
+                self.exit_aware_config.max_adverse_r_before_activation
+            ),
         }
         if self.use_dynamic_atr:
             params.update({

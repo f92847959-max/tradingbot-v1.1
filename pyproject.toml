@@ -27,17 +27,23 @@ dependencies = [
     "pandas>=2.2.0",
     "pandas-ta>=0.3.14b1",
     "numpy>=2.2.4",
+    "yfinance>=1.1.0",
+    "dukascopy-python>=4.0.1",
+    "shap>=0.51.0",
+    "matplotlib>=3.8.0",
 
     # Broker / HTTP
     "requests>=2.32.0",
     "aiohttp>=3.11.0",
     "websockets>=14.0",
+    "aiosqlite>=0.18.0",
 
     # Notifications
     "twilio>=9.3.0",
 
     # Monitoring
     "structlog>=24.4.0",
+    "rich>=13.7.0",
 
     # Scheduling
     "apscheduler>=3.10.0",
@@ -72,7 +78,7 @@ build-backend = "setuptools.build_meta"
 include = [
     "config*", "market_data*", "ai_engine*", "strategy*", "risk*",
     "order_management*", "portfolio*", "notifications*", "monitoring*",
-    "api*", "dashboard*", "database*", "shared*",
+    "api*", "dashboard*", "database*", "shared*", "correlation*", "sentiment*",
 ]
 
 [tool.ruff]
