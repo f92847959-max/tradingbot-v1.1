@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "specialist_name": "exit_ai",
+  "feature_names": [
+    "direction_sign",
+    "entry_price",
+    "current_price",
+    "current_stop_loss",
+    "initial_stop_loss",
+    "take_profit",
+    "tp1",
+    "atr",
+    "current_stop_buffer_r",
+    "reward_distance_r",
+    "profit_r",
+    "price_progress",
+    "tp1_progress",
+    "hours_open",
+    "volume_ratio",
+    "spread_pips",
+    "baseline_dynamic_sl_gap",
+    "baseline_trailing_gap",
+    "baseline_partial_close_fraction",
+    "baseline_profit_r"
+  ],
+  "label_column": "action_label"
+}

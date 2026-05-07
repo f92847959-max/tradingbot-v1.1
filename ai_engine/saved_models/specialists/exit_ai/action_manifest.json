@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "allowed_actions": [
+    "HOLD",
+    "TIGHTEN_SL",
+    "PARTIAL_CLOSE",
+    "FULL_EXIT"
+  ],
+  "label_map": {
+    "HOLD": 0,
+    "TIGHTEN_SL": 1,
+    "PARTIAL_CLOSE": 2,
+    "FULL_EXIT": 3
+  },
+  "feature_names": [
+    "direction_sign",
+    "entry_price",
+    "current_price",
+    "current_stop_loss",
+    "initial_stop_loss",
+    "take_profit",
+    "tp1",
+    "atr",
+    "current_stop_buffer_r",
+    "reward_distance_r",
+    "profit_r",
+    "price_progress",
+    "tp1_progress",
+    "hours_open",
+    "volume_ratio",
+    "spread_pips",
+    "baseline_dynamic_sl_gap",
+    "baseline_trailing_gap",
+    "baseline_partial_close_fraction",
+    "baseline_profit_r"
+  ],
+  "outcome_columns": [
+    "future_adverse_r",
+    "future_favorable_r",
+    "future_return_r"
+  ]
+}

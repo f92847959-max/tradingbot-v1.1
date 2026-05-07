@@ -1,0 +1,11 @@
+{
+  "approved": false,
+  "mode": "blocked",
+  "reasons": [
+    "champion_report_missing"
+  ],
+  "gate_metrics": {},
+  "candidate_version": "v023",
+  "champion_version": null,
+  "created_at": "2026-05-07T17:10:25.412959"
+}

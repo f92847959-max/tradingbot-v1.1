@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "specialist_name": "exit_ai",
+  "metrics": {
+    "accuracy": 1.0,
+    "calibration_score": 0.999921,
+    "confidence_mean": 0.999921,
+    "non_hold_rate": 0.761905,
+    "hold_rate": 0.238095
+  },
+  "class_balance": {
+    "total_samples": 360,
+    "action_counts": {
+      "HOLD": 90,
+      "TIGHTEN_SL": 90,
+      "PARTIAL_CLOSE": 90,
+      "FULL_EXIT": 90
+    },
+    "hold_ratio": 0.25,
+    "non_hold_ratio": 0.75
+  },
+  "split_sizes": {
+    "train": 251,
+    "val": 43,
+    "test": 42
+  }
+}

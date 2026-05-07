@@ -1,0 +1,428 @@
+{
+  "schema_version": 1,
+  "artifact_type": "exit_ai_promotion_artifact",
+  "created_at": "2026-05-04T15:50:02.808826+00:00",
+  "promotion_status": "approved",
+  "version_dir": "ai_engine/saved_models\\specialists\\exit_ai\\v022_20260504_155002",
+  "comparison_report": {
+    "schema_version": 1,
+    "specialist_name": "exit_ai",
+    "purge_gap": 12,
+    "window_count": 4,
+    "feature_block": [
+      "direction_sign",
+      "entry_price",
+      "current_price",
+      "current_stop_loss",
+      "initial_stop_loss",
+      "take_profit",
+      "tp1",
+      "atr",
+      "current_stop_buffer_r",
+      "reward_distance_r",
+      "profit_r",
+      "price_progress",
+      "tp1_progress",
+      "hours_open",
+      "volume_ratio",
+      "spread_pips",
+      "baseline_dynamic_sl_gap",
+      "baseline_trailing_gap",
+      "baseline_partial_close_fraction",
+      "baseline_profit_r"
+    ],
+    "action_manifest": {
+      "schema_version": 1,
+      "allowed_actions": [
+        "HOLD",
+        "TIGHTEN_SL",
+        "PARTIAL_CLOSE",
+        "FULL_EXIT"
+      ],
+      "label_map": {
+        "HOLD": 0,
+        "TIGHTEN_SL": 1,
+        "PARTIAL_CLOSE": 2,
+        "FULL_EXIT": 3
+      },
+      "feature_names": [
+        "direction_sign",
+        "entry_price",
+        "current_price",
+        "current_stop_loss",
+        "initial_stop_loss",
+        "take_profit",
+        "tp1",
+        "atr",
+        "current_stop_buffer_r",
+        "reward_distance_r",
+        "profit_r",
+        "price_progress",
+        "tp1_progress",
+        "hours_open",
+        "volume_ratio",
+        "spread_pips",
+        "baseline_dynamic_sl_gap",
+        "baseline_trailing_gap",
+        "baseline_partial_close_fraction",
+        "baseline_profit_r"
+      ],
+      "outcome_columns": [
+        "future_adverse_r",
+        "future_favorable_r",
+        "future_return_r"
+      ]
+    },
+    "comparison": {
+      "baseline": {
+        "max_drawdown_proxy": 0.201412,
+        "trade_retention": 0.625686,
+        "accuracy": 1.0,
+        "calibration_score": 1.0,
+        "confidence_mean": 1.0,
+        "hold_rate": 0.250274,
+        "non_hold_rate": 0.749726,
+        "drawdown_contained": 114.70855,
+        "upside_retained": 111.5827,
+        "early_exit_cost": 54.3219,
+        "residual_drawdown_total": 38.61425,
+        "action_counts": {
+          "HOLD": 48,
+          "TIGHTEN_SL": 48,
+          "PARTIAL_CLOSE": 48,
+          "FULL_EXIT": 48
+        },
+        "profit_factor_proxy": 2.434911
+      },
+      "exit_ai_candidate": {
+        "max_drawdown_proxy": 0.201412,
+        "trade_retention": 0.625686,
+        "accuracy": 1.0,
+        "calibration_score": 0.986712,
+        "confidence_mean": 0.986712,
+        "hold_rate": 0.250274,
+        "non_hold_rate": 0.749726,
+        "drawdown_contained": 114.70855,
+        "upside_retained": 111.5827,
+        "early_exit_cost": 54.3219,
+        "residual_drawdown_total": 38.61425,
+        "action_counts": {
+          "HOLD": 48,
+          "TIGHTEN_SL": 48,
+          "PARTIAL_CLOSE": 48,
+          "FULL_EXIT": 48
+        },
+        "profit_factor_proxy": 2.434911
+      }
+    },
+    "deltas": {
+      "profit_factor_delta": 0.0,
+      "drawdown_delta": 0.0,
+      "calibration_delta": -0.013288,
+      "trade_retention_delta": 0.0,
+      "protection_delta": 0.0,
+      "retained_upside_delta": 0.0
+    },
+    "windows": [
+      {
+        "window_id": 0,
+        "train_start": 0,
+        "train_end": 120,
+        "train_size": 120,
+        "test_start": 132,
+        "test_end": 172,
+        "test_size": 40,
+        "purge_gap": 12,
+        "scaler_scope": "train_only",
+        "baseline": {
+          "drawdown_contained": 23.73975,
+          "upside_retained": 23.21635,
+          "early_exit_cost": 11.44515,
+          "residual_drawdown_total": 8.00095,
+          "max_drawdown_proxy": 0.200024,
+          "trade_retention": 0.625,
+          "accuracy": 1.0,
+          "calibration_score": 1.0,
+          "confidence_mean": 1.0,
+          "hold_rate": 0.25,
+          "non_hold_rate": 0.75,
+          "profit_factor_proxy": 2.41468,
+          "action_counts": {
+            "HOLD": 10,
+            "TIGHTEN_SL": 10,
+            "PARTIAL_CLOSE": 10,
+            "FULL_EXIT": 10
+          }
+        },
+        "exit_ai_candidate": {
+          "drawdown_contained": 23.73975,
+          "upside_retained": 23.21635,
+          "early_exit_cost": 11.44515,
+          "residual_drawdown_total": 8.00095,
+          "max_drawdown_proxy": 0.200024,
+          "trade_retention": 0.625,
+          "accuracy": 1.0,
+          "calibration_score": 0.9999,
+          "confidence_mean": 0.9999,
+          "hold_rate": 0.25,
+          "non_hold_rate": 0.75,
+          "profit_factor_proxy": 2.41468,
+          "action_counts": {
+            "HOLD": 10,
+            "TIGHTEN_SL": 10,
+            "PARTIAL_CLOSE": 10,
+            "FULL_EXIT": 10
+          }
+        },
+        "delta": {
+          "profit_factor_delta": 0.0,
+          "drawdown_delta": 0.0,
+          "calibration_delta": -0.0001,
+          "trade_retention_delta": 0.0,
+          "protection_delta": 0.0,
+          "retained_upside_delta": 0.0
+        }
+      },
+      {
+        "window_id": 1,
+        "train_start": 0,
+        "train_end": 172,
+        "train_size": 172,
+        "test_start": 184,
+        "test_end": 227,
+        "test_size": 43,
+        "purge_gap": 12,
+        "scaler_scope": "train_only",
+        "baseline": {
+          "drawdown_contained": 25.45085,
+          "upside_retained": 25.5964,
+          "early_exit_cost": 12.1354,
+          "residual_drawdown_total": 8.99375,
+          "max_drawdown_proxy": 0.209157,
+          "trade_retention": 0.639535,
+          "accuracy": 1.0,
+          "calibration_score": 1.0,
+          "confidence_mean": 1.0,
+          "hold_rate": 0.255814,
+          "non_hold_rate": 0.744186,
+          "profit_factor_proxy": 2.415963,
+          "action_counts": {
+            "HOLD": 11,
+            "TIGHTEN_SL": 11,
+            "PARTIAL_CLOSE": 11,
+            "FULL_EXIT": 10
+          }
+        },
+        "exit_ai_candidate": {
+          "drawdown_contained": 25.45085,
+          "upside_retained": 25.5964,
+          "early_exit_cost": 12.1354,
+          "residual_drawdown_total": 8.99375,
+          "max_drawdown_proxy": 0.209157,
+          "trade_retention": 0.639535,
+          "accuracy": 1.0,
+          "calibration_score": 0.999921,
+          "confidence_mean": 0.999921,
+          "hold_rate": 0.255814,
+          "non_hold_rate": 0.744186,
+          "profit_factor_proxy": 2.415963,
+          "action_counts": {
+            "HOLD": 11,
+            "TIGHTEN_SL": 11,
+            "PARTIAL_CLOSE": 11,
+            "FULL_EXIT": 10
+          }
+        },
+        "delta": {
+          "profit_factor_delta": 0.0,
+          "drawdown_delta": 0.0,
+          "calibration_delta": -7.9e-05,
+          "trade_retention_delta": 0.0,
+          "protection_delta": 0.0,
+          "retained_upside_delta": 0.0
+        }
+      },
+      {
+        "window_id": 2,
+        "train_start": 0,
+        "train_end": 227,
+        "train_size": 227,
+        "test_start": 239,
+        "test_end": 295,
+        "test_size": 56,
+        "purge_gap": 12,
+        "scaler_scope": "train_only",
+        "baseline": {
+          "drawdown_contained": 33.6388,
+          "upside_retained": 32.28865,
+          "early_exit_cost": 15.79955,
+          "residual_drawdown_total": 11.3286,
+          "max_drawdown_proxy": 0.202296,
+          "trade_retention": 0.625,
+          "accuracy": 1.0,
+          "calibration_score": 1.0,
+          "confidence_mean": 1.0,
+          "hold_rate": 0.25,
+          "non_hold_rate": 0.75,
+          "profit_factor_proxy": 2.430223,
+          "action_counts": {
+            "HOLD": 14,
+            "TIGHTEN_SL": 14,
+            "PARTIAL_CLOSE": 14,
+            "FULL_EXIT": 14
+          }
+        },
+        "exit_ai_candidate": {
+          "drawdown_contained": 33.6388,
+          "upside_retained": 32.28865,
+          "early_exit_cost": 15.79955,
+          "residual_drawdown_total": 11.3286,
+          "max_drawdown_proxy": 0.202296,
+          "trade_retention": 0.625,
+          "accuracy": 1.0,
+          "calibration_score": 0.947108,
+          "confidence_mean": 0.947108,
+          "hold_rate": 0.25,
+          "non_hold_rate": 0.75,
+          "profit_factor_proxy": 2.430223,
+          "action_counts": {
+            "HOLD": 14,
+            "TIGHTEN_SL": 14,
+            "PARTIAL_CLOSE": 14,
+            "FULL_EXIT": 14
+          }
+        },
+        "delta": {
+          "profit_factor_delta": 0.0,
+          "drawdown_delta": 0.0,
+          "calibration_delta": -0.052892,
+          "trade_retention_delta": 0.0,
+          "protection_delta": 0.0,
+          "retained_upside_delta": 0.0
+        }
+      },
+      {
+        "window_id": 3,
+        "train_start": 0,
+        "train_end": 295,
+        "train_size": 295,
+        "test_start": 307,
+        "test_end": 360,
+        "test_size": 53,
+        "purge_gap": 12,
+        "scaler_scope": "train_only",
+        "baseline": {
+          "drawdown_contained": 31.87915,
+          "upside_retained": 30.4813,
+          "early_exit_cost": 14.9418,
+          "residual_drawdown_total": 10.29095,
+          "max_drawdown_proxy": 0.194169,
+          "trade_retention": 0.613208,
+          "accuracy": 1.0,
+          "calibration_score": 1.0,
+          "confidence_mean": 1.0,
+          "hold_rate": 0.245283,
+          "non_hold_rate": 0.754717,
+          "profit_factor_proxy": 2.471409,
+          "action_counts": {
+            "HOLD": 13,
+            "TIGHTEN_SL": 13,
+            "PARTIAL_CLOSE": 13,
+            "FULL_EXIT": 14
+          }
+        },
+        "exit_ai_candidate": {
+          "drawdown_contained": 31.87915,
+          "upside_retained": 30.4813,
+          "early_exit_cost": 14.9418,
+          "residual_drawdown_total": 10.29095,
+          "max_drawdown_proxy": 0.194169,
+          "trade_retention": 0.613208,
+          "accuracy": 1.0,
+          "calibration_score": 0.999921,
+          "confidence_mean": 0.999921,
+          "hold_rate": 0.245283,
+          "non_hold_rate": 0.754717,
+          "profit_factor_proxy": 2.471409,
+          "action_counts": {
+            "HOLD": 13,
+            "TIGHTEN_SL": 13,
+            "PARTIAL_CLOSE": 13,
+            "FULL_EXIT": 14
+          }
+        },
+        "delta": {
+          "profit_factor_delta": 0.0,
+          "drawdown_delta": 0.0,
+          "calibration_delta": -7.9e-05,
+          "trade_retention_delta": 0.0,
+          "protection_delta": 0.0,
+          "retained_upside_delta": 0.0
+        }
+      }
+    ]
+  },
+  "evaluation": {
+    "schema_version": 1,
+    "artifact_type": "exit_ai_promotion_evaluation",
+    "evaluated_at": "2026-05-04T15:50:02.808811+00:00",
+    "passed": true,
+    "hold_collapse_detected": false,
+    "reasons": [],
+    "thresholds": {
+      "max_hold_rate": 0.8,
+      "min_trade_retention": 0.3,
+      "min_profit_factor_delta": -0.05,
+      "min_calibration_score": 0.45,
+      "max_drawdown_regression": 0.05
+    },
+    "baseline_metrics": {
+      "max_drawdown_proxy": 0.201412,
+      "trade_retention": 0.625686,
+      "accuracy": 1.0,
+      "calibration_score": 1.0,
+      "confidence_mean": 1.0,
+      "hold_rate": 0.250274,
+      "non_hold_rate": 0.749726,
+      "drawdown_contained": 114.70855,
+      "upside_retained": 111.5827,
+      "early_exit_cost": 54.3219,
+      "residual_drawdown_total": 38.61425,
+      "action_counts": {
+        "HOLD": 48,
+        "TIGHTEN_SL": 48,
+        "PARTIAL_CLOSE": 48,
+        "FULL_EXIT": 48
+      },
+      "profit_factor_proxy": 2.434911
+    },
+    "candidate_metrics": {
+      "max_drawdown_proxy": 0.201412,
+      "trade_retention": 0.625686,
+      "accuracy": 1.0,
+      "calibration_score": 0.986712,
+      "confidence_mean": 0.986712,
+      "hold_rate": 0.250274,
+      "non_hold_rate": 0.749726,
+      "drawdown_contained": 114.70855,
+      "upside_retained": 111.5827,
+      "early_exit_cost": 54.3219,
+      "residual_drawdown_total": 38.61425,
+      "action_counts": {
+        "HOLD": 48,
+        "TIGHTEN_SL": 48,
+        "PARTIAL_CLOSE": 48,
+        "FULL_EXIT": 48
+      },
+      "profit_factor_proxy": 2.434911
+    },
+    "comparison_deltas": {
+      "profit_factor_delta": 0.0,
+      "drawdown_delta": 0.0,
+      "calibration_delta": -0.013288,
+      "trade_retention_delta": 0.0,
+      "protection_delta": 0.0,
+      "retained_upside_delta": 0.0
+    }
+  }
+}

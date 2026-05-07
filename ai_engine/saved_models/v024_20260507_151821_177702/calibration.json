@@ -1,0 +1,326 @@
+{
+  "schema_version": 1,
+  "class_labels": [
+    "SELL",
+    "HOLD",
+    "BUY"
+  ],
+  "models": {
+    "xgboost": {
+      "model_name": "xgboost",
+      "method": "isotonic",
+      "class_labels": [
+        "SELL",
+        "HOLD",
+        "BUY"
+      ],
+      "class_support": {
+        "SELL": 675,
+        "HOLD": 590,
+        "BUY": 467
+      },
+      "validation_metrics": {
+        "before": {
+          "class_labels": [
+            "SELL",
+            "HOLD",
+            "BUY"
+          ],
+          "log_loss": 1.0906148782941587,
+          "brier_score": 0.6613804994362853,
+          "brier_by_class": {
+            "SELL": 0.24179800938474952,
+            "HOLD": 0.21642892981128123,
+            "BUY": 0.2031535602402563
+          },
+          "expected_calibration_error": 0.02370672481582676,
+          "avg_confidence": 0.38600016942676796,
+          "avg_correctness": 0.3851039260969977,
+          "reliability_bins": [
+            {
+              "bin": 3,
+              "count": 1243,
+              "avg_confidence": 0.3714255916568269,
+              "accuracy": 0.38535800482703136
+            },
+            {
+              "bin": 4,
+              "count": 482,
+              "avg_confidence": 0.4217970340541224,
+              "accuracy": 0.3775933609958506
+            },
+            {
+              "bin": 5,
+              "count": 7,
+              "avg_confidence": 0.5091589433770237,
+              "accuracy": 0.8571428571428571
+            }
+          ],
+          "sample_count": 1732
+        },
+        "after": {
+          "class_labels": [
+            "SELL",
+            "HOLD",
+            "BUY"
+          ],
+          "log_loss": 1.0279051269428705,
+          "brier_score": 0.6215714457413084,
+          "brier_by_class": {
+            "SELL": 0.2288396330507383,
+            "HOLD": 0.20496819770994473,
+            "BUY": 0.18776361498062863
+          },
+          "expected_calibration_error": 0.02714794608631266,
+          "avg_confidence": 0.44823385864067306,
+          "avg_correctness": 0.4751732101616628,
+          "reliability_bins": [
+            {
+              "bin": 3,
+              "count": 330,
+              "avg_confidence": 0.38136829163021807,
+              "accuracy": 0.3878787878787879
+            },
+            {
+              "bin": 4,
+              "count": 1115,
+              "avg_confidence": 0.4311818892629366,
+              "accuracy": 0.46367713004484307
+            },
+            {
+              "bin": 5,
+              "count": 149,
+              "avg_confidence": 0.5410846392896534,
+              "accuracy": 0.5704697986577181
+            },
+            {
+              "bin": 6,
+              "count": 121,
+              "avg_confidence": 0.6272510404760161,
+              "accuracy": 0.6446280991735537
+            },
+            {
+              "bin": 7,
+              "count": 11,
+              "avg_confidence": 0.729279123106685,
+              "accuracy": 0.9090909090909091
+            },
+            {
+              "bin": 8,
+              "count": 6,
+              "avg_confidence": 0.8634404822616076,
+              "accuracy": 0.8333333333333334
+            }
+          ],
+          "sample_count": 1732
+        }
+      },
+      "test_metrics": {
+        "class_labels": [
+          "SELL",
+          "HOLD",
+          "BUY"
+        ],
+        "log_loss": 1.4391794611789934,
+        "brier_score": 0.6901856051864156,
+        "brier_by_class": {
+          "SELL": 0.24001327086785498,
+          "HOLD": 0.20286089686634415,
+          "BUY": 0.24731143745221712
+        },
+        "expected_calibration_error": 0.07745903310659441,
+        "avg_confidence": 0.4573498537115063,
+        "avg_correctness": 0.3807390817469205,
+        "reliability_bins": [
+          {
+            "bin": 3,
+            "count": 434,
+            "avg_confidence": 0.38183048686070076,
+            "accuracy": 0.35714285714285715
+          },
+          {
+            "bin": 4,
+            "count": 979,
+            "avg_confidence": 0.4332909671750884,
+            "accuracy": 0.39734422880490294
+          },
+          {
+            "bin": 5,
+            "count": 140,
+            "avg_confidence": 0.5465545741597024,
+            "accuracy": 0.30714285714285716
+          },
+          {
+            "bin": 6,
+            "count": 202,
+            "avg_confidence": 0.6295069672487619,
+            "accuracy": 0.3415841584158416
+          },
+          {
+            "bin": 7,
+            "count": 30,
+            "avg_confidence": 0.7480552666156008,
+            "accuracy": 0.7666666666666667
+          },
+          {
+            "bin": 8,
+            "count": 1,
+            "avg_confidence": 0.8008448017182926,
+            "accuracy": 1.0
+          }
+        ],
+        "sample_count": 1786
+      },
+      "calibrator_path": "xgboost_calibrator.pkl"
+    },
+    "lightgbm": {
+      "model_name": "lightgbm",
+      "method": "isotonic",
+      "class_labels": [
+        "SELL",
+        "HOLD",
+        "BUY"
+      ],
+      "class_support": {
+        "SELL": 675,
+        "HOLD": 590,
+        "BUY": 467
+      },
+      "validation_metrics": {
+        "before": {
+          "class_labels": [
+            "SELL",
+            "HOLD",
+            "BUY"
+          ],
+          "log_loss": 1.087713295828154,
+          "brier_score": 0.6595969035214193,
+          "brier_by_class": {
+            "SELL": 0.240565120170432,
+            "HOLD": 0.2197199292299377,
+            "BUY": 0.1993118541210503
+          },
+          "expected_calibration_error": 0.023057360309673147,
+          "avg_confidence": 0.38354155612768864,
+          "avg_correctness": 0.3856812933025404,
+          "reliability_bins": [
+            {
+              "bin": 3,
+              "count": 1293,
+              "avg_confidence": 0.3713683786375881,
+              "accuracy": 0.3882443928847641
+            },
+            {
+              "bin": 4,
+              "count": 439,
+              "avg_confidence": 0.4193955845894199,
+              "accuracy": 0.37813211845102507
+            }
+          ],
+          "sample_count": 1732
+        },
+        "after": {
+          "class_labels": [
+            "SELL",
+            "HOLD",
+            "BUY"
+          ],
+          "log_loss": 1.0412724009938525,
+          "brier_score": 0.6304341654707108,
+          "brier_by_class": {
+            "SELL": 0.23374727959483269,
+            "HOLD": 0.2093911753435475,
+            "BUY": 0.18729571053233043
+          },
+          "expected_calibration_error": 0.02154052502914976,
+          "avg_confidence": 0.43490806768044904,
+          "avg_correctness": 0.4515011547344111,
+          "reliability_bins": [
+            {
+              "bin": 3,
+              "count": 654,
+              "avg_confidence": 0.38193605552698506,
+              "accuracy": 0.41590214067278286
+            },
+            {
+              "bin": 4,
+              "count": 839,
+              "avg_confidence": 0.44374883168753365,
+              "accuracy": 0.45172824791418353
+            },
+            {
+              "bin": 5,
+              "count": 203,
+              "avg_confidence": 0.5235688733325744,
+              "accuracy": 0.5024630541871922
+            },
+            {
+              "bin": 6,
+              "count": 20,
+              "avg_confidence": 0.6686871664735488,
+              "accuracy": 0.8
+            },
+            {
+              "bin": 7,
+              "count": 16,
+              "avg_confidence": 0.7194436566290779,
+              "accuracy": 0.8125
+            }
+          ],
+          "sample_count": 1732
+        }
+      },
+      "test_metrics": {
+        "class_labels": [
+          "SELL",
+          "HOLD",
+          "BUY"
+        ],
+        "log_loss": 1.3545594700857961,
+        "brier_score": 0.6852705292155051,
+        "brier_by_class": {
+          "SELL": 0.23559420467435446,
+          "HOLD": 0.20598731081866917,
+          "BUY": 0.24368901372248306
+        },
+        "expected_calibration_error": 0.07601419420847644,
+        "avg_confidence": 0.43715641145371714,
+        "avg_correctness": 0.36114221724524076,
+        "reliability_bins": [
+          {
+            "bin": 3,
+            "count": 562,
+            "avg_confidence": 0.38123478411746264,
+            "accuracy": 0.3736654804270463
+          },
+          {
+            "bin": 4,
+            "count": 975,
+            "avg_confidence": 0.44188533178613576,
+            "accuracy": 0.3394871794871795
+          },
+          {
+            "bin": 5,
+            "count": 217,
+            "avg_confidence": 0.5304021982227758,
+            "accuracy": 0.4423963133640553
+          },
+          {
+            "bin": 6,
+            "count": 29,
+            "avg_confidence": 0.6339470220163336,
+            "accuracy": 0.2413793103448276
+          },
+          {
+            "bin": 7,
+            "count": 3,
+            "avg_confidence": 0.7291543460088427,
+            "accuracy": 0.3333333333333333
+          }
+        ],
+        "sample_count": 1786
+      },
+      "calibrator_path": "lightgbm_calibrator.pkl"
+    }
+  }
+}

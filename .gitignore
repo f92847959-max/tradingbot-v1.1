@@ -104,3 +104,10 @@ node_modules/
 
 # Windows / OneDrive metadata
 desktop.ini
+
+# Version training artifacts and data on GitHub by project request.
+!ai_engine/saved_models/
+!ai_engine/saved_models/**
+!data/
+!data/**
+data/.probe_dukascopy/

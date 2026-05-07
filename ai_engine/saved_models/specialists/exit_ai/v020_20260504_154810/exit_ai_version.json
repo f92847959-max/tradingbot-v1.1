@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "artifact_type": "exit_ai_specialist",
+  "specialist_name": "exit_ai",
+  "training_date": "2026-05-04T15:48:10.439180+00:00",
+  "version_dir": "v020_20260504_154810",
+  "feature_names": [
+    "direction_sign",
+    "entry_price",
+    "current_price",
+    "current_stop_loss",
+    "initial_stop_loss",
+    "take_profit",
+    "tp1",
+    "atr",
+    "current_stop_buffer_r",
+    "reward_distance_r",
+    "profit_r",
+    "price_progress",
+    "tp1_progress",
+    "hours_open",
+    "volume_ratio",
+    "spread_pips",
+    "baseline_dynamic_sl_gap",
+    "baseline_trailing_gap",
+    "baseline_partial_close_fraction",
+    "baseline_profit_r"
+  ],
+  "action_manifest": "action_manifest.json",
+  "feature_block": "feature_block.json",
+  "training_report": "exit_ai_training_report.json",
+  "class_balance": {
+    "total_samples": 360,
+    "action_counts": {
+      "HOLD": 90,
+      "TIGHTEN_SL": 90,
+      "PARTIAL_CLOSE": 90,
+      "FULL_EXIT": 90
+    },
+    "hold_ratio": 0.25,
+    "non_hold_ratio": 0.75
+  },
+  "metrics": {
+    "accuracy": 1.0,
+    "calibration_score": 0.999921,
+    "confidence_mean": 0.999921,
+    "non_hold_rate": 0.761905,
+    "hold_rate": 0.238095
+  },
+  "purge_gap": 12
+}
