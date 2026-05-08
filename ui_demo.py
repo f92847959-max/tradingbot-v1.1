@@ -95,9 +95,9 @@ def get_llm_analysis(stats: dict) -> str:
     
     # Hier muss dein kostenloser API Key rein!
     # Du bekommst ihn kostenlos auf: https://aistudio.google.com/app/apikey
-    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "DEIN_API_KEY_HIER_EINFUEGEN")
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyDSZdy2X5LvBgH303JxLBOJGqkiOJTX1PU")
     
-    if GEMINI_API_KEY == "DEIN_API_KEY_HIER_EINFUEGEN":
+    if GEMINI_API_KEY == "AIzaSyDSZdy2X5LvBgH303JxLBOJGqkiOJTX1PU":
         return "[yellow]⚠️ API Key fehlt![/yellow]\nHol dir einen [bold]völlig kostenlosen[/bold] Key auf [cyan]https://aistudio.google.com/app/apikey[/cyan] und trage ihn im Code ein.\nDann analysiert Google's stärkstes KI-Modell dein Trading in Sekundenschnelle!"
 
     prompt = f"""
@@ -218,10 +218,10 @@ Absolvierte Epochen: [cyan]{ep} / {MAX_EPOCHS}[/cyan] ({ep/MAX_EPOCHS*100:.1f}%)
     console.print()
 
     # --- LLM API CALL ---
-    with console.status("[bold cyan]Warte auf LLM (Ollama) Auswertung...[/bold cyan]", spinner="dots"):
+    with console.status("[bold cyan]Warte auf KI-Auswertung (Google Gemini)...[/bold cyan]", spinner="dots"):
         llm_response = get_llm_analysis(stats)
         
-    console.print(Panel(llm_response, title="🤖 Lokales LLM Experten-Feedback (Ollama)", border_style="magenta"))
+    console.print(Panel(llm_response, title="🤖 Cloud LLM Experten-Feedback (Google Gemini 1.5 Flash)", border_style="magenta"))
     console.print()
 
 def run_mock_ui():
