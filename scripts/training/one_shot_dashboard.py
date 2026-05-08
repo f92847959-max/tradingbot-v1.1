@@ -155,6 +155,11 @@ def build_parser() -> argparse.ArgumentParser:
 def prepare_csv(source_csv: Path, prepared_csv: Path, timeframe: str) -> int:
     if not source_csv.exists():
         raise FileNotFoundError(f"Source CSV not found: {source_csv}")
+    if source_csv.resolve() == prepared_csv.resolve():
+        raise ValueError(
+            "Prepared CSV must not overwrite the source CSV. "
+            "Choose a different --prepared-csv path."
+        )
     df = pd.read_csv(source_csv)
     if "timestamp" not in df.columns:
         raise ValueError(f"CSV has no timestamp column: {source_csv}")
@@ -269,7 +274,7 @@ def main() -> int:
     args = build_parser().parse_args()
     default_source = "data/gold_1h.csv" if args.timeframe == "4h" else f"data/gold_{args.timeframe}.csv"
     source_csv = (PROJECT_ROOT / (args.source_csv or default_source)).resolve()
-    prepared_default = PROJECT_ROOT / "data" / f"gold_{args.timeframe}.csv"
+    prepared_default = PROJECT_ROOT / "data" / "prepared" / f"gold_{args.timeframe}.csv"
     prepared_csv = (PROJECT_ROOT / args.prepared_csv).resolve() if args.prepared_csv else prepared_default
     logs_dir = PROJECT_ROOT / "logs"
     logs_dir.mkdir(parents=True, exist_ok=True)
