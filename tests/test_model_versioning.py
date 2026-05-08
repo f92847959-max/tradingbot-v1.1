@@ -9,6 +9,8 @@ import json
 import os
 import time
 
+import pytest
+
 
 from ai_engine.training.model_versioning import (
     cleanup_old_versions,
@@ -174,6 +176,56 @@ class TestUpdateProductionPointer:
             meta = json.load(f)
         assert meta["version"] == "v001"
 
+    def test_update_production_pointer_rejects_blocked_version(self, tmp_path):
+        """Blocked promotion decisions cannot be published as production."""
+        base_dir = str(tmp_path)
+        version_dir = os.path.join(base_dir, "v001_20260306_143022")
+        os.makedirs(version_dir)
+
+        for filename in [
+            "xgboost_gold.pkl",
+            "lightgbm_gold.pkl",
+            "feature_scaler.pkl",
+        ]:
+            with open(os.path.join(version_dir, filename), "wb") as f:
+                f.write(b"fake model data")
+
+        with open(os.path.join(version_dir, "version.json"), "w") as f:
+            json.dump({"version": "v001"}, f)
+        with open(os.path.join(version_dir, "promotion_decision.json"), "w") as f:
+            json.dump(
+                {
+                    "approved": False,
+                    "reasons": ["champion_report_missing"],
+                },
+                f,
+            )
+
+        with pytest.raises(ValueError, match="blocked training version"):
+            update_production_pointer(base_dir, version_dir)
+
+    def test_update_production_pointer_rejects_incomplete_version_without_flat_changes(
+        self,
+        tmp_path,
+    ):
+        """Missing required artifacts fail before any flat runtime file changes."""
+        base_dir = str(tmp_path)
+        old_flat = os.path.join(base_dir, "xgboost_gold.pkl")
+        with open(old_flat, "wb") as f:
+            f.write(b"old production model")
+
+        version_dir = os.path.join(base_dir, "v001_20260306_143022")
+        os.makedirs(version_dir)
+        with open(os.path.join(version_dir, "xgboost_gold.pkl"), "wb") as f:
+            f.write(b"new partial model")
+
+        with pytest.raises(ValueError, match="missing artifact"):
+            update_production_pointer(base_dir, version_dir)
+
+        with open(old_flat, "rb") as f:
+            assert f.read() == b"old production model"
+        assert not os.path.exists(os.path.join(base_dir, "production.json"))
+
     def test_resolve_pointer_rejects_paths_outside_artifact_root(self, tmp_path):
         outside = tmp_path.parent / "v001_outside"
         pointer = {
@@ -187,6 +239,20 @@ class TestUpdateProductionPointer:
             assert "outside artifact root" in str(exc)
         else:
             raise AssertionError("expected pointer validation to fail")
+
+    def test_resolve_pointer_ignores_legacy_relative_path(self, tmp_path, monkeypatch):
+        root = tmp_path / "saved_models" / "specialists" / "exit_ai"
+        version_dir = root / "v001_20260504_155002"
+        version_dir.mkdir(parents=True)
+        pointer = {
+            "version_dir": version_dir.name,
+            "path": "ai_engine/saved_models\\specialists\\exit_ai\\v001_20260504_155002",
+        }
+        monkeypatch.chdir(tmp_path.parent)
+
+        resolved = resolve_version_dir_from_pointer(str(root), pointer)
+
+        assert resolved == str(version_dir)
 
 
 class TestCleanupOldVersions:
@@ -230,6 +296,25 @@ class TestCleanupOldVersions:
             if os.path.isdir(os.path.join(base_dir, d))
         ]
         assert len(remaining) == 3
+
+    def test_cleanup_old_versions_preserves_active_production_pointer(self, tmp_path):
+        base_dir = str(tmp_path)
+        for i in range(1, 8):
+            os.makedirs(os.path.join(base_dir, f"v{i:03d}_20260306_14000{i}"))
+        with open(os.path.join(base_dir, "production.json"), "w") as f:
+            json.dump(
+                {
+                    "version_dir": "v001_20260306_140001",
+                    "path": os.path.join(base_dir, "v001_20260306_140001"),
+                },
+                f,
+            )
+
+        deleted = cleanup_old_versions(base_dir, keep=5)
+
+        assert "v001_20260306_140001" not in deleted
+        assert os.path.isdir(os.path.join(base_dir, "v001_20260306_140001"))
+        assert "v002_20260306_140002" in deleted
 
 
 class TestVersionJsonExtendsMetadata:

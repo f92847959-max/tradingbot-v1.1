@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 SPECIALIST_ROOT_DIR = "specialists"
+REQUIRED_PRODUCTION_ARTIFACTS = [
+    "xgboost_gold.pkl",
+    "lightgbm_gold.pkl",
+    "feature_scaler.pkl",
+    "version.json",
+]
 
 
 def _sanitize_artifact_name(name: str) -> str:
@@ -89,6 +95,46 @@ def _atomic_copy(src: str, dst: str) -> None:
     os.replace(tmp, dst)
 
 
+def _read_json_file(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _validate_version_can_promote(version_dir: str) -> None:
+    missing = [
+        filename
+        for filename in REQUIRED_PRODUCTION_ARTIFACTS
+        if not os.path.exists(os.path.join(version_dir, filename))
+    ]
+    if missing:
+        raise ValueError(
+            "Cannot promote incomplete training version; missing artifact(s): "
+            + ", ".join(missing)
+        )
+
+    decision_path = os.path.join(version_dir, "promotion_decision.json")
+    if os.path.exists(decision_path):
+        decision = _read_json_file(decision_path)
+        if decision.get("approved") is not True:
+            reasons = decision.get("reasons") or []
+            raise ValueError(
+                "Cannot promote blocked training version: "
+                + (", ".join(map(str, reasons)) or "promotion_decision_not_approved")
+            )
+
+
+def _production_version_names(base_dir: str) -> set[str]:
+    pointer_path = os.path.join(base_dir, "production.json")
+    if not os.path.exists(pointer_path):
+        return set()
+    try:
+        pointer = _read_json_file(pointer_path)
+    except (OSError, json.JSONDecodeError):
+        return set()
+    version_name = str(pointer.get("version_dir", "")).strip()
+    return {version_name} if version_name else set()
+
+
 def write_version_json(version_dir: str, version_data: dict) -> str:
     """Write version.json to a version directory.
 
@@ -121,6 +167,8 @@ def update_production_pointer(base_dir: str, version_dir: str) -> None:
         base_dir: Base directory for saved models.
         version_dir: Path to the version directory to promote.
     """
+    _validate_version_can_promote(version_dir)
+
     # Copy model files to base dir for backward compatibility before
     # publishing the pointer. Missing files clear stale flat copies.
     model_files = [
@@ -185,10 +233,14 @@ def cleanup_old_versions(base_dir: str, keep: int = 5) -> List[str]:
 
     # Sort by version number ascending
     existing.sort(key=lambda x: x[0])
+    protected = _production_version_names(base_dir)
 
     deleted: List[str] = []
     if len(existing) > keep:
-        to_delete = existing[: len(existing) - keep]
+        overflow = len(existing) - keep
+        to_delete = [
+            item for item in existing if item[1] not in protected
+        ][:overflow]
         for _num, dirname in to_delete:
             dir_path = os.path.join(base_dir, dirname)
             shutil.rmtree(dir_path)
@@ -215,7 +267,10 @@ def resolve_version_dir_from_pointer(root_dir: str, pointer: dict) -> str:
     if not version_name:
         raise ValueError("production pointer missing version_dir")
     raw_path = pointer.get("path")
-    candidate = str(raw_path) if raw_path else os.path.join(root_dir, version_name)
+    if raw_path and Path(str(raw_path)).is_absolute():
+        candidate = str(raw_path)
+    else:
+        candidate = os.path.join(root_dir, version_name)
     root_abs = os.path.abspath(root_dir)
     candidate_abs = os.path.abspath(candidate)
     try:
