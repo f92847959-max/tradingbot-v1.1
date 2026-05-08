@@ -6,12 +6,14 @@ import os
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from ai_engine.features.market_structure_liquidity import (
     MarketStructureLiquidityFeatures,
 )
 from ai_engine.models.lightgbm_model import LightGBMModel
 from ai_engine.models.xgboost_model import XGBoostModel
+from ai_engine.training.data_preparation import DataPreparation
 from ai_engine.training.label_generator import LabelGenerator
 from ai_engine.training.shap_importance import save_training_diagnostic_charts
 
@@ -128,3 +130,12 @@ def test_training_diagnostic_charts_writes_eight_pngs(tmp_path) -> None:
 
     assert len(paths) == 8
     assert all(os.path.exists(path) and os.path.getsize(path) > 0 for path in paths)
+
+
+def test_chronological_split_refuses_to_drop_purge_gap() -> None:
+    prep = DataPreparation()
+    X = np.arange(100, dtype=float).reshape(-1, 1)
+    y = np.zeros(100, dtype=int)
+
+    with pytest.raises(ValueError, match="Refusing to remove leakage gap"):
+        prep.split_chronological(X, y, purge_gap=30)

@@ -81,12 +81,13 @@ class DataPreparation:
         val_end = int(n * (self.train_ratio + self.val_ratio))
         test_start = val_end + purge_gap   # Gap after validation
 
-        # Safety check
-        if test_start >= n:
-            logger.warning("Purge gap too large, reducing")
-            purge_gap = 0
-            val_start = train_end
-            test_start = val_end
+        if val_start >= val_end or test_start >= n:
+            raise ValueError(
+                "Purge gap too large for chronological split: "
+                f"n_samples={n}, purge_gap={purge_gap}, "
+                f"train_end={train_end}, val_end={val_end}, "
+                f"test_start={test_start}. Refusing to remove leakage gap."
+            )
 
         splits = {
             "train": (X[:train_end], y[:train_end]),
