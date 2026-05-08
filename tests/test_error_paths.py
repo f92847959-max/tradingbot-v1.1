@@ -301,3 +301,25 @@ class TestFeatureCache:
         fe.create_features(df.copy(), timeframe="5m")
         fe.create_features(df.copy(), timeframe="15m")
         assert fe.cache.misses == 2
+
+    def test_cache_bypassed_when_disabled(self):
+        """Training can force feature recomputation without mutating cache state."""
+        from ai_engine.features.feature_engineer import FeatureEngineer
+
+        fe = FeatureEngineer()
+        n = 100
+        np.random.seed(42)
+        timestamps = pd.date_range("2026-02-01 08:00", periods=n, freq="5min", tz="UTC")
+        df = pd.DataFrame({
+            "open": np.random.uniform(2040, 2050, n),
+            "high": np.random.uniform(2045, 2055, n),
+            "low": np.random.uniform(2035, 2045, n),
+            "close": np.random.uniform(2040, 2050, n),
+            "volume": np.random.uniform(100, 1000, n),
+        }, index=timestamps)
+
+        fe.create_features(df.copy(), timeframe="5m", use_cache=False)
+        fe.create_features(df.copy(), timeframe="5m", use_cache=False)
+
+        assert fe.cache.hits == 0
+        assert fe.cache.misses == 0

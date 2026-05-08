@@ -160,6 +160,7 @@ class FeatureEngineer:
         multi_tf_data: Optional[Dict[str, pd.DataFrame]] = None,
         correlation_snapshot: Optional[CorrelationSnapshot] = None,
         include_specialist: bool = False,
+        use_cache: bool = True,
     ) -> pd.DataFrame:
         """
         Create ALL features from a DataFrame with OHLCV + indicators.
@@ -180,7 +181,8 @@ class FeatureEngineer:
         """
         # Check cache first (skip recalculation if OHLCV unchanged)
         if (
-            self._cache.is_valid(df, timeframe)
+            use_cache
+            and self._cache.is_valid(df, timeframe)
             and multi_tf_data is None
             and correlation_snapshot is None
             and not include_specialist
@@ -256,8 +258,10 @@ class FeatureEngineer:
 
         # Update cache (only for single-timeframe to avoid MTF staleness)
         if (
-            multi_tf_data is None
+            use_cache
+            and multi_tf_data is None
             and correlation_snapshot is None
+            and not include_specialist
             and not self._sentiment_enabled
         ):
             self._cache.update(df, df, timeframe)

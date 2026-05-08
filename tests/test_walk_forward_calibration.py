@@ -14,7 +14,12 @@ from ai_engine.training.pipeline import TrainingPipeline
 
 
 class _DummyFeatureEngineer:
-    def create_features(self, df: pd.DataFrame, timeframe: str = "5m") -> pd.DataFrame:
+    def create_features(
+        self,
+        df: pd.DataFrame,
+        timeframe: str = "5m",
+        use_cache: bool = True,
+    ) -> pd.DataFrame:
         out = df.copy()
         out["feat_a"] = np.linspace(0.0, 1.0, len(out))
         return out

@@ -110,7 +110,11 @@ class TrainingPipeline:
         # Step 2: Compute features (on full dataset -- safe for lookback indicators)
         # ================================================================
         logger.info("\n2/7 Computing features...")
-        df = self._t._feature_engineer.create_features(df, timeframe=timeframe)
+        df = self._t._feature_engineer.create_features(
+            df,
+            timeframe=timeframe,
+            use_cache=False,
+        )
         feature_names = self._t._feature_engineer.get_feature_names()
         row_counts["feature_ready"] = int(len(df))
         logger.info(f"  -> {len(feature_names)} features created")
