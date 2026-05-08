@@ -14,6 +14,7 @@ HISTORY_FILE = PROJECT_ROOT / "logs" / "training_loop_history.json"
 ASSETS: dict[str, dict[str, Any]] = {
     "gold": {
         "csv": "data/gold_1h.csv",
+        "output": "ai_engine/saved_models",
         "pip_size": 0.01,
         "label": "Gold",
         "tp_pips": 1500.0,
@@ -21,6 +22,7 @@ ASSETS: dict[str, dict[str, Any]] = {
     },
     "silver": {
         "csv": "data/silver_1h.csv",
+        "output": "ai_engine/saved_models/assets/silver",
         "pip_size": 0.001,
         "label": "Silber",
         "tp_pips": 200.0,

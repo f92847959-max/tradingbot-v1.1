@@ -18,6 +18,47 @@ from .metrics import compute_improvements, extract_metrics, find_version_dir_aft
 from .models import CycleResult
 
 
+def _asset_output_dir(asset_cfg: dict) -> str:
+    return str(asset_cfg.get("output") or "ai_engine/saved_models")
+
+
+def _build_train_models_command(
+    asset_cfg: dict,
+    args: argparse.Namespace,
+    output_dir: str,
+) -> list[str]:
+    return [
+        PYTHON,
+        "scripts/train_models.py",
+        "--csv",
+        asset_cfg["csv"],
+        "--pip-size",
+        str(asset_cfg["pip_size"]),
+        "--tp-pips",
+        str(asset_cfg["tp_pips"]),
+        "--sl-pips",
+        str(asset_cfg["sl_pips"]),
+        "--no-dynamic-atr",
+        "--timeframe",
+        "1h",
+        "--output",
+        output_dir,
+        "--min-data-months",
+        str(args.min_data_months),
+    ]
+
+
+def _build_exit_ai_command(args: argparse.Namespace, output_dir: str) -> list[str]:
+    return [
+        PYTHON,
+        "scripts/train_exit_ai.py",
+        "--synthetic",
+        str(args.exit_synthetic),
+        "--output",
+        output_dir,
+    ]
+
+
 def run_asset_cycle(
     cycle: int,
     asset: str,
@@ -28,6 +69,7 @@ def run_asset_cycle(
 ) -> CycleResult | None:
     asset_cfg = ASSETS[asset]
     csv_path = asset_cfg["csv"]
+    output_dir = _asset_output_dir(asset_cfg)
     started = time.time()
     started_iso = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -38,25 +80,7 @@ def run_asset_cycle(
     dashboard.update(cycle, asset, "Core-AI Training", history)
     live.update(dashboard.render())
     rc, out = process._run_subprocess(
-        [
-            PYTHON,
-            "scripts/train_models.py",
-            "--csv",
-            csv_path,
-            "--pip-size",
-            str(asset_cfg["pip_size"]),
-            "--tp-pips",
-            str(asset_cfg["tp_pips"]),
-            "--sl-pips",
-            str(asset_cfg["sl_pips"]),
-            "--no-dynamic-atr",
-            "--timeframe",
-            "1h",
-            "--output",
-            "ai_engine/saved_models",
-            "--min-data-months",
-            str(args.min_data_months),
-        ],
+        _build_train_models_command(asset_cfg, args, output_dir),
         "train_models",
     )
     if rc != 0:
@@ -65,7 +89,7 @@ def run_asset_cycle(
         )
         return None
 
-    version_dir = find_version_dir_after(started - 5)
+    version_dir = find_version_dir_after(started - 5, PROJECT_ROOT / output_dir)
     if version_dir is None:
         live.console.print("[red]Kein Versions-Verzeichnis nach Core-AI-Training gefunden[/]")
         return None
@@ -73,7 +97,7 @@ def run_asset_cycle(
     dashboard.update(cycle, asset, "Exit-AI Training", history)
     live.update(dashboard.render())
     rc, out = process._run_subprocess(
-        [PYTHON, "scripts/train_exit_ai.py", "--synthetic", str(args.exit_synthetic)],
+        _build_exit_ai_command(args, output_dir),
         "train_exit_ai",
     )
     if rc != 0:

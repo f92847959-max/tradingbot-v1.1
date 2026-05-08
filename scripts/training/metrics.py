@@ -11,12 +11,16 @@ from .config import SAVED_MODELS_DIR
 from .models import CycleResult
 
 
-def find_version_dir_after(timestamp: float) -> Path | None:
-    if not SAVED_MODELS_DIR.exists():
+def find_version_dir_after(
+    timestamp: float,
+    root_dir: Path | str | None = None,
+) -> Path | None:
+    search_root = Path(root_dir) if root_dir is not None else SAVED_MODELS_DIR
+    if not search_root.exists():
         return None
     candidates = [
         p
-        for p in SAVED_MODELS_DIR.iterdir()
+        for p in search_root.iterdir()
         if p.is_dir()
         and p.name.startswith("v")
         and "_" in p.name
@@ -32,7 +36,7 @@ def extract_metrics(version_dir: Path) -> dict[str, dict[str, Any]]:
     backtest_report = _read_json(version_dir / "backtest_report.json")
 
     exit_promotion: dict[str, Any] = {}
-    specialist_root = SAVED_MODELS_DIR / "specialists" / "exit_ai"
+    specialist_root = version_dir.parent / "specialists" / "exit_ai"
     if specialist_root.exists():
         exit_versions = [
             p for p in specialist_root.iterdir() if p.is_dir() and p.name.startswith("v")
