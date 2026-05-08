@@ -4,6 +4,7 @@ import math
 import json
 import urllib.request
 import urllib.error
+from typing import Optional
 from rich.live import Live
 from rich.layout import Layout
 from rich.panel import Panel
@@ -16,7 +17,7 @@ MAX_EPOCHS = 150  # Reduziert, damit die Demo schnell durchläuft
 
 class PlotextRenderable:
     def __init__(self, data1: list, name1: str, color1: str, 
-                 data2: list = None, name2: str = "", color2: str = "", 
+                 data2: Optional[list] = None, name2: str = "", color2: str = "", 
                  title: str = ""):
         self.data1 = data1
         self.name1 = name1
@@ -230,7 +231,7 @@ def run_mock_ui():
     layout["header"].update(Panel(f"[bold gold1]💎 AI TradingBot - Perfect Fit Dashboard (Ziel: {MAX_EPOCHS} Epochen)[/bold gold1]", style="white on dark_blue"))
     
     history_len = 50
-    equity_data = [1000]
+    equity_data = [1000.0]
     train_loss_data = [2.0]
     val_loss_data = [2.1]
     acc_data = [0.4]
