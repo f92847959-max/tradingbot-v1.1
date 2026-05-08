@@ -8,7 +8,7 @@ so historical rows do not depend on future mutations.
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import List, cast
 
 import numpy as np
 import pandas as pd
@@ -69,10 +69,10 @@ class MarketStructureLiquidityFeatures:
     def _calculate_full(self, df: pd.DataFrame) -> pd.DataFrame:
         out = df.copy()
 
-        close = pd.to_numeric(out["close"], errors="coerce")
-        high = pd.to_numeric(out["high"], errors="coerce")
-        low = pd.to_numeric(out["low"], errors="coerce")
-        open_ = pd.to_numeric(out["open"], errors="coerce")
+        close = cast(pd.Series, pd.to_numeric(out["close"], errors="coerce"))
+        high = cast(pd.Series, pd.to_numeric(out["high"], errors="coerce"))
+        low = cast(pd.Series, pd.to_numeric(out["low"], errors="coerce"))
+        open_ = cast(pd.Series, pd.to_numeric(out["open"], errors="coerce"))
         atr = self._resolve_atr(out, close)
 
         prev_swing_high = self._confirmed_swing(high, is_high=True)
@@ -80,39 +80,39 @@ class MarketStructureLiquidityFeatures:
 
         out["ms_prev_swing_high"] = prev_swing_high
         out["ms_prev_swing_low"] = prev_swing_low
-        out["ms_dist_to_prev_swing_high"] = prev_swing_high - close
-        out["ms_dist_to_prev_swing_low"] = close - prev_swing_low
+        out["ms_dist_to_prev_swing_high"] = cast(pd.Series, prev_swing_high - close)
+        out["ms_dist_to_prev_swing_low"] = cast(pd.Series, close - prev_swing_low)
 
-        swing_range = (prev_swing_high - prev_swing_low).clip(lower=0.0)
+        swing_range = cast(pd.Series, (prev_swing_high - prev_swing_low).clip(lower=0.0))
         out["ms_swing_range"] = swing_range
-        out["ms_swing_range_position"] = (
+        out["ms_swing_range_position"] = cast(pd.Series, (
             (close - prev_swing_low) / swing_range.replace(0.0, np.nan)
-        ).clip(0.0, 1.0)
+        ).clip(0.0, 1.0))
 
         out["ms_swing_age_high"] = self._bars_since(
-            prev_swing_high.ne(prev_swing_high.shift(1))
+            cast(pd.Series, prev_swing_high.ne(prev_swing_high.shift(1)))
         )
         out["ms_swing_age_low"] = self._bars_since(
-            prev_swing_low.ne(prev_swing_low.shift(1))
+            cast(pd.Series, prev_swing_low.ne(prev_swing_low.shift(1)))
         )
 
-        raw_buy_sweep = (high > prev_swing_high) & (close < prev_swing_high)
-        raw_sell_sweep = (low < prev_swing_low) & (close > prev_swing_low)
+        raw_buy_sweep = cast(pd.Series, (high > prev_swing_high) & (close < prev_swing_high))
+        raw_sell_sweep = cast(pd.Series, (low < prev_swing_low) & (close > prev_swing_low))
         out["ms_buy_side_sweep"] = raw_buy_sweep.shift(1, fill_value=False).astype(int)
         out["ms_sell_side_sweep"] = raw_sell_sweep.shift(1, fill_value=False).astype(int)
 
-        inside_range = (close <= prev_swing_high) & (close >= prev_swing_low)
+        inside_range = cast(pd.Series, (close <= prev_swing_high) & (close >= prev_swing_low))
         out["ms_close_back_inside_range"] = (
-            inside_range & (raw_buy_sweep | raw_sell_sweep).shift(1, fill_value=False)
+            inside_range & cast(pd.Series, (raw_buy_sweep | raw_sell_sweep).shift(1, fill_value=False))
         ).astype(int)
 
-        bullish_gap = (low - high.shift(2)).clip(lower=0.0)
-        bearish_gap = (low.shift(2) - high).clip(lower=0.0)
-        out["ms_bull_fvg_size_atr"] = (bullish_gap / atr).shift(1)
-        out["ms_bear_fvg_size_atr"] = (bearish_gap / atr).shift(1)
+        bullish_gap = cast(pd.Series, (low - high.shift(2)).clip(lower=0.0))
+        bearish_gap = cast(pd.Series, (low.shift(2) - high).clip(lower=0.0))
+        out["ms_bull_fvg_size_atr"] = cast(pd.Series, (bullish_gap / atr).shift(1))
+        out["ms_bear_fvg_size_atr"] = cast(pd.Series, (bearish_gap / atr).shift(1))
 
-        out["ms_upper_wick_atr"] = (high - np.maximum(open_, close)) / atr
-        out["ms_lower_wick_atr"] = (np.minimum(open_, close) - low) / atr
+        out["ms_upper_wick_atr"] = cast(pd.Series, (high - np.maximum(open_, close)) / atr)
+        out["ms_lower_wick_atr"] = cast(pd.Series, (np.minimum(open_, close) - low) / atr)
 
         out = cleanup_dataframe_features(out, self.FEATURE_NAMES)
         logger.debug(

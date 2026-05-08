@@ -43,7 +43,7 @@ def _ensure_probabilities(y_probs: np.ndarray) -> np.ndarray:
 class ProbabilityCalibrator:
     """Serializable per-class isotonic calibrator bundle."""
 
-    class_labels: tuple[str, str, str]
+    class_labels: tuple[str, ...]
     calibrators: list[IsotonicRegression | None]
     class_support: dict[str, int]
     method: str = "isotonic"

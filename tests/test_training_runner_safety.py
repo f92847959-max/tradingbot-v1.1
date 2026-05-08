@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from argparse import Namespace
 from types import SimpleNamespace
 
 import pandas as pd
@@ -39,7 +40,7 @@ def test_prepare_csv_rejects_source_overwrite(tmp_path) -> None:
 
 
 def test_silver_training_uses_asset_scoped_model_output() -> None:
-    args = SimpleNamespace(
+    args = Namespace(
         min_data_months=6,
         exit_csv="data/exit_ai_snapshots.csv",
         exit_synthetic=0,
@@ -55,7 +56,7 @@ def test_silver_training_uses_asset_scoped_model_output() -> None:
 
 
 def test_continuous_loop_uses_real_exit_csv_by_default() -> None:
-    args = SimpleNamespace(exit_csv="data/exit_ai_snapshots.csv", exit_synthetic=0)
+    args = Namespace(exit_csv="data/exit_ai_snapshots.csv", exit_synthetic=0)
 
     command = _build_exit_ai_command(args, "ai_engine/saved_models")
 
@@ -65,7 +66,7 @@ def test_continuous_loop_uses_real_exit_csv_by_default() -> None:
 
 
 def test_continuous_loop_synthetic_exit_requires_explicit_flag() -> None:
-    args = SimpleNamespace(exit_csv="data/exit_ai_snapshots.csv", exit_synthetic=360)
+    args = Namespace(exit_csv="data/exit_ai_snapshots.csv", exit_synthetic=360)
 
     command = _build_exit_ai_command(args, "ai_engine/saved_models")
 
@@ -75,7 +76,7 @@ def test_continuous_loop_synthetic_exit_requires_explicit_flag() -> None:
 
 
 def test_start_ai_training_missing_exit_csv_is_fatal_by_default(tmp_path) -> None:
-    args = SimpleNamespace(
+    args = Namespace(
         exit_csv=str(tmp_path / "missing_exit.csv"),
         exit_min_samples=500,
         exit_purge_gap=12,
