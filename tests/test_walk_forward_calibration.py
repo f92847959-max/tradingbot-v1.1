@@ -230,3 +230,17 @@ def test_version_metadata_references_calibration_artifacts(monkeypatch, tmp_path
     assert metadata["threshold_artifact"] == "thresholds.json"
     assert "xgboost" in metadata["calibration"]["models"]
     assert "xgboost" in metadata["decision_thresholds"]["models"]
+
+
+def test_training_pipeline_drops_incomplete_label_horizon(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr("ai_engine.training.pipeline.WalkForwardValidator", _FakeValidator)
+
+    trainer = _DummyTrainer(str(tmp_path))
+    pipeline = TrainingPipeline(trainer)
+    results = pipeline.run(_sample_frame(), min_data_months=0)
+
+    # _DummyDataPreparation removes 65 warmup rows from 260, then the
+    # 10-candle label horizon tail is removed before model validation.
+    assert results["label_horizon_trimmed_rows"] == 10
+    assert results["metadata"]["n_samples_total"] == 185
+    assert results["row_loss"]["stage_counts"]["label_ready"] == 185

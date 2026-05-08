@@ -219,6 +219,10 @@ def summarize_dataframe(df: pd.DataFrame, source: str, timeframe: str) -> Dict[s
         "end_timestamp": end_ts,
         "columns": list(df.columns),
     }
+    if df.attrs.get("duplicate_timestamps_dropped"):
+        summary["duplicate_timestamps_dropped"] = int(
+            df.attrs["duplicate_timestamps_dropped"]
+        )
     if rows >= 2:
         timestamps = pd.to_datetime(df["timestamp"], utc=True, errors="coerce").dropna()
         if len(timestamps) >= 2:
@@ -279,8 +283,27 @@ def _normalize_dataframe(df: pd.DataFrame, with_indicators: bool) -> pd.DataFram
             f"Ungueltige OHLC-Beziehung in {int(invalid_mask.sum())} Zeile(n) erkannt."
         )
 
+    duplicate_rows = out["timestamp"].duplicated(keep=False)
+    dropped_duplicates = 0
+    if duplicate_rows.any():
+        value_cols = ["open", "high", "low", "close", "volume"]
+        duplicate_groups = out.loc[duplicate_rows, ["timestamp", *value_cols]]
+        conflicts = duplicate_groups.groupby("timestamp")[value_cols].nunique(dropna=False)
+        conflicting_timestamps = conflicts[(conflicts > 1).any(axis=1)].index
+        if len(conflicting_timestamps) > 0:
+            examples = [
+                ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
+                for ts in list(conflicting_timestamps[:3])
+            ]
+            raise DataSourceError(
+                "Konfliktierende Candle-Duplikate fuer Timestamp(s): "
+                + ", ".join(examples)
+            )
+        dropped_duplicates = int(duplicate_rows.sum() - duplicate_groups["timestamp"].nunique())
+
     out = out.sort_values("timestamp").drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
     out.index = pd.to_datetime(out["timestamp"], utc=True)
+    out.attrs["duplicate_timestamps_dropped"] = dropped_duplicates
 
     if with_indicators and not _has_core_indicators(out):
         try:
@@ -288,7 +311,15 @@ def _normalize_dataframe(df: pd.DataFrame, with_indicators: bool) -> pd.DataFram
 
             out = calculate_indicators(out)
         except Exception as exc:
-            logger.warning("Indikator-Berechnung fehlgeschlagen: %s", exc)
+            raise DataSourceError(
+                f"Indikator-Berechnung fehlgeschlagen: {exc}"
+            ) from exc
+        missing = [col for col in CORE_INDICATOR_COLUMNS if col not in out.columns]
+        if missing:
+            raise DataSourceError(
+                "Indikator-Berechnung lieferte nicht alle Pflichtspalten: "
+                + ", ".join(missing)
+            )
 
     return out
 

@@ -133,15 +133,15 @@ class DataPreparation:
         X = np.asarray(df[feature_names].values.astype(np.float32))
         y = np.asarray(df[label_column].values.astype(int))
 
-        # Check for NaN/Inf
-        nan_count = np.isnan(X).sum()
-        inf_count = np.isinf(X).sum()
-        if nan_count > 0:
-            logger.warning(f"{nan_count} NaN values in features -- setting to 0.0")
-            X = np.nan_to_num(X, nan=0.0)
-        if inf_count > 0:
-            logger.warning(f"{inf_count} Inf values in features -- setting to 0.0")
-            X = np.nan_to_num(X, posinf=0.0, neginf=0.0)
+        non_finite_mask = ~np.isfinite(X)
+        if non_finite_mask.any():
+            bad_indices = np.where(non_finite_mask)[1]
+            bad_features = sorted({feature_names[int(idx)] for idx in bad_indices})
+            raise ValueError(
+                "Non-finite training feature values detected. "
+                f"count={int(non_finite_mask.sum())}, "
+                f"features={bad_features[:10]}"
+            )
 
         logger.info(f"Features: {X.shape}, Labels: {y.shape}")
         return X, y

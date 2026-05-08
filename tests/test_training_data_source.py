@@ -42,6 +42,28 @@ def test_load_from_file_normalizes_and_sorts(tmp_path) -> None:
     assert set(["open", "high", "low", "close", "volume"]).issubset(out.columns)
     assert loaded.details["duration_days"] > 0
     assert loaded.details["duration_hours"] > 0
+    assert loaded.details["duplicate_timestamps_dropped"] == 1
+
+
+def test_load_from_file_rejects_conflicting_duplicate_timestamp(tmp_path) -> None:
+    csv_path = tmp_path / "conflicting_duplicates.csv"
+
+    pd.DataFrame(
+        {
+            "timestamp": [
+                "2026-02-23T10:00:00Z",
+                "2026-02-23T10:00:00Z",
+            ],
+            "open": [2045.0, 2045.0],
+            "high": [2045.3, 2045.3],
+            "low": [2044.9, 2044.9],
+            "close": [2045.1, 2045.2],
+            "volume": [1000, 1000],
+        }
+    ).to_csv(csv_path, index=False)
+
+    with pytest.raises(DataSourceError, match="Konfliktierende Candle-Duplikate"):
+        load_from_file(str(csv_path), timeframe="5m", with_indicators=False)
 
 
 def test_load_from_file_missing_required_column(tmp_path) -> None:
@@ -117,3 +139,27 @@ def test_ensure_min_rows() -> None:
     df = pd.DataFrame({"timestamp": pd.date_range("2026-01-01", periods=50, freq="5min", tz="UTC")})
     with pytest.raises(DataSourceError):
         ensure_min_rows(df, min_rows=100)
+
+
+def test_load_from_file_indicator_failure_is_fatal(tmp_path, monkeypatch) -> None:
+    import market_data.indicators as indicators
+
+    csv_path = tmp_path / "candles.csv"
+    pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-02-23", periods=5, freq="5min", tz="UTC"),
+            "open": [2045.0, 2045.1, 2045.2, 2045.3, 2045.4],
+            "high": [2045.3, 2045.4, 2045.5, 2045.6, 2045.7],
+            "low": [2044.8, 2044.9, 2045.0, 2045.1, 2045.2],
+            "close": [2045.1, 2045.2, 2045.3, 2045.4, 2045.5],
+            "volume": [1000, 1100, 1200, 1300, 1400],
+        }
+    ).to_csv(csv_path, index=False)
+
+    def fail_indicators(_df):
+        raise RuntimeError("indicator boom")
+
+    monkeypatch.setattr(indicators, "calculate_indicators", fail_indicators)
+
+    with pytest.raises(DataSourceError, match="Indikator-Berechnung fehlgeschlagen"):
+        load_from_file(str(csv_path), timeframe="5m", with_indicators=True)

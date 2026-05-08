@@ -147,11 +147,19 @@ class TrainingPipeline:
         # ================================================================
         logger.info("\n4/7 Removing warmup period...")
         df = self._t._data_prep.remove_warmup_period(df, warmup_candles=200)
+        max_label_horizon = int(
+            getattr(self._t._label_generator, "max_candles", 60) or 60
+        )
+        if max_label_horizon > 0:
+            if len(df) <= max_label_horizon:
+                raise ValueError(
+                    "Not enough label-ready rows after warmup to preserve "
+                    f"label horizon: rows={len(df)}, horizon={max_label_horizon}"
+                )
+            df = df.iloc[:-max_label_horizon].copy()
+            results["label_horizon_trimmed_rows"] = max_label_horizon
         row_counts["label_ready"] = int(len(df))
         results["row_loss"] = build_row_loss_report(row_counts)
-        # NOTE: Do NOT trim the label-horizon tail here. `generate_labels()`
-        # already handles horizon boundary conditions, and trimming again
-        # breaks walking-forward alignment (double tail removal).
         label_stats = self._t._label_generator.get_label_stats(df["label"])
         results["label_stats"] = label_stats
 
@@ -170,9 +178,6 @@ class TrainingPipeline:
         logger.info("\n6/7 Running walk-forward validation...")
 
         # Compute dynamic purge gap ONCE before the loop
-        max_label_horizon = int(
-            getattr(self._t._label_generator, "max_candles", 60) or 60
-        )
         dynamic_purge_gap = min(max_label_horizon, max(8, len(X) // 20))
 
         validator = WalkForwardValidator(

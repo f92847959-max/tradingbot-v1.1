@@ -139,3 +139,17 @@ def test_chronological_split_refuses_to_drop_purge_gap() -> None:
 
     with pytest.raises(ValueError, match="Refusing to remove leakage gap"):
         prep.split_chronological(X, y, purge_gap=30)
+
+
+def test_prepare_features_labels_rejects_non_finite_features() -> None:
+    prep = DataPreparation()
+    frame = pd.DataFrame(
+        {
+            "feat_a": [1.0, np.nan, 3.0],
+            "feat_b": [1.0, 2.0, np.inf],
+            "label": [0, 1, -1],
+        }
+    )
+
+    with pytest.raises(ValueError, match="Non-finite training feature values"):
+        prep.prepare_features_labels(frame, ["feat_a", "feat_b"], "label")
