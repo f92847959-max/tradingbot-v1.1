@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "class_labels": [
+    "SELL",
+    "HOLD",
+    "BUY"
+  ],
+  "models": {
+    "xgboost": {
+      "schema_version": 1,
+      "class_labels": [
+        "SELL",
+        "HOLD",
+        "BUY"
+      ],
+      "source": {
+        "model_name": "xgboost",
+        "generated_at": "2026-04-28T12:24:27.643527+00:00",
+        "min_support": 3959
+      },
+      "fallback_order": [
+        "exact",
+        "global",
+        "ranging",
+        "defaults"
+      ],
+      "sample_counts": {
+        "global": 49496,
+        "trending": 0,
+        "ranging": 0,
+        "volatile": 0
+      },
+      "defaults": {
+        "SELL": {
+          "action": "SELL",
+          "min_confidence": 0.34,
+          "min_margin": 0.0
+        },
+        "BUY": {
+          "action": "BUY",
+          "min_confidence": 0.34,
+          "min_margin": 0.0
+        },
+        "HOLD": {
+          "action": "HOLD",
+          "min_confidence": 1.0,
+          "min_margin": 0.0
+        }
+      },
+      "thresholds": {
+        "global": {
+          "SELL": {
+            "action": "SELL",
+            "min_confidence": 0.34,
+            "min_margin": 0.0,
+            "support": 35416,
+            "precision": 0.38205895640388526,
+            "recall": 0.7295912865307883,
+            "f1": 0.501501056298877
+          },
+          "BUY": {
+            "action": "BUY",
+            "min_confidence": 0.34,
+            "min_margin": 0.0,
+            "support": 7453,
+            "precision": 0.36924728297329934,
+            "recall": 0.16528528528528527,
+            "f1": 0.2283533170144795
+          }
+        }
+      }
+    },
+    "lightgbm": {
+      "schema_version": 1,
+      "class_labels": [
+        "SELL",
+        "HOLD",
+        "BUY"
+      ],
+      "source": {
+        "model_name": "lightgbm",
+        "generated_at": "2026-04-28T12:24:28.602101+00:00",
+        "min_support": 3959
+      },
+      "fallback_order": [
+        "exact",
+        "global",
+        "ranging",
+        "defaults"
+      ],
+      "sample_counts": {
+        "global": 49496,
+        "trending": 0,
+        "ranging": 0,
+        "volatile": 0
+      },
+      "defaults": {
+        "SELL": {
+          "action": "SELL",
+          "min_confidence": 0.34,
+          "min_margin": 0.0
+        },
+        "BUY": {
+          "action": "BUY",
+          "min_confidence": 0.34,
+          "min_margin": 0.0
+        },
+        "HOLD": {
+          "action": "HOLD",
+          "min_confidence": 1.0,
+          "min_margin": 0.0
+        }
+      },
+      "thresholds": {
+        "global": {
+          "SELL": {
+            "action": "SELL",
+            "min_confidence": 0.34,
+            "min_margin": 0.0,
+            "support": 38914,
+            "precision": 0.38315259289715786,
+            "recall": 0.8039469427369783,
+            "f1": 0.5189697180647408
+          },
+          "BUY": {
+            "action": "BUY",
+            "min_confidence": 0.34,
+            "min_margin": 0.0,
+            "support": 5427,
+            "precision": 0.36963331490694673,
+            "recall": 0.12048048048048048,
+            "f1": 0.18172758979933867
+          }
+        }
+      }
+    }
+  }
+}

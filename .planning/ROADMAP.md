@@ -221,27 +221,39 @@ Plans:
 
 ---
 
-### Phase 14: Elliott Wave Theorie Integration
-**Goal:** Automatische Wellenzaehlung und Fibonacci-Targets aus Wellen-Verhaeltnissen
-**Requirements:** EWT-01, EWT-02, EWT-03, EWT-04
+### Phase 14: Elliott Wave Master Structure
+**Goal:** Elliott Wave wird die zentrale Marktstruktur-Figur: Primaer-/Alternativ-Counts, Wave-Hierarchie, Fibonacci-Ziele und Governance-Kontext fuehren alle spaeteren Strukturmodule.
+**Requirements:** EWT-01, EWT-02, EWT-03, EWT-04, EWT-05, EWT-06
 **Plans:** 3 plans
 
 Plans:
-- [ ] 14-01-PLAN.md — Wave detection core (1-5, A-B-C)
-- [ ] 14-02-PLAN.md — Fibonacci targets from wave ratios
-- [ ] 14-03-PLAN.md — Strategy integration and ML features
+- [ ] 14-01-PLAN.md - Elliott Wave domain model, swing hierarchy, and count engine
+- [ ] 14-02-PLAN.md - Primary/alternate counts, invalidation, and Fibonacci target map
+- [ ] 14-03-PLAN.md - Elliott Wave governance integration, ML features, and audit logging
+
+---
+
+### Phase 14.1: Dow Theory Trend Confirmation
+**Goal:** Dow Theory bestaetigt oder widerspricht dem Elliott-Wave-Master-Count ueber Trendphasen, Hoch/Tief-Struktur, Volumen-/Orderflow-Kontext und Multi-Timeframe-Confirmation.
+**Requirements:** DOW-01, DOW-02, DOW-03, DOW-04, DOW-05
+**Plans:** 3 plans
+
+Plans:
+- [ ] 14.1-01-PLAN.md - Dow trend-state classifier and phase taxonomy
+- [ ] 14.1-02-PLAN.md - Confirmation, divergence, and volume/orderflow proxy layer
+- [ ] 14.1-03-PLAN.md - Elliott Wave + Dow Theory governance integration
 
 ---
 
 ### Phase 15: Fibonacci Engine & S/R Zones
-**Goal:** Automatisierung der S/R-Zonen-Erkennung und Fibonacci-Analyse zur Identifizierung von Confluence-Zonen.
-**Requirements:** SR-01, FIB-01, TREND-01, CONF-01, FEAT-15
+**Goal:** Supporting structure layer unter Elliott Wave: S/R-Zonen, Fibonacci-Cluster und Trendlinien liefern Confluence, aber Elliott Wave bleibt die fuehrende Marktstruktur-Quelle.
+**Requirements:** SR-01, FIB-01, TREND-01, STRUCTCONF-01, FEAT-15
 **Plans:** 3 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Support/Resistance & Fibonacci Core Engines (SR-01, FIB-01)
-- [ ] 15-02-PLAN.md — Trendline Engine & Confluence Scoring (TREND-01, CONF-01)
-- [ ] 15-03-PLAN.md — System Integration & ML Features (FEAT-15)
+- [ ] 15-01-PLAN.md - S/R and Fibonacci engines as Elliott Wave support levels
+- [ ] 15-02-PLAN.md - Trendline and confluence scoring subordinate to wave context
+- [ ] 15-03-PLAN.md - Structural ML features and signal gates with EW/Dow priority
 
 ---
 
@@ -269,4 +281,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-03-03*
-*Last updated: 2026-04-28 — Phase 16 planned and Phase 17 renumbered*
+*Last updated: 2026-04-29 - Phase 14 recentered on Elliott Wave and Phase 14.1 Dow Theory inserted*

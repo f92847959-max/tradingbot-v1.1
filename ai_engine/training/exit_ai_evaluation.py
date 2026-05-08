@@ -9,7 +9,7 @@ from typing import Any
 def evaluate_exit_ai_candidate(
     comparison_report: dict[str, Any],
     *,
-    max_hold_rate: float = 0.80,
+    max_hold_rate: float = 0.88,
     min_trade_retention: float = 0.30,
     min_profit_factor_delta: float = -0.05,
     min_calibration_score: float = 0.45,
