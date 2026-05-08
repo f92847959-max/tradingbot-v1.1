@@ -49,14 +49,19 @@ def _build_train_models_command(
 
 
 def _build_exit_ai_command(args: argparse.Namespace, output_dir: str) -> list[str]:
-    return [
+    command = [
         PYTHON,
         "scripts/train_exit_ai.py",
-        "--synthetic",
-        str(args.exit_synthetic),
+    ]
+    if getattr(args, "exit_synthetic", 0):
+        command.extend(["--synthetic", str(args.exit_synthetic)])
+    else:
+        command.extend(["--csv", args.exit_csv])
+    command.extend([
         "--output",
         output_dir,
-    ]
+    ])
+    return command
 
 
 def run_asset_cycle(
@@ -155,8 +160,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--exit-synthetic",
         type=int,
-        default=360,
-        help="Synthetic snapshot count for Exit-AI",
+        default=0,
+        help="Testing fallback: train Exit-AI on N synthetic snapshots instead of real CSV",
+    )
+    parser.add_argument(
+        "--exit-csv",
+        default="data/exit_ai_snapshots.csv",
+        help="Real Exit-AI snapshot CSV used by default",
     )
     parser.add_argument(
         "--min-data-months",

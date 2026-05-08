@@ -344,7 +344,7 @@ def _build_jobs(args: argparse.Namespace, *, validate: bool) -> list[TrainingJob
     if args.target in ("core", "all"):
         jobs.extend(_build_core_jobs(args))
     if args.target in ("exit", "all"):
-        soft_skip = (args.target == "all") and not args.exit_required
+        soft_skip = bool(getattr(args, "skip_exit_if_missing", False))
         try:
             jobs.append(_build_exit_job(
                 args, validate_csv=validate, soft_skip=soft_skip,
@@ -352,8 +352,8 @@ def _build_jobs(args: argparse.Namespace, *, validate: bool) -> list[TrainingJob
         except ExitJobSkipped as exc:
             print(
                 f"WARN: Exit-AI skipped ({exc}). "
-                "Run with --exit-required to make this fatal, or --target exit "
-                "to train only Exit-AI."
+                "Omit --skip-exit-if-missing to make this fatal, or --target core "
+                "to train only Core-AI."
             )
     return jobs
 
@@ -540,8 +540,15 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--exit-required", action="store_true",
         help=(
-            "With --target all, treat a missing/invalid Exit-AI CSV as a hard "
-            "error instead of skipping the exit job (default: skip)."
+            "Deprecated compatibility flag. Missing/invalid Exit-AI CSV is now "
+            "fatal by default for --target all."
+        ),
+    )
+    parser.add_argument(
+        "--skip-exit-if-missing", action="store_true",
+        help=(
+            "With --target all, explicitly skip Exit-AI when the real snapshot "
+            "CSV is missing or invalid."
         ),
     )
     parser.add_argument("--exit-min-samples", type=int, default=500)

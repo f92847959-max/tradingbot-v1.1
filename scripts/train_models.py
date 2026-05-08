@@ -478,12 +478,6 @@ def main() -> None:
         )
     elif args.csv:
         print(f"Loading data from: {args.csv}")
-        if args.dry_run:
-            logger.info(
-                "DRY-RUN: would train from CSV %s and save to %s. Skipped.",
-                args.csv, args.output,
-            )
-            return
         df = pd.read_csv(args.csv)
         if "timestamp" in df.columns:
             df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True)
@@ -497,6 +491,12 @@ def main() -> None:
             _source_details("csv", args.timeframe, len(df), file_path=args.csv),
             args=args,
         )
+        if args.dry_run:
+            logger.info(
+                "DRY-RUN: validated CSV %s with %d candles and would save to %s. Skipped.",
+                args.csv, len(df), args.output,
+            )
+            return
         results = trainer.train_all(
             df,
             timeframe=args.timeframe,
