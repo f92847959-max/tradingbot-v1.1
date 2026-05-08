@@ -56,6 +56,66 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _best_model_metrics(report: Dict[str, Any]) -> tuple[str | None, Dict[str, Any]]:
+    aggregate = report.get("aggregate", {})
+    best_model = aggregate.get("best_model")
+    if not best_model:
+        model_scores = {
+            key: value.get("profit_factor", 0.0)
+            for key, value in aggregate.items()
+            if isinstance(value, dict)
+        }
+        best_model = max(model_scores, key=model_scores.get) if model_scores else None
+    metrics = aggregate.get(best_model, {}) if best_model else {}
+    return best_model, metrics
+
+
+def _calibration_error(
+    calibration_artifacts: Dict[str, Any],
+    best_model: str | None,
+) -> float:
+    if not best_model:
+        return 0.0
+    model_payload = calibration_artifacts.get("models", {}).get(best_model, {})
+    test_metrics = model_payload.get("test_metrics", {})
+    value = test_metrics.get("expected_calibration_error")
+    return float(value or 0.0)
+
+
+def _build_confidence_buckets(
+    calibration_artifacts: Dict[str, Any],
+) -> Dict[str, Dict[str, Any]]:
+    buckets: Dict[str, Dict[str, Any]] = {}
+    model_entries = calibration_artifacts.get("models", {})
+    for model_payload in model_entries.values():
+        for item in model_payload.get("test_metrics", {}).get("reliability_bins", []):
+            bucket_id = str(item.get("bin", len(buckets)))
+            buckets[bucket_id] = {
+                "support": int(item.get("count", 0) or 0),
+                "actionable": True,
+                "avg_confidence": item.get("avg_confidence"),
+                "accuracy": item.get("accuracy"),
+            }
+    return buckets
+
+
+def _build_training_gate_metrics(
+    report: Dict[str, Any],
+    calibration_artifacts: Dict[str, Any],
+) -> Dict[str, Any]:
+    best_model, metrics = _best_model_metrics(report)
+    return {
+        "profit_factor": float(metrics.get("profit_factor", 0.0) or 0.0),
+        "max_drawdown": float(metrics.get("max_drawdown_pips", 0.0) or 0.0),
+        "calibration_error": _calibration_error(calibration_artifacts, best_model),
+        "non_hold_trades": int(metrics.get("n_trades", 0) or 0),
+        "confidence_bucket_support": {
+            key: value["support"]
+            for key, value in _build_confidence_buckets(calibration_artifacts).items()
+        },
+    }
+
+
 class TrainingPipeline:
     """Executes the full training pipeline on behalf of a ModelTrainer."""
 
@@ -310,6 +370,14 @@ class TrainingPipeline:
             "version_dir": version_name,
         }
         report = generate_training_report(window_results, version_info)
+        report["split_manifest"] = results.get("split_manifest", {})
+        report["gate_metrics"] = _build_training_gate_metrics(
+            report,
+            calibration_payload_for_metadata or final_calibration_artifacts,
+        )
+        report["confidence_buckets"] = _build_confidence_buckets(
+            calibration_payload_for_metadata or final_calibration_artifacts,
+        )
         print_training_report(report)
 
         # Save report as JSON in version directory
@@ -321,10 +389,7 @@ class TrainingPipeline:
         results["training_report"] = report
         if champion_report is not None:
             promotion_decision = evaluate_training_promotion(
-                candidate_report={
-                    **report,
-                    "split_manifest": results.get("split_manifest", {}),
-                },
+                candidate_report=report,
                 champion_report=champion_report,
             )
         else:

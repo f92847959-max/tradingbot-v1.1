@@ -244,3 +244,17 @@ def test_training_pipeline_drops_incomplete_label_horizon(monkeypatch, tmp_path)
     assert results["label_horizon_trimmed_rows"] == 10
     assert results["metadata"]["n_samples_total"] == 185
     assert results["row_loss"]["stage_counts"]["label_ready"] == 185
+
+
+def test_training_report_contains_gate_ready_metrics(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr("ai_engine.training.pipeline.WalkForwardValidator", _FakeValidator)
+
+    trainer = _DummyTrainer(str(tmp_path))
+    pipeline = TrainingPipeline(trainer)
+    results = pipeline.run(_sample_frame(), min_data_months=0)
+    report = results["training_report"]
+
+    assert "split_manifest" in report
+    assert "gate_metrics" in report
+    assert report["gate_metrics"]["profit_factor"] > 0
+    assert "confidence_buckets" in report

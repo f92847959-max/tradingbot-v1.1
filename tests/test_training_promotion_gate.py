@@ -195,3 +195,77 @@ def test_failed_promotion_is_data_only_and_requires_no_pointer_update() -> None:
     assert decision["approved"] is False
     assert "update_production_pointer" not in decision
     assert manifest["approved"] is False
+
+
+def test_saved_training_report_shape_can_pass_gate() -> None:
+    windows = [{"window_id": 0, "train_end": 1500, "test_start": 1560}]
+    candidate = {
+        "version": "candidate",
+        "summary": {"n_windows": 1},
+        "aggregate": {
+            "best_model": "xgboost",
+            "xgboost": {"profit_factor": 1.35, "n_trades": 60, "max_drawdown_pips": 90.0},
+        },
+        "split_manifest": {"windows": windows},
+        "gate_metrics": {
+            "profit_factor": 1.35,
+            "max_drawdown": 90.0,
+            "calibration_error": 0.04,
+            "non_hold_trades": 60,
+            "confidence_bucket_support": {"6": 30, "7": 35},
+        },
+        "confidence_buckets": {
+            "6": {"support": 30, "actionable": True},
+            "7": {"support": 35, "actionable": True},
+        },
+    }
+    champion = {
+        "version": "champion",
+        "summary": {"n_windows": 1},
+        "aggregate": {
+            "best_model": "xgboost",
+            "xgboost": {"profit_factor": 1.20, "n_trades": 60, "max_drawdown_pips": 85.0},
+        },
+        "split_manifest": {"windows": windows},
+        "gate_metrics": {
+            "profit_factor": 1.20,
+            "max_drawdown": 85.0,
+            "calibration_error": 0.05,
+            "non_hold_trades": 60,
+            "confidence_bucket_support": {"6": 30, "7": 35},
+        },
+        "confidence_buckets": {
+            "6": {"support": 30, "actionable": True},
+            "7": {"support": 35, "actionable": True},
+        },
+    }
+
+    decision = evaluate_training_promotion(candidate, champion)
+
+    assert decision["approved"] is True
+
+
+def test_version_metadata_shape_can_supply_gate_windows_and_metrics() -> None:
+    report = {
+        "version": "candidate",
+        "aggregate_metrics": {
+            "xgboost": {"profit_factor": 1.35, "n_trades": 60, "max_drawdown_pips": 90.0},
+        },
+        "walk_forward": {
+            "windows": [{"window_id": 0, "train_end": 1500, "test_start": 1560}],
+        },
+        "promotion_decision": {
+            "gate_metrics": {
+                "profit_factor": 1.35,
+                "max_drawdown": 90.0,
+                "calibration_error": 0.04,
+                "non_hold_trades": 60,
+                "confidence_bucket_support": 30,
+            },
+        },
+    }
+
+    decision = evaluate_training_promotion(report, {**report, "version": "champion"})
+
+    assert "walk_forward_windows_missing" not in decision["reasons"]
+    assert "candidate_missing_profit_factor" not in decision["reasons"]

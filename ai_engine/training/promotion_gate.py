@@ -119,10 +119,12 @@ def build_shadow_training_manifest(
 
 
 def _extract_metrics(report: dict[str, Any]) -> dict[str, Any]:
-    aggregate = report.get("aggregate", {})
-    best_model = aggregate.get("best_model")
+    aggregate = report.get("aggregate") or report.get("aggregate_metrics", {})
+    best_model = aggregate.get("best_model") or _choose_best_model(aggregate)
     model_metrics = aggregate.get(best_model, {}) if best_model else {}
-    gate_metrics = report.get("gate_metrics", {})
+    gate_metrics = report.get("gate_metrics") or report.get(
+        "promotion_decision", {},
+    ).get("gate_metrics", {})
     confidence_buckets = report.get("confidence_buckets", {})
 
     bucket_support = [
@@ -196,10 +198,22 @@ def _lookup_metric(
     return 0.0
 
 
+def _choose_best_model(aggregate: dict[str, Any]) -> str | None:
+    candidates = {
+        key: value.get("profit_factor", 0.0)
+        for key, value in aggregate.items()
+        if isinstance(value, dict)
+    }
+    return max(candidates, key=candidates.get) if candidates else None
+
+
 def _windows(report: dict[str, Any]) -> list[Any]:
     split = report.get("split_manifest", {})
     if split.get("windows"):
         return split["windows"]
+    walk_forward = report.get("walk_forward", {})
+    if walk_forward.get("windows"):
+        return walk_forward["windows"]
     summary = report.get("summary", {})
     if summary.get("windows"):
         return summary["windows"]

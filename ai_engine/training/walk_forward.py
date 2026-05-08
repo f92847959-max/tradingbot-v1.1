@@ -630,6 +630,7 @@ def generate_training_report(
                 m["profit_factor"] = wr[trade_key].get("profit_factor", 0)
                 m["expectancy"] = wr[trade_key].get("expectancy", 0)
                 m["n_trades"] = wr[trade_key].get("n_trades", 0)
+                m["max_drawdown_pips"] = wr[trade_key].get("max_drawdown_pips", 0)
             entry[model_key] = m if m else {"n_trades": 0}
         # Add SHAP/pruning info per window
         if "shap_importance" in wr and wr["shap_importance"]:
@@ -650,6 +651,7 @@ def generate_training_report(
         total_trades = 0
         total_gross_profit = 0.0
         total_gross_loss = 0.0
+        max_drawdown_pips = 0.0
         all_pips: List[float] = []
 
         for wr in windows_results:
@@ -663,6 +665,10 @@ def generate_training_report(
 
             wins = tr.get("wins", 0)
             losses = tr.get("losses", 0)
+            max_drawdown_pips = max(
+                max_drawdown_pips,
+                float(tr.get("max_drawdown_pips", 0.0) or 0.0),
+            )
             tp_pips = tr.get("tp_pips", 0)
             sl_pips = tr.get("sl_pips", 0)
             spread_pips = tr.get("spread_pips", 0)
@@ -714,6 +720,7 @@ def generate_training_report(
             "expectancy": float(agg_exp),
             "n_trades": int(total_trades),
             "sharpe": float(agg_sharpe),
+            "max_drawdown_pips": float(max_drawdown_pips),
         }
 
     # Determine best model by aggregate profit factor
