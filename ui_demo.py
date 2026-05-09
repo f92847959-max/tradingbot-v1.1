@@ -137,16 +137,25 @@ Antworte komplett auf Deutsch.
             result = json.loads(response.read().decode("utf-8"))
             full_text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
             
+            # Ordner erstellen, falls nicht vorhanden
+            log_dir = "gemini_logs"
+            os.makedirs(log_dir, exist_ok=True)
+            
+            # Dateinamen mit Timestamp generieren, damit keine Logs überschrieben werden
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"KI_ANALYSE_REPORT_{timestamp}.txt"
+            filepath = os.path.join(log_dir, filename)
+            
             # Text in die .txt Datei speichern
-            with open("KI_ANALYSE_REPORT.txt", "w", encoding="utf-8") as f:
+            with open(filepath, "w", encoding="utf-8") as f:
                 f.write(full_text)
                 
             # Aufteilen für das UI
             if "---ZUSAMMENFASSUNG---" in full_text:
                 summary = full_text.split("---ZUSAMMENFASSUNG---")[-1].strip()
-                return summary + "\n\n[dim italic](Die extrem ausführliche Komplett-Analyse wurde in KI_ANALYSE_REPORT.txt gespeichert!)[/dim italic]"
+                return summary + f"\n\n[dim italic](Die extrem ausführliche Komplett-Analyse wurde in {log_dir}/{filename} gespeichert!)[/dim italic]"
             else:
-                return full_text[:500] + "...\n\n[dim italic](Die extrem ausführliche Komplett-Analyse wurde in KI_ANALYSE_REPORT.txt gespeichert!)[/dim italic]"
+                return full_text[:500] + f"...\n\n[dim italic](Die extrem ausführliche Komplett-Analyse wurde in {log_dir}/{filename} gespeichert!)[/dim italic]"
             
     except Exception as e:
         return f"[red]Fehler bei der Verbindung zu Google Gemini: {e}[/red]"
@@ -235,10 +244,10 @@ Absolvierte Epochen: [cyan]{ep} / {MAX_EPOCHS}[/cyan] ({ep/MAX_EPOCHS*100:.1f}%)
     console.print()
 
     # --- LLM API CALL ---
-    with console.status("[bold cyan]Warte auf LLM (Ollama) Auswertung...[/bold cyan]", spinner="dots"):
+    with console.status("[bold cyan]Warte auf KI-Auswertung (Google Gemini)...[/bold cyan]", spinner="dots"):
         llm_response = get_llm_analysis(stats)
         
-    console.print(Panel(llm_response, title="🤖 Lokales LLM Experten-Feedback (Ollama)", border_style="magenta"))
+    console.print(Panel(llm_response, title="🤖 Cloud LLM Experten-Feedback (Google Gemini 1.5 Flash)", border_style="magenta"))
     console.print()
 
 def run_mock_ui():
