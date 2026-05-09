@@ -79,6 +79,7 @@ include = [
     "config*", "market_data*", "ai_engine*", "strategy*", "risk*",
     "order_management*", "portfolio*", "notifications*", "monitoring*",
     "api*", "dashboard*", "database*", "shared*", "correlation*", "sentiment*",
+    "ui_demo_app*",
 ]
 
 [tool.ruff]

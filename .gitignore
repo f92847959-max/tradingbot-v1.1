@@ -97,6 +97,7 @@ pytest_*.txt
 
 # Generated artifacts
 main.callgraph.json
+KI_ANALYSE_REPORT.txt
 *.bak
 .runtime/
 dist/
