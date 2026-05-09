@@ -4,7 +4,6 @@ import math
 import json
 import urllib.request
 import urllib.error
-from typing import Optional
 from rich.live import Live
 from rich.layout import Layout
 from rich.panel import Panel
@@ -17,7 +16,7 @@ MAX_EPOCHS = 150  # Reduziert, damit die Demo schnell durchläuft
 
 class PlotextRenderable:
     def __init__(self, data1: list, name1: str, color1: str, 
-                 data2: Optional[list] = None, name2: str = "", color2: str = "", 
+                 data2: list = None, name2: str = "", color2: str = "", 
                  title: str = ""):
         self.data1 = data1
         self.name1 = name1
@@ -98,17 +97,21 @@ def get_llm_analysis(stats: dict) -> str:
     # Du bekommst ihn kostenlos auf: https://aistudio.google.com/app/apikey
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyDSZdy2X5LvBgH303JxLBOJGqkiOJTX1PU")
     
-    if GEMINI_API_KEY == "AIzaSyDSZdy2X5LvBgH303JxLBOJGqkiOJTX1PU":
+    if GEMINI_API_KEY == "DEIN_API_KEY_HIER_EINFUEGEN":
         return "[yellow]⚠️ API Key fehlt![/yellow]\nHol dir einen [bold]völlig kostenlosen[/bold] Key auf [cyan]https://aistudio.google.com/app/apikey[/cyan] und trage ihn im Code ein.\nDann analysiert Google's stärkstes KI-Modell dein Trading in Sekundenschnelle!"
 
     prompt = f"""
-Du bist ein Trading-KI Experte. Analysiere folgende Trainings-Metriken eines Trading-Bots und gib eine kurze, prägnante Empfehlung (max 4 Sätze) auf Deutsch.
+Du bist ein quantitativer Trading-KI Experte. Analysiere folgende Trainings-Metriken eines Trading-Bots.
 - Epochen: {stats.get('epochs')}
 - Win Rate: {stats.get('final_acc', 0)*100:.1f}% (Best: {stats.get('best_acc', 0)*100:.1f}%)
 - Val Loss: {stats.get('final_loss', 0):.4f} (Best: {stats.get('min_loss', 0):.4f})
 - Equity: Start 1000$, Ende ${stats.get('final_eq', 1000):.2f} (Peak: ${stats.get('best_eq', 1000):.2f})
 
-Nenne eine Stärke, eine Schwäche und eine konkrete technische Empfehlung. Keine Formatierungen wie Fett/Kursiv.
+AUFGABE:
+1. Denke extrem lange und detailliert nach. Schreibe eine massiv ausführliche, tiefgehende Analyse (schöpfe das Token-Limit voll aus, schreibe wie ein Senior Quant Researcher). Analysiere die Architektur, Overfitting-Risiken, Drawdowns, etc.
+2. Trenne deine lange Analyse am Ende exakt mit dem Keyword "---ZUSAMMENFASSUNG---" ab.
+3. Schreibe unter das Keyword eine schöne, sehr prägnante Zusammenfassung (max 4 Sätze), die im UI angezeigt wird.
+Antworte komplett auf Deutsch.
 """
     
     data = {
@@ -116,8 +119,8 @@ Nenne eine Stärke, eine Schwäche und eine konkrete technische Empfehlung. Kein
             "parts": [{"text": prompt}]
         }],
         "generationConfig": {
-            "temperature": 0.5,
-            "maxOutputTokens": 150
+            "temperature": 0.7,
+            "maxOutputTokens": 8192
         }
     }
     
@@ -125,13 +128,26 @@ Nenne eine Stärke, eine Schwäche und eine konkrete technische Empfehlung. Kein
         "Content-Type": "application/json"
     }
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={GEMINI_API_KEY}"
     
     try:
         req = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as response:
+        # Timeout massiv erhöhen, da eine lange Antwort viel Zeit braucht
+        with urllib.request.urlopen(req, timeout=60) as response:
             result = json.loads(response.read().decode("utf-8"))
-            return result["candidates"][0]["content"]["parts"][0]["text"].strip()
+            full_text = result["candidates"][0]["content"]["parts"][0]["text"].strip()
+            
+            # Text in die .txt Datei speichern
+            with open("KI_ANALYSE_REPORT.txt", "w", encoding="utf-8") as f:
+                f.write(full_text)
+                
+            # Aufteilen für das UI
+            if "---ZUSAMMENFASSUNG---" in full_text:
+                summary = full_text.split("---ZUSAMMENFASSUNG---")[-1].strip()
+                return summary + "\n\n[dim italic](Die extrem ausführliche Komplett-Analyse wurde in KI_ANALYSE_REPORT.txt gespeichert!)[/dim italic]"
+            else:
+                return full_text[:500] + "...\n\n[dim italic](Die extrem ausführliche Komplett-Analyse wurde in KI_ANALYSE_REPORT.txt gespeichert!)[/dim italic]"
+            
     except Exception as e:
         return f"[red]Fehler bei der Verbindung zu Google Gemini: {e}[/red]"
 
@@ -219,10 +235,10 @@ Absolvierte Epochen: [cyan]{ep} / {MAX_EPOCHS}[/cyan] ({ep/MAX_EPOCHS*100:.1f}%)
     console.print()
 
     # --- LLM API CALL ---
-    with console.status("[bold cyan]Warte auf KI-Auswertung (Google Gemini)...[/bold cyan]", spinner="dots"):
+    with console.status("[bold cyan]Warte auf LLM (Ollama) Auswertung...[/bold cyan]", spinner="dots"):
         llm_response = get_llm_analysis(stats)
         
-    console.print(Panel(llm_response, title="🤖 Cloud LLM Experten-Feedback (Google Gemini 1.5 Flash)", border_style="magenta"))
+    console.print(Panel(llm_response, title="🤖 Lokales LLM Experten-Feedback (Ollama)", border_style="magenta"))
     console.print()
 
 def run_mock_ui():
@@ -231,7 +247,7 @@ def run_mock_ui():
     layout["header"].update(Panel(f"[bold gold1]💎 AI TradingBot - Perfect Fit Dashboard (Ziel: {MAX_EPOCHS} Epochen)[/bold gold1]", style="white on dark_blue"))
     
     history_len = 50
-    equity_data = [1000.0]
+    equity_data = [1000]
     train_loss_data = [2.0]
     val_loss_data = [2.1]
     acc_data = [0.4]
