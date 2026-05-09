@@ -1,2 +1,0 @@
-"""Terminal UI demo package."""
-
