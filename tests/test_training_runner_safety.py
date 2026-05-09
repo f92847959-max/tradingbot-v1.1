@@ -18,6 +18,9 @@ from scripts.training.runner import (
     _build_train_models_command,
 )
 from start_ai_training import ExitJobSkipped, _build_exit_job
+from start_ai_training_gui import DEFAULTS as GUI_DEFAULTS
+from start_ai_training_gui import build_command as build_gui_command
+from start_ai_training_gui import validate as validate_gui_config
 
 
 def test_prepare_csv_rejects_source_overwrite(tmp_path) -> None:
@@ -90,6 +93,41 @@ def test_start_ai_training_missing_exit_csv_is_fatal_by_default(tmp_path) -> Non
 
     with pytest.raises(ExitJobSkipped):
         _build_exit_job(args, validate_csv=True, soft_skip=True)
+
+
+def test_training_gui_requires_exit_csv_by_default() -> None:
+    cfg = {
+        **GUI_DEFAULTS,
+        "target": "all",
+        "exit_csv": "data/__missing_exit_gui.csv",
+        "skip_exit_if_missing": False,
+        "rebuild_exit_snapshots": False,
+    }
+
+    command = build_gui_command(cfg)
+    issues = validate_gui_config(cfg)
+
+    assert "--skip-exit-if-missing" not in command
+    assert "--exit-required" not in command
+    assert any(level == "err" and "Exit-CSV nicht gefunden" in msg
+               for level, msg in issues)
+
+
+def test_training_gui_exit_skip_requires_explicit_opt_in() -> None:
+    cfg = {
+        **GUI_DEFAULTS,
+        "target": "all",
+        "exit_csv": "data/__missing_exit_gui.csv",
+        "skip_exit_if_missing": True,
+        "rebuild_exit_snapshots": False,
+    }
+
+    command = build_gui_command(cfg)
+    issues = validate_gui_config(cfg)
+
+    assert "--skip-exit-if-missing" in command
+    assert any(level == "warn" and "Exit-CSV nicht gefunden" in msg
+               for level, msg in issues)
 
 
 def test_train_models_csv_dry_run_validates_missing_csv(tmp_path) -> None:

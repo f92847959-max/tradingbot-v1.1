@@ -67,7 +67,7 @@ DEFAULTS: dict[str, Any] = {
     "dry_run": False,
     "use_csv_if_present": True,
     "exit_csv": "data/exit_ai_snapshots.csv",
-    "exit_required": False,
+    "skip_exit_if_missing": False,
     "exit_min_samples": 500,
     "exit_purge_gap": 12,
     "exit_min_train_samples": 120,
@@ -136,8 +136,8 @@ def build_command(cfg: dict[str, Any]) -> list[str]:
             "--exit-min-train-samples", str(cfg["exit_min_train_samples"]),
             "--exit-min-test-samples", str(cfg["exit_min_test_samples"]),
         ]
-        if cfg["target"] == "all" and cfg["exit_required"]:
-            cmd.append("--exit-required")
+        if cfg["target"] == "all" and cfg["skip_exit_if_missing"]:
+            cmd.append("--skip-exit-if-missing")
     if cfg["no_dynamic_atr"]:
         cmd.append("--no-dynamic-atr")
     if cfg["dry_run"]:
@@ -190,8 +190,8 @@ def validate(cfg: dict[str, Any]) -> list[tuple[str, str]]:
     elif cfg["target"] == "all":
         path = ROOT / cfg["exit_csv"]
         if not path.exists() and not cfg["rebuild_exit_snapshots"]:
-            level = "err" if cfg["exit_required"] else "warn"
-            label = "ERR" if cfg["exit_required"] else "wird geskippt"
+            level = "warn" if cfg["skip_exit_if_missing"] else "err"
+            label = "wird geskippt" if cfg["skip_exit_if_missing"] else "ERR"
             issues.append((level,
                            f"Exit-CSV nicht gefunden ({label}): {path.name}"))
     if cfg["rebuild_exit_snapshots"] and cfg["target"] in ("exit", "all"):
@@ -526,7 +526,7 @@ class TrainingStarterApp:
         f3 = ttk.LabelFrame(parent, text="EXIT-AI", padding=10)
         f3.grid(row=0, column=2, sticky="nsew", padx=(6, 0), pady=(0, 8))
         self.var_exit_csv = tk.StringVar(value=self.cfg["exit_csv"])
-        self.var_exit_required = tk.BooleanVar(value=self.cfg["exit_required"])
+        self.var_skip_exit = tk.BooleanVar(value=self.cfg["skip_exit_if_missing"])
         self.var_exit_min_samples = tk.StringVar(value=str(self.cfg["exit_min_samples"]))
         self.var_exit_purge = tk.StringVar(value=str(self.cfg["exit_purge_gap"]))
         self.var_exit_min_train = tk.StringVar(value=str(self.cfg["exit_min_train_samples"]))
@@ -555,13 +555,13 @@ class TrainingStarterApp:
             help_text="Mindest-Anzahl Test-Zeilen pro Walk-Forward-Fenster.",
         )
         ttk.Checkbutton(
-            f3, text="Hard-fail wenn Exit-CSV fehlt (--exit-required)",
-            variable=self.var_exit_required, command=self._refresh,
+            f3, text="Exit-AI bei fehlender CSV bewusst skippen",
+            variable=self.var_skip_exit, command=self._refresh,
         ).grid(row=10, column=0, columnspan=2, sticky="w", pady=(8, 0))
         ttk.Label(
             f3,
-            text=("Nur bei target=all relevant. Aus = Skip + Warnung wenn CSV fehlt. "
-                  "An = Abbruch."),
+            text=("Nur bei target=all relevant. Aus = Abbruch wenn CSV fehlt. "
+                  "An = --skip-exit-if-missing mit Warnung."),
             style="Help.TLabel", wraplength=320, justify="left",
         ).grid(row=11, column=0, columnspan=2, sticky="w")
 
@@ -960,7 +960,7 @@ class TrainingStarterApp:
             "dry_run": bool(self.var_dry_run.get()),
             "use_csv_if_present": bool(self.var_use_csv.get()),
             "exit_csv": self.var_exit_csv.get(),
-            "exit_required": bool(self.var_exit_required.get()),
+            "skip_exit_if_missing": bool(self.var_skip_exit.get()),
             "exit_min_samples": self._safe_int(self.var_exit_min_samples.get(), 500),
             "exit_purge_gap": self._safe_int(self.var_exit_purge.get(), 12),
             "exit_min_train_samples": self._safe_int(self.var_exit_min_train.get(), 120),
@@ -1267,7 +1267,7 @@ class TrainingStarterApp:
         self.var_dry_run.set(self.cfg["dry_run"])
         self.var_use_csv.set(self.cfg["use_csv_if_present"])
         self.var_exit_csv.set(self.cfg["exit_csv"])
-        self.var_exit_required.set(self.cfg["exit_required"])
+        self.var_skip_exit.set(self.cfg["skip_exit_if_missing"])
         self.var_exit_min_samples.set(str(self.cfg["exit_min_samples"]))
         self.var_exit_purge.set(str(self.cfg["exit_purge_gap"]))
         self.var_exit_min_train.set(str(self.cfg["exit_min_train_samples"]))
