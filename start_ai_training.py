@@ -482,11 +482,13 @@ def _run_parallel(jobs: list[TrainingJob], *, show_command_only: bool) -> int:
     return 0
 
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Start GoldBot AI training from real broker data only.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
+def add_train_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    """Attach the training-pipeline CLI flag surface to an existing parser.
+
+    Extracted from `_build_parser()` so `main.py`'s dispatcher can borrow
+    the exact same flag set under its `train` subparser without diverging.
+    Returns the parser for chaining.
+    """
     parser.add_argument(
         "--target",
         choices=("core", "exit", "all"),
@@ -587,6 +589,15 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_parser() -> argparse.ArgumentParser:
+    """Standalone parser used by `python start_ai_training.py --help`."""
+    parser = argparse.ArgumentParser(
+        description="Start GoldBot AI training from real broker data only.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    return add_train_args(parser)
+
+
 def _run_one_iteration(args: argparse.Namespace) -> int:
     if args.loop_refetch and not args.show_command_only:
         rc = _run_refetch(args)
@@ -612,8 +623,14 @@ def _run_one_iteration(args: argparse.Namespace) -> int:
     return rc
 
 
-def main() -> int:
-    args = _build_parser().parse_args()
+def run_train(argv: list[str] | None = None) -> int:
+    """Run one (or many) parallel-training cycles.
+
+    Pass `argv` (e.g. `sys.argv[1:]`) and receive a process exit code. This is
+    the function `main.py train` dispatches to so the training surface lives
+    in exactly one place.
+    """
+    args = _build_parser().parse_args(argv)
 
     if not ROOT.joinpath("scripts", "train_models.py").exists():
         print("ERROR: start_ai_training.py must be run from the GoldBot repo root.")
@@ -695,5 +712,10 @@ def main() -> int:
     return last_rc
 
 
+def main() -> int:
+    """Back-compat shim. Prefer `run_train(argv)` for programmatic callers."""
+    return run_train(sys.argv[1:])
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run_train(sys.argv[1:]))

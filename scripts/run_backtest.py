@@ -7,27 +7,19 @@ Usage:
 """
 
 import argparse
-import asyncio
-import json
-import logging
 import os
 import sys
-
-import pandas as pd
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ai_engine.features.feature_engineer import FeatureEngineer
-from ai_engine.training.backtest_report import print_backtest_report
-from ai_engine.training.backtest_runner import BacktestRunner
-from ai_engine.training.label_generator import LabelGenerator
-from scripts.train_models import fetch_broker_data, generate_synthetic_data
 
-logger = logging.getLogger(__name__)
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the backtest CLI parser.
 
-
-def main() -> None:
+    Kept module-level so `main.py backtest --help` is cheap (no ML-stack
+    imports needed just to print usage).
+    """
     parser = argparse.ArgumentParser(description="Run OOS Walk-Forward Backtest")
     parser.add_argument(
         "--version-dir", required=True, type=str,
@@ -46,7 +38,34 @@ def main() -> None:
         "--output", type=str, default=None,
         help="Path to save JSON backtest report (default: {version_dir}/backtest_report.json)",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def run_backtest(argv: list[str] | None = None) -> int:
+    """Run the OOS walk-forward backtest pipeline. Returns process exit code.
+
+    This is the entry point `main.py backtest` dispatches to. Heavy
+    ML-stack imports (FeatureEngineer, BacktestRunner, ...) are deferred
+    until the function body runs, so `python main.py backtest --help`
+    stays fast.
+    """
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    # Deferred (heavy) imports -- only paid when we actually run a backtest.
+    import asyncio
+    import json
+    import logging
+
+    import pandas as pd
+
+    from ai_engine.features.feature_engineer import FeatureEngineer
+    from ai_engine.training.backtest_report import print_backtest_report
+    from ai_engine.training.backtest_runner import BacktestRunner
+    from ai_engine.training.label_generator import LabelGenerator
+    from scripts.train_models import fetch_broker_data, generate_synthetic_data
+
+    logger = logging.getLogger(__name__)
 
     logging.basicConfig(
         level=logging.INFO,
@@ -58,7 +77,7 @@ def main() -> None:
     version_json_path = os.path.join(version_dir, "version.json")
     if not os.path.exists(version_json_path):
         logger.error(f"version.json not found in {version_dir}")
-        sys.exit(1)
+        return 1
 
     with open(version_json_path, "r", encoding="utf-8") as f:
         version_info = json.load(f)
@@ -79,7 +98,7 @@ def main() -> None:
         df = generate_synthetic_data(args.synthetic)
     else:
         logger.error("Provide --broker, --csv <path>, or --synthetic <count>")
-        sys.exit(1)
+        return 1
 
     logger.info(f"Loaded {len(df)} candles.")
 
@@ -87,7 +106,7 @@ def main() -> None:
     logger.info("Computing features...")
     fe = FeatureEngineer()
     df = fe.create_features(df, timeframe=args.timeframe)
-    
+
     # After computing features, we need the feature names
     feature_names = fe.get_feature_names()
 
@@ -123,15 +142,15 @@ def main() -> None:
     if use_dynamic_atr:
         if "atr_14" not in df.columns:
             logger.error("use_dynamic_atr is True but atr_14 column is missing")
-            sys.exit(1)
+            return 1
         atr_values = df["atr_14"].values
 
     # 6. Remove warmup (NaN) rows
     warmup = 200
     if len(df) <= warmup:
         logger.error(f"Not enough data after warmup (len={len(df)}, warmup={warmup})")
-        sys.exit(1)
-    
+        return 1
+
     df = df.iloc[warmup:].copy()
     if atr_values is not None:
         atr_values = atr_values[warmup:]
@@ -148,23 +167,23 @@ def main() -> None:
             len(missing_features),
             missing_features,
         )
-        sys.exit(1)
+        return 1
     X = df[feature_names].values
     y = df["label"].values
 
     logger.info(f"Starting OOS backtest on {len(df)} prepared samples...")
-    
+
     # 8. Run Backtester
     runner = BacktestRunner(
         version_dir=version_dir,
         commission_per_trade_pips=args.commission,
     )
-    
+
     try:
         results = runner.run(
-            X=X, 
-            y=y, 
-            feature_names=feature_names, 
+            X=X,
+            y=y,
+            feature_names=feature_names,
             atr_values=atr_values,
             close_prices=close_prices,
             high_prices=high_prices,
@@ -172,7 +191,7 @@ def main() -> None:
         )
     except Exception as e:
         logger.error(f"Backtest failed: {e}")
-        sys.exit(1)
+        return 1
 
     report = results.get("report", {})
     consistency = results.get("consistency", {})
@@ -183,16 +202,22 @@ def main() -> None:
     output_path = args.output
     if not output_path:
         output_path = os.path.join(version_dir, "backtest_report.json")
-    
+
     # Add consistency to saved report
     report["consistency"] = consistency
-    
+
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
-    
+
     logger.info(f"Backtest report saved to {output_path}")
+    return 0
+
+
+def main() -> int:
+    """Back-compat shim. Prefer `run_backtest(argv)` for programmatic callers."""
+    return run_backtest(sys.argv[1:])
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(run_backtest(sys.argv[1:]))
