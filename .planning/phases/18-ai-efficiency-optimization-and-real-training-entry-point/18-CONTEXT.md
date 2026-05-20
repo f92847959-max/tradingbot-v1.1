@@ -47,7 +47,12 @@ Two deliverables, scoped to the existing `ai_engine/` pipeline:
 
 ### Real training scope
 
-- **D-13:** "Echtes Training" canonical configuration (the one the unified CLI must run unmodified): `--target core --timeframes 5m,15m,1h --primary-timeframe 5m --min-data-months 6 --broker`. This matches the current Phase 2 / Phase 12.7 contract — TRAIN-07 minimum is honored.
+- **D-13 (UPDATED 2026-05-20):** "Echtes Training" canonical configuration: `--target core --timeframes 5m,15m,1h --primary-timeframe 5m --broker --max-history`. **Data policy: minimum 48 months floor, always use maximum available.** This supersedes TRAIN-07's 6-month minimum (TRAIN-07 stays as the absolute legacy floor for backward-compat unit tests, but production / real training must clear the new 48-month floor).
+  - New flag `--max-history` (default ON in the canonical config): the data fetcher must request the maximum history Capital.com / the cached CSV exposes, then trim only if explicitly capped via `--cap-months N`.
+  - New floor flag `--min-data-months` default raised to **48**. If the fetched dataset is shorter than the floor for any selected timeframe, real training exits non-zero with a hard error (no silent partial run). Only `--smoke` and unit tests bypass the floor.
+  - Capital.com pragmatics: not all timeframes return 48 months. The fetcher (`scripts/fetch_bulk_history.py` + `ai_engine/training/data_source.py`) must use `--resample-from-base 1m` when a requested timeframe is short on history. If even the 1m base is shorter than 48 months, hard error with actionable message ("Capital.com returned N months for symbol X — increase the cached window or lower --min-data-months explicitly to override").
+  - Cache & resume: a `--max-history` run that has previously fetched 60 months must NOT re-download — the broker-fetch layer reuses cached CSVs under `data/` keyed by `(symbol, base_timeframe, range_hash)` and only fetches the missing tail.
+  - Walk-forward window count auto-scales: with 48+ months of 5m data (~50k+ candles), the existing dynamic-window formula (Phase 2: ~9 windows / 12k samples) yields ~36+ windows. This is intentional — feeds D-08 parallel windows.
 - **D-14:** No synthetic data in the real-training path. `ai_engine/training/synthetic_market.py` stays available only for unit tests and the `--smoke` subcommand (see D-19). Real training rejects synthetic data sources with a hard error.
 - **D-15:** Capital.com auth via existing `.env` resolution path (`config/settings.py` + external `~/secrets/ai-trading-gold/.env`). The CLI never reads credentials from argv. If credentials are missing, `--mode train --broker` exits non-zero with the existing error message (do not invent new secret handling).
 
@@ -150,6 +155,7 @@ Two deliverables, scoped to the existing `ai_engine/` pipeline:
 
 - User asked for "eine Art main.py" — interpreted as a single canonical entry point, NOT a rewrite. Existing `main.py` becomes the dispatcher; existing scripts become thin aliases. Backward compatibility for `python main.py` (no args, defaults to live) is required.
 - User asked for "echtes Training" — interpreted as: real Capital.com data, no synthetic shortcut in the train path, full walk-forward + SHAP + promotion gate. This is already the contract of `start_ai_training.py --target core` today.
+- **User confirmed 2026-05-20:** Data floor raised to **minimum 48 months**, default policy is **always maximum available history**. The existing TRAIN-07 6-month minimum is now a legacy fallback for tests only; real training must clear 48 months or hard-error. See D-13 for the full revised data policy.
 - User asked for "effizienter" — interpreted as measurable wall-clock reduction (target 30%) with no regression on aggregate profit factor (Phase 2 best-model selection criterion). Profile-driven, not opportunistic.
 
 </specifics>
