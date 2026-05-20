@@ -279,6 +279,16 @@ Plans:
 - [ ] 17-02-PLAN.md — Operational scripts (preflight check, demo report, PowerShell restart wrapper)
 - [ ] 17-03-PLAN.md — Demo readiness verification and operator checkpoint
 
+### Phase 18: AI Efficiency Optimization and Real Training Entry Point
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 17
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run /gsd-plan-phase 18 to break down)
+
 ---
 *Roadmap created: 2026-03-03*
 *Last updated: 2026-04-29 - Phase 14 recentered on Elliott Wave and Phase 14.1 Dow Theory inserted*
