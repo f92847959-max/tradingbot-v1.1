@@ -9,6 +9,14 @@ from typing import Any
 import pandas as pd
 
 
+# Phase 18 D-13: production floor for real training is 48 months.
+# Smoke/unit-test paths use the legacy TRAIN-07 6-month floor via the
+# DEFAULT_MIN_MONTHS_SMOKE constant. Real training paths must clear
+# DEFAULT_MIN_MONTHS_PROD unless --allow-short-data is set.
+DEFAULT_MIN_MONTHS_PROD = 48
+DEFAULT_MIN_MONTHS_SMOKE = 6
+
+
 class DataCoverageError(ValueError):
     """Raised when a dataset is too short for the configured training span."""
 
@@ -106,34 +114,50 @@ def _span_payload(df: pd.DataFrame, min_months: int = 6) -> dict[str, Any]:
 def calculate_trainable_span(
     df: pd.DataFrame,
     min_months: int = 6,
+    *,
+    timeframe_label: str | None = None,
 ) -> dict[str, Any]:
-    """Return trainable span metadata and fail if it is below min_months."""
+    """Return trainable span metadata and fail if it is below min_months.
+
+    Pass ``timeframe_label`` to surface the timeframe (e.g. ``"5m"``) in any
+    raised ``DataCoverageError`` message — useful when callers iterate over
+    multiple timeframes and need to know which one tripped the floor.
+    Phase 18 production floor: ``DEFAULT_MIN_MONTHS_PROD`` (48). Callers
+    should pass ``min_months=DEFAULT_MIN_MONTHS_PROD`` for real training and
+    ``DEFAULT_MIN_MONTHS_SMOKE`` (6) for smoke / unit-test paths.
+    """
     payload = _span_payload(df, min_months=min_months)
+    tf_suffix = f" for timeframe={timeframe_label}" if timeframe_label else ""
+    hint = (
+        " Pass --allow-short-data to override (smoke/test only)."
+        if min_months >= DEFAULT_MIN_MONTHS_PROD
+        else ""
+    )
     if payload["timestamp_rows"] < payload["minimum_rows"]:
         raise DataCoverageError(
-            "Insufficient trainable rows: "
+            f"Insufficient trainable rows{tf_suffix}: "
             f"timestamp_rows={payload['timestamp_rows']} "
             f"minimum_rows={payload['minimum_rows']} "
             f"trainable_days={payload['trainable_days']} "
             f"start_timestamp={payload['start_timestamp']} "
             f"end_timestamp={payload['end_timestamp']} "
-            f"rows={payload['rows']}"
+            f"rows={payload['rows']}.{hint}"
         )
     if payload["trainable_days"] < payload["minimum_days"]:
         raise DataCoverageError(
-            "Insufficient trainable history: "
+            f"Insufficient trainable history{tf_suffix}: "
             f"trainable_days={payload['trainable_days']} "
             f"minimum_days={payload['minimum_days']} "
             f"start_timestamp={payload['start_timestamp']} "
             f"end_timestamp={payload['end_timestamp']} "
-            f"rows={payload['rows']}"
+            f"rows={payload['rows']}.{hint}"
         )
     if (
         payload["coverage_ratio"] < 0.80
         and payload.get("weekday_market_coverage_ratio", 0.0) < 0.80
     ):
         raise DataCoverageError(
-            "Insufficient timestamp coverage density: "
+            f"Insufficient timestamp coverage density{tf_suffix}: "
             f"coverage_ratio={payload['coverage_ratio']} "
             f"weekday_market_coverage_ratio="
             f"{payload.get('weekday_market_coverage_ratio', 0.0)} "
@@ -141,7 +165,7 @@ def calculate_trainable_span(
             f"timestamp_rows={payload['timestamp_rows']} "
             f"start_timestamp={payload['start_timestamp']} "
             f"end_timestamp={payload['end_timestamp']} "
-            f"rows={payload['rows']}"
+            f"rows={payload['rows']}.{hint}"
         )
     return payload
 

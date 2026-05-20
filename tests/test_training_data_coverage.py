@@ -9,6 +9,8 @@ import pandas as pd
 import pytest
 
 from ai_engine.training.data_coverage import (
+    DEFAULT_MIN_MONTHS_PROD,
+    DEFAULT_MIN_MONTHS_SMOKE,
     DataCoverageError,
     build_dataset_manifest,
     build_row_loss_report,
@@ -156,3 +158,91 @@ def test_write_dataset_manifest_round_trips_json(tmp_path) -> None:
 
     loaded = json.loads(Path(path).read_text(encoding="utf-8"))
     assert loaded["label_ready_rows"] == manifest["label_ready_rows"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 18 — 48-month floor enforcement
+# ---------------------------------------------------------------------------
+
+
+def test_default_prod_floor_is_48_months() -> None:
+    assert DEFAULT_MIN_MONTHS_PROD == 48
+    assert DEFAULT_MIN_MONTHS_SMOKE == 6
+
+
+def test_47_months_raises_with_prod_floor() -> None:
+    # ~47 months of weekday 4h candles
+    timestamps = pd.date_range(
+        "2022-01-01T00:00:00Z",
+        "2025-11-30T00:00:00Z",
+        freq="4h",
+        tz="UTC",
+    )
+    timestamps = timestamps[timestamps.weekday < 5]
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": 2040.0, "high": 2041.0, "low": 2039.0, "close": 2040.5,
+            "volume": 1000,
+        }
+    )
+
+    with pytest.raises(DataCoverageError) as excinfo:
+        calculate_trainable_span(df, min_months=DEFAULT_MIN_MONTHS_PROD)
+
+    msg = str(excinfo.value)
+    assert "trainable_days" in msg
+    assert "--allow-short-data" in msg
+
+
+def test_48_months_passes_with_prod_floor() -> None:
+    # ~50 months of weekday 4h candles
+    timestamps = pd.date_range(
+        "2022-01-01T00:00:00Z",
+        "2026-03-15T00:00:00Z",
+        freq="4h",
+        tz="UTC",
+    )
+    timestamps = timestamps[timestamps.weekday < 5]
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": 2040.0, "high": 2041.0, "low": 2039.0, "close": 2040.5,
+            "volume": 1000,
+        }
+    )
+
+    span = calculate_trainable_span(df, min_months=DEFAULT_MIN_MONTHS_PROD)
+
+    assert span["trainable_days"] >= DEFAULT_MIN_MONTHS_PROD * 30.44
+
+
+def test_smoke_floor_still_works() -> None:
+    # 7 months of weekday 4h candles — must NOT raise at the smoke floor
+    timestamps = pd.date_range(
+        "2025-01-01T00:00:00Z",
+        "2025-08-01T00:00:00Z",
+        freq="4h",
+        tz="UTC",
+    )
+    timestamps = timestamps[timestamps.weekday < 5]
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": 2040.0, "high": 2041.0, "low": 2039.0, "close": 2040.5,
+            "volume": 1000,
+        }
+    )
+
+    span = calculate_trainable_span(df, min_months=DEFAULT_MIN_MONTHS_SMOKE)
+    assert span["trainable_days"] >= DEFAULT_MIN_MONTHS_SMOKE * 30.44
+
+
+def test_error_message_lists_timeframe_when_provided() -> None:
+    df = _ohlcv_frame("2026-04-13T00:00:00Z", periods=532)
+    df.loc[len(df) - 1, "timestamp"] = pd.Timestamp("2026-04-14T20:15:00Z")
+
+    with pytest.raises(DataCoverageError) as excinfo:
+        calculate_trainable_span(df, min_months=1, timeframe_label="5m")
+
+    assert "timeframe=5m" in str(excinfo.value)
