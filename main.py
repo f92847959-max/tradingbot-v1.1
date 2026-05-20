@@ -60,12 +60,23 @@ logger = logging.getLogger("main")
 # Re-export TradingSystem and run_live from trading.runner so existing
 # callers (api/dependencies.py TYPE_CHECKING import, tests/test_lifecycle.py
 # `from main import TradingSystem`) continue to work without modification.
-# Lazy: import only when something asks for it via `from main import ...`.
+#
+# We use the PEP 562 module-level __getattr__ hook so the heavy trading
+# stack only loads when something actually does `from main import
+# TradingSystem` (or `run_live`). Plain `python main.py --help` therefore
+# pays nothing for the legacy re-export -- meeting the lazy-import goal in
+# the plan's verification block.
 # ---------------------------------------------------------------------------
 
-from trading.runner import TradingSystem, run_live  # noqa: E402,F401
-
 __all__ = ["TradingSystem", "run_live"]
+
+
+def __getattr__(name: str):  # noqa: N807 -- module-level dunder per PEP 562
+    if name in ("TradingSystem", "run_live"):
+        from trading import runner
+
+        return getattr(runner, name)
+    raise AttributeError(f"module 'main' has no attribute {name!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +148,11 @@ def _dispatch_backtest(remaining_argv: list[str], profile: bool) -> int:
 
 
 def _dispatch_live(profile: bool) -> int:
+    # Lazy imports: heavy trading stack stays unloaded until we actually
+    # boot live mode. Keeps `main.py --help` and the other subcommands
+    # fast.
     from config.settings import get_settings
+    from trading.runner import run_live as _run_live
 
     logger.info("Bootstrapping trading system modules...")
     settings = get_settings()
@@ -145,9 +160,9 @@ def _dispatch_live(profile: bool) -> int:
         from scripts.profiling_harness import profile_call
 
         # profile_call swallows the coroutine's return value (None for live).
-        profile_call(asyncio.run, run_live(settings), mode_label="live")
+        profile_call(asyncio.run, _run_live(settings), mode_label="live")
         return 0
-    asyncio.run(run_live(settings))
+    asyncio.run(_run_live(settings))
     return 0
 
 
