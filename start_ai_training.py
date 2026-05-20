@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parent
 VENV_PYTHON = ROOT / ".venv" / "Scripts" / "python.exe"
 DEFAULT_OUTPUT = "ai_engine/saved_models"
 DEFAULT_TIMEFRAMES = ("5m", "15m", "1h")
-DEFAULT_MIN_DATA_MONTHS = 6
+DEFAULT_MIN_DATA_MONTHS = 48  # Phase 18 D-13 — raised from TRAIN-07 6-month legacy floor
 ABSOLUTE_MIN_CANDLES = 1500
 TRADING_MINUTES_PER_MONTH = 23 * 60 * 22
 TIMEFRAME_MINUTES = {
@@ -517,7 +517,17 @@ def add_train_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--output", default=DEFAULT_OUTPUT)
     parser.add_argument(
         "--min-data-months", type=int, default=DEFAULT_MIN_DATA_MONTHS,
-        help="Minimum months of history required (default: 6, per TRAIN-07).",
+        help=(
+            "Minimum months of history required (default: 48 per Phase 18 D-13). "
+            "Values below 48 are raised to 48 unless --allow-short-data is set."
+        ),
+    )
+    parser.add_argument(
+        "--allow-short-data", action="store_true",
+        help=(
+            "Override the 48-month production floor. For smoke / unit-test use only — "
+            "emits a loud WARNING and lets --min-data-months take effect verbatim."
+        ),
     )
     parser.add_argument("--max-holding", type=int, default=15)
     parser.add_argument("--tp-atr-mult", type=float, default=2.0)
@@ -639,6 +649,25 @@ def run_train(argv: list[str] | None = None) -> int:
     if args.min_data_months < 1:
         print("ERROR: --min-data-months must be >= 1.")
         return 2
+
+    # Phase 18 D-13: enforce the 48-month production floor unless the user
+    # explicitly opts out via --allow-short-data (smoke / unit-test only).
+    from ai_engine.training.data_coverage import DEFAULT_MIN_MONTHS_PROD
+
+    if args.allow_short_data:
+        print(
+            f"WARNING: --allow-short-data active. Using --min-data-months="
+            f"{args.min_data_months} instead of the production floor "
+            f"({DEFAULT_MIN_MONTHS_PROD}). Models trained under this flag "
+            f"are NOT suitable for production promotion."
+        )
+    elif args.min_data_months < DEFAULT_MIN_MONTHS_PROD:
+        print(
+            f"WARNING: --min-data-months={args.min_data_months} is below the "
+            f"production floor ({DEFAULT_MIN_MONTHS_PROD}); raising to "
+            f"{DEFAULT_MIN_MONTHS_PROD}. Pass --allow-short-data to override."
+        )
+        args.min_data_months = DEFAULT_MIN_MONTHS_PROD
 
     if args.loop_iterations < 0:
         print("ERROR: --loop-iterations must be >= 0.")
