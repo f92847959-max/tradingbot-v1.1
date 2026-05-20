@@ -34,6 +34,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -42,6 +43,11 @@ DATA_DIR_DEFAULT = ROOT / "data"
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h")
 
 INSTRUMENT = "XAU/USD"
+
+# Phase 18 D-13: --max-history requests this many years back from "now" when
+# no explicit cap is set. Dukascopy XAU/USD starts 1999-06-03, so 27 years
+# from 2026 covers the full available history with headroom.
+MAX_HISTORY_YEARS = 27
 
 PANDAS_RESAMPLE_RULE = {
     "1m": "1min",
@@ -135,6 +141,12 @@ def _resolve_date_range(args: argparse.Namespace) -> tuple[datetime, datetime]:
     if args.start and args.end:
         start = pd.Timestamp(args.start, tz="UTC").to_pydatetime()
         end = pd.Timestamp(args.end, tz="UTC").to_pydatetime()
+    elif getattr(args, "max_history", False):
+        years = args.years if args.years else MAX_HISTORY_YEARS
+        end = datetime.now(tz=timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0,
+        )
+        start = pd.Timestamp(end - pd.DateOffset(years=years)).to_pydatetime()
     elif args.years:
         end = datetime.now(tz=timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0,
@@ -142,11 +154,87 @@ def _resolve_date_range(args: argparse.Namespace) -> tuple[datetime, datetime]:
         start = end - pd.DateOffset(years=args.years)
         start = pd.Timestamp(start).to_pydatetime()
     else:
-        raise ValueError("Provide either --years N or both --start and --end")
+        raise ValueError(
+            "Provide --years N, --max-history, or both --start and --end"
+        )
 
     if start >= end:
         raise ValueError(f"start ({start}) must be before end ({end})")
     return start, end
+
+
+def compute_cached_range(cache_path: str | Path) -> tuple[datetime, datetime] | None:
+    """Return the timestamp span of an existing cached CSV, or None if absent.
+
+    Returns ``(first_ts, last_ts)`` (both timezone-aware UTC datetimes) if the
+    CSV exists, has a parseable ``timestamp`` column / DatetimeIndex, and
+    contains at least one row. Returns ``None`` otherwise.
+
+    Used by ``fetch_with_cache`` and exercised directly by tests so the
+    cache-and-extend behaviour stays verifiable without hitting Dukascopy.
+    """
+    path = Path(cache_path)
+    if not path.exists():
+        return None
+    df = _load_existing(path)
+    if df.empty:
+        return None
+    first = df.index.min()
+    last = df.index.max()
+    return first.to_pydatetime(), last.to_pydatetime()
+
+
+def fetch_with_cache(
+    symbol: str,
+    timeframe: str,
+    *,
+    max_history: bool,
+    years_cap: int | None,
+    output_dir: str | Path,
+    retries: int = 3,
+    sleep_seconds: float = 2.0,
+    dukascopy_python: Any | None = None,
+) -> Path:
+    """Cache-and-extend fetch for a single timeframe.
+
+    Computes the requested range from ``max_history`` / ``years_cap``, then
+    delegates to ``_fetch_timeframe_directly`` which already skips chunks
+    fully covered by the existing CSV. If the cache already covers the entire
+    requested range, the Dukascopy module is never imported and the broker is
+    not called — this is the property the tests assert on.
+
+    Returns the resolved CSV path. ``symbol`` is currently a no-op (Dukascopy
+    XAU/USD only) but kept in the signature so future broker swaps stay
+    type-stable.
+    """
+    del symbol  # currently fixed to INSTRUMENT; kept for future-proofing
+    output_dir = Path(output_dir)
+    csv_path = _output_csv(output_dir, timeframe)
+
+    years = years_cap if years_cap else (MAX_HISTORY_YEARS if max_history else None)
+    if years is None:
+        raise ValueError(
+            "fetch_with_cache requires max_history=True or an explicit years_cap"
+        )
+    end = datetime.now(tz=timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0,
+    )
+    start = pd.Timestamp(end - pd.DateOffset(years=years)).to_pydatetime()
+
+    cached = compute_cached_range(csv_path)
+    if cached is not None:
+        cached_first, cached_last = cached
+        if cached_first <= start and cached_last >= end:
+            # Cache fully covers the requested range — no broker hit.
+            return csv_path
+
+    if dukascopy_python is None:
+        dukascopy_python = _import_dukascopy()
+    _fetch_timeframe_directly(
+        dukascopy_python, timeframe, start, end, csv_path,
+        retries=retries, sleep_seconds=sleep_seconds, use_existing=True,
+    )
+    return csv_path
 
 
 def _month_chunks(start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
@@ -329,6 +417,14 @@ def main() -> int:
     parser.add_argument("--years", type=int, default=None)
     parser.add_argument("--start", type=str, default=None, help="YYYY-MM-DD UTC")
     parser.add_argument("--end", type=str, default=None, help="YYYY-MM-DD UTC")
+    parser.add_argument(
+        "--max-history", action="store_true",
+        help=(
+            "Fetch the maximum history Dukascopy exposes (XAU/USD: from 1999-06-03). "
+            "Already-cached chunks are skipped — only the missing tail is downloaded. "
+            "Combine with --years N for an explicit cap."
+        ),
+    )
     parser.add_argument(
         "--timeframes",
         type=str,
