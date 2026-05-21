@@ -2,16 +2,29 @@
 
 Provides functions to compute SHAP feature importance from trained
 XGBoost/LightGBM models and generate feature importance bar charts.
+
+Phase 18 (D-12): ``shap`` and ``matplotlib`` are imported lazily inside the
+functions that use them. At ~80 MB combined import cost, keeping them out of
+the module-level import list means tools that only touch this module's
+*signatures* (linters, ``--help`` runs, dispatcher startup) pay nothing.
 """
 
 import os
 
-import matplotlib
-matplotlib.use('Agg')  # Must be before pyplot import for headless rendering
-import matplotlib.pyplot as plt
-
 import numpy as np
-import shap
+
+
+def _setup_matplotlib_agg():
+    """Configure matplotlib for headless Agg rendering and return pyplot.
+
+    Centralises the Agg backend switch so callers don't risk reordering the
+    ``matplotlib.use("Agg")`` vs ``import matplotlib.pyplot`` sequence wrong.
+    """
+    import matplotlib  # lazy import (Phase 18 — keep dispatcher boot fast)
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt  # noqa: E402 -- Agg must be set first
+    return plt
 
 
 def compute_shap_importance(
@@ -39,6 +52,8 @@ def compute_shap_importance(
         Dict of {feature_name: mean_abs_shap_value}, sorted descending
         by importance.
     """
+    import shap  # lazy import (Phase 18 — keep dispatcher boot fast)
+
     explainer = shap.TreeExplainer(model)
 
     # Subsample if data exceeds max_samples
@@ -100,6 +115,7 @@ def save_feature_importance_chart(
     names = [f for f, _ in reversed(sorted_features)]
     values = [v for _, v in reversed(sorted_features)]
 
+    plt = _setup_matplotlib_agg()  # lazy (Phase 18)
     fig, ax = plt.subplots(figsize=(10, max(6, len(names) * 0.3)))
     ax.barh(names, values, color='#1f77b4')
     ax.set_xlabel('Mean |SHAP value|')
@@ -140,6 +156,7 @@ def save_training_diagnostic_charts(
 
 
 def _save_or_placeholder(path: str, title: str, draw_fn) -> None:
+    plt = _setup_matplotlib_agg()  # lazy (Phase 18)
     fig, ax = plt.subplots(figsize=(10, 6))
     try:
         draw_fn(ax)
