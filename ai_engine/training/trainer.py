@@ -128,8 +128,22 @@ class ModelTrainer:
         champion_report: Dict[str, Any] | None = None,
         enforce_promotion_gate: bool = True,
         dataset_manifest: Dict[str, Any] | None = None,
+        *,
+        seed: int = 42,
+        device: str = "cpu",
+        gpu_info: Dict[str, Any] | None = None,
+        device_accepted: bool | None = None,
+        parallel_windows: int = 1,
+        data_csv_path: str | None = None,
+        cache_hit_rate: float | None = None,
     ) -> Dict[str, Any]:
-        """Train all models using walk-forward pipeline."""
+        """Train all models using walk-forward pipeline.
+
+        The keyword-only ``seed``/``device``/``gpu_info``/``device_accepted``/
+        ``parallel_windows``/``data_csv_path``/``cache_hit_rate`` args feed the
+        additive ``run_manifest.json`` sidecar (Phase 18 D-17) and never change
+        ``version.json``.
+        """
         pipeline = TrainingPipeline(self)
         return pipeline.run(
             df, timeframe, feature_selection, min_feature_importance,
@@ -137,6 +151,13 @@ class ModelTrainer:
             champion_report=champion_report,
             enforce_promotion_gate=enforce_promotion_gate,
             dataset_manifest=dataset_manifest,
+            seed=seed,
+            device=device,
+            gpu_info=gpu_info,
+            device_accepted=device_accepted,
+            parallel_windows=parallel_windows,
+            data_csv_path=data_csv_path,
+            cache_hit_rate=cache_hit_rate,
         )
 
     def train_from_csv(

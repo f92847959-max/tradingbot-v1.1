@@ -132,11 +132,29 @@ class TrainingPipeline:
         champion_report: Dict[str, Any] | None = None,
         enforce_promotion_gate: bool = True,
         dataset_manifest: Dict[str, Any] | None = None,
+        *,
+        seed: int = 42,
+        device: str = "cpu",
+        gpu_info: Dict[str, Any] | None = None,
+        device_accepted: bool | None = None,
+        parallel_windows: int = 1,
+        data_csv_path: str | None = None,
+        cache_hit_rate: float | None = None,
     ) -> Dict[str, Any]:
-        """Run the walk-forward training pipeline."""
+        """Run the walk-forward training pipeline.
+
+        The ``seed``/``device``/``gpu_info``/``device_accepted``/
+        ``parallel_windows``/``data_csv_path``/``cache_hit_rate`` keyword-only
+        args feed the additive ``run_manifest.json`` sidecar (Phase 18 D-17).
+        They never affect ``version.json`` — the Phase 12.7 promotion gate sees
+        an identical schema. ``cache_hit_rate`` stays ``None`` until the
+        cross-run feature cache is wired (Plan 18-05).
+        """
         df = df.copy()  # Prevent SettingWithCopyWarning
         start_time = time.time()
         results: Dict[str, Any] = {}
+        stage_times: Dict[str, float] = {}
+        _stage_mark = start_time
 
         # ================================================================
         # Step 1: Validate data (+ 6-month minimum check)
@@ -178,6 +196,8 @@ class TrainingPipeline:
         feature_names = self._t._feature_engineer.get_feature_names()
         row_counts["feature_ready"] = int(len(df))
         logger.info(f"  -> {len(feature_names)} features created")
+        stage_times["features"] = time.time() - _stage_mark
+        _stage_mark = time.time()
 
         # ================================================================
         # Step 3: Generate labels
@@ -256,6 +276,8 @@ class TrainingPipeline:
         logger.info(f"  Purge gap: {dynamic_purge_gap} candles")
 
         wf_results = validator.run_all_windows(X, y, feature_names, self._t)
+        stage_times["walk_forward"] = time.time() - _stage_mark
+        _stage_mark = time.time()
 
         # Extract walk-forward data
         window_results = wf_results["windows"]
@@ -581,4 +603,35 @@ class TrainingPipeline:
 
         results["metadata"] = version_data
         results["version_dir"] = version_dir
+
+        # ================================================================
+        # Additive run-manifest sidecar (Phase 18 D-17). Written AFTER
+        # version.json + production pointer so version.json schema is
+        # untouched. Never raises into the training result -- a manifest
+        # failure must not fail an otherwise-successful training run.
+        # ================================================================
+        try:
+            from .run_manifest import build_run_manifest, write_run_manifest
+
+            stage_times["save_and_version"] = time.time() - _stage_mark
+            manifest = build_run_manifest(
+                seed=seed,
+                timeframe=timeframe,
+                data_csv_path=data_csv_path,
+                fetched_months=float(data_range.get("months_of_data", 0.0) or 0.0),
+                n_windows=len(window_results),
+                device=device,
+                gpu_info=gpu_info,
+                wall_clock_stages=stage_times,
+                cache_hit_rate=cache_hit_rate,
+                parallel_windows=parallel_windows,
+                device_accepted=device_accepted,
+            )
+            manifest_path = write_run_manifest(manifest, version_dir)
+            results["run_manifest"] = manifest
+            results["run_manifest_path"] = manifest_path
+            logger.info("Run manifest written to: %s", manifest_path)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Run manifest write skipped: %s", exc)
+
         return results
