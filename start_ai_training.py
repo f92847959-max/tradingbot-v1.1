@@ -656,6 +656,43 @@ def _run_one_iteration(args: argparse.Namespace) -> int:
     return rc
 
 
+SMOKE_CANDLES = 2000
+SMOKE_TIMEFRAME = "5m"
+
+
+def _run_smoke(args: argparse.Namespace) -> int:
+    """Sub-60s synthetic smoke training run (Phase 18 D-19).
+
+    Trains a single synthetic 2000-candle 5m dataset into a throwaway temp dir
+    (NOT ai_engine/saved_models), bypassing the 48-month floor. Prints
+    ``SMOKE PASSED: artifacts at {tmpdir}`` on success. CI-friendly: no broker
+    call, single subprocess (no parallel fan-out).
+    """
+    import tempfile
+
+    tmpdir = tempfile.mkdtemp(prefix="goldbot_smoke_")
+    command = [
+        _repo_python(),
+        "scripts/train_models.py",
+        "--synthetic", str(SMOKE_CANDLES),
+        "--timeframe", SMOKE_TIMEFRAME,
+        "--output", tmpdir,
+        "--min-data-months", "1",
+        "--allow-short-data",
+        "--device", str(getattr(args, "device", "cpu")),
+        "--seed", str(getattr(args, "seed", 42)),
+    ]
+    print("SMOKE: single synthetic training job (bypasses 48-month floor)")
+    print(f"  output (temp): {tmpdir}")
+    rc = _run_step("smoke", command)
+    if rc != 0:
+        log_path = ROOT / "logs" / "training" / "smoke.log"
+        print(f"SMOKE FAILED (exit {rc}). See {log_path}")
+        return rc
+    print(f"SMOKE PASSED: artifacts at {tmpdir}")
+    return 0
+
+
 def run_train(argv: list[str] | None = None) -> int:
     """Run one (or many) parallel-training cycles.
 
@@ -668,6 +705,10 @@ def run_train(argv: list[str] | None = None) -> int:
     if not ROOT.joinpath("scripts", "train_models.py").exists():
         print("ERROR: start_ai_training.py must be run from the GoldBot repo root.")
         return 2
+
+    # Smoke run bypasses the production floor and the parallel fan-out.
+    if getattr(args, "smoke", False):
+        return _run_smoke(args)
 
     if args.min_data_months < 1:
         print("ERROR: --min-data-months must be >= 1.")
