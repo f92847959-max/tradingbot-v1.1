@@ -58,6 +58,7 @@ class ModelTrainer:
         tp_atr_multiplier: float = 2.0,
         sl_atr_multiplier: float = 1.5,
         exit_aware_labels: bool = False,
+        device: str = "cpu",
     ) -> None:
         """
         Initialize the ModelTrainer.
@@ -111,9 +112,11 @@ class ModelTrainer:
             slippage_pips=slippage_pips,
         )
 
-        # Models (XGBoost + LightGBM, CPU-only)
-        self._xgboost = XGBoostModel()
-        self._lightgbm = LightGBMModel()
+        # Models (XGBoost + LightGBM). device="cuda" enables the optional GPU
+        # path (Phase 18 D-11) with automatic CPU fallback on init failure.
+        self.device = (device or "cpu").lower()
+        self._xgboost = XGBoostModel(device=self.device)
+        self._lightgbm = LightGBMModel(device=self.device)
 
         os.makedirs(saved_models_dir, exist_ok=True)
         logger.info(f"ModelTrainer initialized. Models -> {saved_models_dir}")

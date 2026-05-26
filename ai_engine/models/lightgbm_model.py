@@ -42,17 +42,28 @@ class LightGBMModel(BaseModel):
         "verbose": -1,
     }
 
-    def __init__(self, params: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self,
+        params: Optional[Dict[str, Any]] = None,
+        device: str = "cpu",
+    ) -> None:
         """
         Initialize the LightGBM model.
 
         Args:
             params: Optional custom hyperparameters
+            device: "cpu" (default) or "cuda"/"gpu". When GPU is requested,
+                LightGBM is trained with device="gpu". Most pip-installed
+                LightGBM wheels are CPU-only (notably on Windows), so on GPU
+                init failure the wrapper logs a warning and falls back to CPU
+                (Phase 18 D-11 / CONTEXT.md).
         """
         super().__init__(name="lightgbm")
         self._params = {**self.DEFAULT_PARAMS}
         if params:
             self._params.update(params)
+        # Accept "cuda" as an alias for "gpu" so the shared --device flag works.
+        self._device = (device or "cpu").lower()
         self._best_iteration: int = 0
 
     def train(
@@ -96,11 +107,12 @@ class LightGBMModel(BaseModel):
 
         self.reset_training_state()
 
-        # Create model (is_unbalance=True in DEFAULT_PARAMS). Assign it only
-        # after fit succeeds so a failed retrain cannot preserve stale state.
-        params = {k: v for k, v in self._params.items()
-                  if k not in ("early_stopping_rounds",)}
-        model = lgb.LGBMClassifier(**params)
+        # Base params (is_unbalance=True in DEFAULT_PARAMS). GPU device added
+        # below when requested.
+        base_params = {k: v for k, v in self._params.items()
+                       if k not in ("early_stopping_rounds",)}
+        use_gpu = self._device in ("cuda", "gpu")
+        gpu_params = {**base_params, "device": "gpu"}
 
         # Training
         fit_params: Dict[str, Any] = {}
@@ -113,7 +125,26 @@ class LightGBMModel(BaseModel):
                 lgb.log_evaluation(period=0),
             ]
 
-        model.fit(X_train, y_train_mapped, **fit_params)
+        def _build_and_fit(model_params: Dict[str, Any]):
+            # Assign only after fit succeeds so a failed retrain cannot
+            # preserve stale state.
+            mdl = lgb.LGBMClassifier(**model_params)
+            mdl.fit(X_train, y_train_mapped, **fit_params)
+            return mdl
+
+        if use_gpu:
+            try:
+                model = _build_and_fit(gpu_params)
+                logger.info("LightGBM trained on GPU (device=gpu)")
+            except Exception as exc:  # LightGBMError + others on CPU-only wheels
+                logger.warning(
+                    "LightGBM GPU init failed: %s; falling back to CPU", exc
+                )
+                self._device = "cpu"
+                model = _build_and_fit(base_params)
+        else:
+            model = _build_and_fit(base_params)
+
         self.model = model
         self._is_trained = True
 

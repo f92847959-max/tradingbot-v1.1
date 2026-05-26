@@ -44,18 +44,34 @@ class XGBoostModel(BaseModel):
         "verbosity": 0,
     }
 
-    def __init__(self, params: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self,
+        params: Optional[Dict[str, Any]] = None,
+        device: str = "cpu",
+    ) -> None:
         """
         Initialize the XGBoost model.
 
         Args:
             params: Optional custom hyperparameters (override defaults)
+            device: "cpu" (default) or "cuda". When "cuda", training uses
+                tree_method="hist" + device="cuda" (XGBoost >=2.x GPU API).
+                On GPU init failure the wrapper logs a warning and falls back
+                to CPU (Phase 18 D-11).
         """
         super().__init__(name="xgboost")
         self._params = {**self.DEFAULT_PARAMS}
         if params:
             self._params.update(params)
+        self._device = (device or "cpu").lower()
         self._best_iteration: int = 0
+
+    def _gpu_params(self) -> Dict[str, Any]:
+        """Return params with GPU acceleration enabled (XGBoost >=2.x API)."""
+        params = {**self._params}
+        params["tree_method"] = "hist"
+        params["device"] = "cuda"
+        return params
 
     def train(
         self,
@@ -102,11 +118,15 @@ class XGBoostModel(BaseModel):
 
         self.reset_training_state()
 
-        # Create model. Assign it only after fit succeeds so failed retraining
-        # cannot leave the wrapper marked trained around an unfitted estimator.
-        params = {k: v for k, v in self._params.items()
-                  if k not in ("early_stopping_rounds",)}
-        model = xgb.XGBClassifier(**params)
+        # Base params (GPU keys added below when device == "cuda").
+        base_params = {k: v for k, v in self._params.items()
+                       if k not in ("early_stopping_rounds",)}
+        use_gpu = self._device == "cuda"
+        params = {
+            **base_params,
+            "tree_method": "hist",
+            "device": "cuda",
+        } if use_gpu else base_params
 
         # Training with or without early stopping
         fit_params: Dict[str, Any] = {"sample_weight": sample_weights}
@@ -114,19 +134,39 @@ class XGBoostModel(BaseModel):
             y_val_mapped = self._map_labels(y_val)
             fit_params["eval_set"] = [(X_val, y_val_mapped)]
             fit_params["verbose"] = False
-            # XGBoost >= 2.0 uses callbacks for early stopping
-            try:
-                from xgboost.callback import EarlyStopping
-                model.set_params(
-                    callbacks=[EarlyStopping(rounds=early_stopping_rounds,
-                                            metric_name="mlogloss",
-                                            save_best=True)]
-                )
-            except ImportError:
-                # Fallback for older versions
-                model.set_params(early_stopping_rounds=early_stopping_rounds)
 
-        model.fit(X_train, y_train_mapped, **fit_params)
+        def _build_and_fit(model_params: Dict[str, Any]) -> "xgb.XGBClassifier":
+            # Create model. Assign it only after fit succeeds so failed
+            # retraining cannot leave the wrapper marked trained around an
+            # unfitted estimator.
+            mdl = xgb.XGBClassifier(**model_params)
+            if X_val is not None and y_val is not None:
+                # XGBoost >= 2.0 uses callbacks for early stopping
+                try:
+                    from xgboost.callback import EarlyStopping
+                    mdl.set_params(
+                        callbacks=[EarlyStopping(rounds=early_stopping_rounds,
+                                                 metric_name="mlogloss",
+                                                 save_best=True)]
+                    )
+                except ImportError:
+                    mdl.set_params(early_stopping_rounds=early_stopping_rounds)
+            mdl.fit(X_train, y_train_mapped, **fit_params)
+            return mdl
+
+        if use_gpu:
+            try:
+                model = _build_and_fit(params)
+                logger.info("XGBoost trained on GPU (device=cuda)")
+            except Exception as exc:  # xgboost raises XGBoostError + others
+                logger.warning(
+                    "XGBoost GPU init failed: %s; falling back to CPU", exc
+                )
+                self._device = "cpu"
+                model = _build_and_fit(base_params)
+        else:
+            model = _build_and_fit(base_params)
+
         self.model = model
         self._is_trained = True
 

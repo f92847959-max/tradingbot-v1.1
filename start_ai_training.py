@@ -260,6 +260,8 @@ def _build_core_jobs(args: argparse.Namespace) -> list[TrainingJob]:
             "--tp-atr-mult", str(args.tp_atr_mult),
             "--sl-atr-mult", str(args.sl_atr_mult),
             "--max-holding", str(args.max_holding),
+            "--device", str(args.device),
+            "--seed", str(args.seed),
         ]
 
         if existing_csv is not None:
@@ -527,6 +529,27 @@ def add_train_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         help=(
             "Override the 48-month production floor. For smoke / unit-test use only — "
             "emits a loud WARNING and lets --min-data-months take effect verbatim."
+        ),
+    )
+    parser.add_argument(
+        "--device", choices=("cpu", "cuda"), default="cpu",
+        help=(
+            "Compute device forwarded to each train_models.py job. 'cuda' "
+            "enables the optional GPU path (XGBoost device=cuda, LightGBM "
+            "device=gpu) with automatic CPU fallback and a +/-2%% PF "
+            "equivalence guard (Phase 18 D-11)."
+        ),
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42,
+        help="Random seed recorded in each run_manifest.json (default: 42).",
+    )
+    parser.add_argument(
+        "--smoke", action="store_true",
+        help=(
+            "Sub-60s synthetic smoke run: trains a single 2000-candle "
+            "synthetic 5m dataset into a temp dir (no ai_engine/saved_models "
+            "pollution), bypasses the 48-month floor. CI-friendly."
         ),
     )
     parser.add_argument("--max-holding", type=int, default=15)

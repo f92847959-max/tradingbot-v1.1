@@ -80,6 +80,148 @@ def _load_json_file(path: str | None) -> dict | None:
         return json.load(f)
 
 
+GPU_PF_TOLERANCE = 0.02  # +/-2% aggregate PF reproducibility window (D-11)
+
+
+def _aggregate_pf(results: dict) -> float:
+    """Best-model aggregate profit factor from a train_all() result dict."""
+    report = results.get("training_report", {}) or {}
+    agg = report.get("aggregate", {}) or {}
+    best = agg.get("best_model")
+    if best and isinstance(agg.get(best), dict):
+        return float(agg[best].get("profit_factor", 0.0) or 0.0)
+    scores = [
+        float(v.get("profit_factor", 0.0) or 0.0)
+        for v in agg.values()
+        if isinstance(v, dict)
+    ]
+    return max(scores) if scores else 0.0
+
+
+def _run_training(
+    trainer,
+    df,
+    *,
+    args,
+    dataset_manifest,
+    data_csv_path,
+    make_trainer,
+) -> dict:
+    """Run train_all with the GPU equivalence guard (Phase 18 D-11 / T-18-11).
+
+    For a GPU run that actually used the GPU, runs a CPU control at the same
+    seed and compares aggregate PF. When |delta| > 2% the GPU result is tagged
+    device_accepted=False in run_manifest.json and is NOT promoted to
+    production (the version dir is still written for diagnostics).
+
+    On a CPU-only machine the GPU wrappers fall back to CPU during fit, so no
+    divergence is possible and the run is accepted (device_accepted=True for an
+    explicit cuda request, None for cpu).
+    """
+    champion_report = _load_json_file(args.champion_report)
+    effective_min_months = 0 if args.allow_short_data else args.min_data_months
+    requested_cuda = args.device == "cuda"
+
+    if not requested_cuda:
+        return trainer.train_all(
+            df,
+            timeframe=args.timeframe,
+            min_data_months=effective_min_months,
+            champion_report=champion_report,
+            enforce_promotion_gate=champion_report is not None,
+            dataset_manifest=dataset_manifest,
+            seed=args.seed,
+            device="cpu",
+            gpu_info=None,
+            device_accepted=None,
+            data_csv_path=data_csv_path,
+        )
+
+    # GPU requested: run a CPU control first at the same seed (cheap relative
+    # to a real training run, and the only reproducible equivalence check we
+    # can make on a machine that may or may not have a GPU build).
+    logger.info("GPU run requested: training CPU control at seed=%s first", args.seed)
+    cpu_trainer = make_trainer("cpu")
+    cpu_results = cpu_trainer.train_all(
+        df,
+        timeframe=args.timeframe,
+        min_data_months=effective_min_months,
+        champion_report=champion_report,
+        enforce_promotion_gate=False,  # control run is never promoted
+        dataset_manifest=dataset_manifest,
+        seed=args.seed,
+        device="cpu",
+        gpu_info=None,
+        device_accepted=None,
+        data_csv_path=data_csv_path,
+    )
+    pf_cpu = _aggregate_pf(cpu_results)
+
+    logger.info("Training GPU run (device=cuda)")
+    gpu_results = trainer.train_all(
+        df,
+        timeframe=args.timeframe,
+        min_data_months=effective_min_months,
+        champion_report=champion_report,
+        enforce_promotion_gate=False,  # acceptance decided below
+        dataset_manifest=dataset_manifest,
+        seed=args.seed,
+        device="cuda",
+        gpu_info={"requested": "cuda", "effective": trainer.device},
+        device_accepted=None,
+        data_csv_path=data_csv_path,
+    )
+    pf_gpu = _aggregate_pf(gpu_results)
+
+    # If the GPU wrapper fell back to CPU there is nothing to diverge.
+    used_gpu = trainer.device == "cuda"
+    if not used_gpu:
+        logger.warning(
+            "GPU build unavailable; ran on CPU. device_accepted=True (CPU result)."
+        )
+        accepted = True
+    else:
+        delta = abs(pf_gpu - pf_cpu) / pf_cpu if pf_cpu else float("inf")
+        accepted = delta <= GPU_PF_TOLERANCE
+        if accepted:
+            logger.info(
+                "GPU equivalence OK: pf_cpu=%.4f pf_gpu=%.4f delta=%.4f",
+                pf_cpu, pf_gpu, delta,
+            )
+        else:
+            logger.error(
+                "GPU PF regression: pf_cpu=%.4f pf_gpu=%.4f delta=%.4f > %.2f. "
+                "Production pointer NOT updated; run tagged device_accepted=False.",
+                pf_cpu, pf_gpu, delta, GPU_PF_TOLERANCE,
+            )
+
+    # Record acceptance into the GPU run's manifest (overwrite the sidecar).
+    version_dir = gpu_results.get("version_dir")
+    if version_dir:
+        from ai_engine.training.run_manifest import write_run_manifest
+        manifest = dict(gpu_results.get("run_manifest", {}))
+        manifest["device_accepted"] = accepted
+        manifest.setdefault("gpu_equivalence", {})
+        manifest["gpu_equivalence"] = {
+            "pf_cpu": pf_cpu, "pf_gpu": pf_gpu,
+            "tolerance": GPU_PF_TOLERANCE, "accepted": accepted,
+        }
+        write_run_manifest(manifest, version_dir)
+        gpu_results["run_manifest"] = manifest
+
+    if accepted and champion_report is not None and used_gpu:
+        # Promote the GPU version only when equivalent and a champion gate
+        # approved it. (When champion_report is None the pipeline never
+        # auto-promotes, matching the canonical no-champion flow.)
+        decision = gpu_results.get("promotion_decision", {})
+        if decision.get("approved"):
+            from ai_engine.training.model_versioning import update_production_pointer
+            update_production_pointer(args.output, version_dir)
+            logger.info("GPU run promoted to production (equivalence passed).")
+
+    return gpu_results
+
+
 def _preflight_dataset(
     df: pd.DataFrame,
     source_details: dict,
@@ -390,6 +532,20 @@ def main() -> None:
         "--dry-run", action="store_true",
         help="Log planned actions and skip data writes / model serialization.",
     )
+    parser.add_argument(
+        "--device", choices=["cpu", "cuda"], default="cpu",
+        help=(
+            "Compute device. 'cuda' enables GPU training (XGBoost "
+            "tree_method=hist + device=cuda, LightGBM device=gpu) with "
+            "automatic CPU fallback when no GPU build is available. GPU runs "
+            "are accepted only when aggregate PF reproduces within +/-2%% of a "
+            "CPU control run at the same seed (Phase 18 D-11)."
+        ),
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42,
+        help="Random seed recorded in run_manifest.json (default: 42).",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -400,18 +556,22 @@ def main() -> None:
     if args.dry_run:
         logger.warning("DRY-RUN active: no data writes, no model serialization.")
 
-    trainer = ModelTrainer(
-        saved_models_dir=args.output,
-        tp_pips=args.tp_pips,
-        sl_pips=args.sl_pips,
-        max_holding_candles=args.max_holding,
-        pip_size=args.pip_size,
-        spread_pips=args.spread_pips,
-        use_dynamic_atr=args.dynamic_atr,
-        tp_atr_multiplier=args.tp_atr_mult,
-        sl_atr_multiplier=args.sl_atr_mult,
-        exit_aware_labels=args.exit_aware_labels,
-    )
+    def _make_trainer(device: str) -> ModelTrainer:
+        return ModelTrainer(
+            saved_models_dir=args.output,
+            tp_pips=args.tp_pips,
+            sl_pips=args.sl_pips,
+            max_holding_candles=args.max_holding,
+            pip_size=args.pip_size,
+            spread_pips=args.spread_pips,
+            use_dynamic_atr=args.dynamic_atr,
+            tp_atr_multiplier=args.tp_atr_mult,
+            sl_atr_multiplier=args.sl_atr_mult,
+            exit_aware_labels=args.exit_aware_labels,
+            device=device,
+        )
+
+    trainer = _make_trainer(args.device)
     effective_min_months = 0 if args.allow_short_data else args.min_data_months
     champion_report = _load_json_file(args.champion_report)
     dataset_manifest = None
@@ -429,13 +589,9 @@ def main() -> None:
                 len(df), args.timeframe, details.get("source"), args.output,
             )
             return
-        results = trainer.train_all(
-            df,
-            timeframe=args.timeframe,
-            min_data_months=effective_min_months,
-            champion_report=champion_report,
-            enforce_promotion_gate=champion_report is not None,
-            dataset_manifest=dataset_manifest,
+        results = _run_training(
+            trainer, df, args=args, dataset_manifest=dataset_manifest,
+            data_csv_path=args.csv, make_trainer=_make_trainer,
         )
 
     elif args.broker:
@@ -468,13 +624,9 @@ def main() -> None:
             return
         print(f"Training on {len(df)} real broker candles...")
         print(f"  TP={args.tp_pips} pips, SL={args.sl_pips} pips, max_holding={args.max_holding}")
-        results = trainer.train_all(
-            df,
-            timeframe=args.timeframe,
-            min_data_months=effective_min_months,
-            champion_report=champion_report,
-            enforce_promotion_gate=champion_report is not None,
-            dataset_manifest=dataset_manifest,
+        results = _run_training(
+            trainer, df, args=args, dataset_manifest=dataset_manifest,
+            data_csv_path=effective_save_csv, make_trainer=_make_trainer,
         )
     elif args.csv:
         print(f"Loading data from: {args.csv}")
@@ -497,13 +649,9 @@ def main() -> None:
                 args.csv, len(df), args.output,
             )
             return
-        results = trainer.train_all(
-            df,
-            timeframe=args.timeframe,
-            min_data_months=effective_min_months,
-            champion_report=champion_report,
-            enforce_promotion_gate=champion_report is not None,
-            dataset_manifest=dataset_manifest,
+        results = _run_training(
+            trainer, df, args=args, dataset_manifest=dataset_manifest,
+            data_csv_path=args.csv, make_trainer=_make_trainer,
         )
     elif args.synthetic > 0:
         print(f"Generating {args.synthetic} synthetic candles...")
@@ -523,13 +671,9 @@ def main() -> None:
                 args.synthetic, args.output,
             )
             return
-        results = trainer.train_all(
-            df,
-            timeframe=args.timeframe,
-            min_data_months=effective_min_months,
-            champion_report=champion_report,
-            enforce_promotion_gate=champion_report is not None,
-            dataset_manifest=dataset_manifest,
+        results = _run_training(
+            trainer, df, args=args, dataset_manifest=dataset_manifest,
+            data_csv_path=None, make_trainer=_make_trainer,
         )
     else:
         print("Provide --broker, --csv <path>, or --synthetic <count>")
