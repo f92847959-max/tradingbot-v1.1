@@ -337,7 +337,21 @@ class RuleEngine:
 
     def __post_init__(self) -> None:
         if self.rules is None:
-            self.rules = [ImpulseRule(), ZigzagRule()]
+            # Import locally to avoid an import cycle with advanced_rules
+            # (which imports BaseRule from this module).
+            from ai_engine.elliott_wave.advanced_rules import (
+                DiagonalRule,
+                FlatRule,
+                TriangleRule,
+            )
+
+            self.rules = [
+                ImpulseRule(),
+                ZigzagRule(),
+                DiagonalRule(),
+                FlatRule(),
+                TriangleRule(),
+            ]
 
     def validate(self, points: Sequence[WavePoint]) -> List[WavePattern]:
         """Return every valid pattern detectable in ``points``.

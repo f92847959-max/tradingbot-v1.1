@@ -309,8 +309,11 @@ class TestRuleEngine:
 
     def test_engine_validate_one_unknown_raises(self) -> None:
         engine = RuleEngine()
+        # PatternType.COMPLEX remains unregistered after Wave 2 (Triangle,
+        # Flat, Diagonal are now registered). Use COMPLEX as the canonical
+        # "no rule attached" case for this contract test.
         with pytest.raises(KeyError):
-            engine.validate_one(_valid_bullish_impulse(), PatternType.TRIANGLE)
+            engine.validate_one(_valid_bullish_impulse(), PatternType.COMPLEX)
 
     def test_engine_default_rules_loaded(self) -> None:
         engine = RuleEngine()
