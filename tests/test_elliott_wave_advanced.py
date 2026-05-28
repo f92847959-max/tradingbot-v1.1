@@ -40,6 +40,11 @@ from ai_engine.elliott_wave.models import (
     WavePoint,
 )
 from ai_engine.elliott_wave.rules import RuleEngine
+from ai_engine.elliott_wave.scoring import (
+    get_primary_count,
+    rank_patterns,
+    score_pattern,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -348,3 +353,111 @@ class TestRuleEngineWithAdvancedRules:
         results = eng.validate(_contracting_triangle())
         types = {p.pattern_type for p in results}
         assert PatternType.TRIANGLE in types
+
+
+# ---------------------------------------------------------------------------
+# Scoring engine
+# ---------------------------------------------------------------------------
+
+
+def _ideal_bullish_impulse() -> List[WavePoint]:
+    """Impulse with ratios close to canonical: W2=61.8% W1, W3=1.618 W1,
+    W4=38.2% W3, W5 = W1."""
+    return [
+        _point(0, 100.0, ExtremumType.VALLEY),  # W1 start
+        _point(10, 200.0, ExtremumType.PEAK),   # W1 end (len 100)
+        _point(20, 138.2, ExtremumType.VALLEY), # W2 end (61.8% retrace -> ideal)
+        _point(30, 300.0, ExtremumType.PEAK),   # W3 end (len 161.8 -> 1.618 ideal)
+        _point(40, 238.2, ExtremumType.VALLEY), # W4 end (38.2% of W3 retrace)
+        _point(50, 338.2, ExtremumType.PEAK),   # W5 end (len 100 = W1)
+    ]
+
+
+def _weak_bullish_impulse() -> List[WavePoint]:
+    """Same structure but ratios far from ideal (W3 only 1.05x W1, W5 0.3x W1)."""
+    return [
+        _point(0, 100.0, ExtremumType.VALLEY),
+        _point(10, 200.0, ExtremumType.PEAK),   # W1 len 100
+        _point(20, 195.0, ExtremumType.VALLEY), # W2 only 5% retrace (far below 0.382 ideal)
+        _point(30, 300.0, ExtremumType.PEAK),   # W3 only 1.05x W1
+        _point(40, 285.0, ExtremumType.VALLEY), # W4 small retrace, no overlap
+        _point(50, 315.0, ExtremumType.PEAK),   # W5 only 0.3 x W1
+    ]
+
+
+class TestScorePattern:
+    def test_invalid_pattern_scores_zero(self) -> None:
+        pattern = WavePattern(
+            pattern_type=PatternType.IMPULSE,
+            points=[_point(0, 100, ExtremumType.VALLEY)],
+            is_valid=False,
+            violations=["bad shape"],
+        )
+        assert score_pattern(pattern) == 0.0
+
+    def test_none_pattern_scores_zero(self) -> None:
+        assert score_pattern(None) == 0.0  # type: ignore[arg-type]
+
+    def test_ideal_impulse_scores_higher_than_weak(self) -> None:
+        from ai_engine.elliott_wave.rules import ImpulseRule
+
+        ideal = ImpulseRule().validate(_ideal_bullish_impulse())
+        weak = ImpulseRule().validate(_weak_bullish_impulse())
+        assert ideal.is_valid, ideal.violations
+        assert weak.is_valid, weak.violations
+        s_ideal = score_pattern(ideal)
+        s_weak = score_pattern(weak)
+        assert s_ideal > s_weak
+        assert s_ideal > 0.5  # canonical ratios should rate well
+        assert 0.0 <= s_weak <= s_ideal
+
+    def test_score_in_unit_interval(self) -> None:
+        from ai_engine.elliott_wave.rules import ImpulseRule
+
+        result = ImpulseRule().validate(_ideal_bullish_impulse())
+        s = score_pattern(result)
+        assert 0.0 <= s <= 1.0
+
+
+class TestRankAndPrimaryCount:
+    def test_empty_input_returns_none(self) -> None:
+        assert get_primary_count([]) is None
+        assert rank_patterns([]) == []
+
+    def test_primary_count_picks_highest(self) -> None:
+        from ai_engine.elliott_wave.rules import ImpulseRule
+
+        ideal = ImpulseRule().validate(_ideal_bullish_impulse())
+        weak = ImpulseRule().validate(_weak_bullish_impulse())
+        primary = get_primary_count([weak, ideal])
+        assert primary is ideal
+
+    def test_only_invalid_returns_none(self) -> None:
+        bad = WavePattern(
+            pattern_type=PatternType.IMPULSE,
+            points=[_point(0, 100, ExtremumType.VALLEY)],
+            is_valid=False,
+            violations=["bad"],
+        )
+        assert get_primary_count([bad]) is None
+
+    def test_rank_is_descending_by_score(self) -> None:
+        from ai_engine.elliott_wave.rules import ImpulseRule
+
+        ideal = ImpulseRule().validate(_ideal_bullish_impulse())
+        weak = ImpulseRule().validate(_weak_bullish_impulse())
+        ranked = rank_patterns([weak, ideal])
+        scores = [s for _, s in ranked]
+        assert scores == sorted(scores, reverse=True)
+        assert ranked[0][0] is ideal
+
+
+class TestScoringSecurityHardening:
+    """T-14-04: scoring must not accept caller-supplied ratio overrides."""
+
+    def test_score_pattern_signature_takes_only_pattern(self) -> None:
+        import inspect
+
+        sig = inspect.signature(score_pattern)
+        # Only one parameter: the pattern itself.
+        assert list(sig.parameters.keys()) == ["pattern"]
