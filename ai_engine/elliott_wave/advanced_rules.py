@@ -257,16 +257,21 @@ class FlatRule(BaseRule):
         c_len = _length(b_end, c_end)
 
         # B retracement % of A: how far B retraced toward (or past) A's start.
-        # For a bullish flat (A up): retracement = (a_end - b_end) / a_len.
+        # For a bullish flat (A up):  retracement = (a_end - b_end) / a_len.
         # For a bearish flat (A down): retracement = (b_end - a_end) / a_len.
+        #
+        # "C undershoots A's end" means C falls short of where A finished
+        # (typical of running flats in strong parent trends). For a
+        # bullish flat, A's end is the peak, so an undershoot means
+        # c_end < a_end. For a bearish flat, A's end is the valley, so
+        # an undershoot means c_end > a_end. (Earlier draft had the
+        # inequality inverted; fixed here.)
         if direction == 1:
             b_retracement = (a_end.price - b_end.price) / a_len
-            c_overshoot = c_end.price < a_start.price  # C goes below A start
-            c_undershoot = c_end.price > a_end.price   # C fails to reach A end
+            c_undershoot = c_end.price < a_end.price
         else:
             b_retracement = (b_end.price - a_end.price) / a_len
-            c_overshoot = c_end.price > a_start.price
-            c_undershoot = c_end.price < a_end.price
+            c_undershoot = c_end.price > a_end.price
 
         # Classify sub-type.
         sub_type = None
@@ -278,6 +283,9 @@ class FlatRule(BaseRule):
             if c_len > _FLAT_EXPANDED_C_MIN * b_len:
                 sub_type = "expanded"
             elif c_undershoot:
+                # Running flat: B exceeded A's start (so the correction
+                # had real teeth) but C fell short of A's terminus,
+                # indicating a strong parent trend resuming.
                 sub_type = "running"
             else:
                 violations.append(
@@ -311,7 +319,6 @@ class FlatRule(BaseRule):
         )
         if pattern.is_valid and sub_type is not None:
             pattern.violations = [f"sub_type={sub_type}"]
-            _ = c_overshoot  # acknowledged but unused in scoring v1
         return pattern
 
 

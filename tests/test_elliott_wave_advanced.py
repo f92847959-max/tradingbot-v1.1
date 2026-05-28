@@ -247,6 +247,21 @@ def _expanded_bullish_flat() -> List[WavePoint]:
     ]
 
 
+def _running_bullish_flat() -> List[WavePoint]:
+    """Running flat: B overshoots A's start, but C falls short of A's end.
+
+    A: 100 -> 120 (len 20)
+    B: 120 ->  96 (retracement 1.2 of A, past A's start at 100 -> expanded territory)
+    C:  96 -> 115 (len 19 < b_len 24, so NOT expanded; c < a_end=120, so running)
+    """
+    return [
+        _point(0, 100.0, ExtremumType.VALLEY),
+        _point(10, 120.0, ExtremumType.PEAK),
+        _point(20, 96.0, ExtremumType.VALLEY),
+        _point(30, 115.0, ExtremumType.PEAK),
+    ]
+
+
 class TestFlatRule:
     def test_valid_regular_flat(self) -> None:
         result = FlatRule().validate(_regular_bullish_flat())
@@ -258,6 +273,11 @@ class TestFlatRule:
         result = FlatRule().validate(_expanded_bullish_flat())
         assert result.is_valid, result.violations
         assert any("sub_type=expanded" in v for v in result.violations)
+
+    def test_valid_running_flat(self) -> None:
+        result = FlatRule().validate(_running_bullish_flat())
+        assert result.is_valid, result.violations
+        assert any("sub_type=running" in v for v in result.violations)
 
     def test_flat_zero_a_is_invalid(self) -> None:
         pts = _regular_bullish_flat()
