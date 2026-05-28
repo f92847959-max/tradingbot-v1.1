@@ -224,11 +224,11 @@ Plans:
 ### Phase 14: Elliott Wave Master Structure
 **Goal:** Elliott Wave wird die zentrale Marktstruktur-Figur: Primaer-/Alternativ-Counts, Wave-Hierarchie, Fibonacci-Ziele und Governance-Kontext fuehren alle spaeteren Strukturmodule.
 **Requirements:** EWT-01, EWT-02, EWT-03, EWT-04, EWT-05, EWT-06
-**Plans:** 3 plans
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 14-01-PLAN.md - Elliott Wave domain model, swing hierarchy, and count engine
-- [ ] 14-02-PLAN.md - Primary/alternate counts, invalidation, and Fibonacci target map
+- [x] 14-02-PLAN.md - Primary/alternate counts, invalidation, and Fibonacci target map
 - [ ] 14-03-PLAN.md - Elliott Wave governance integration, ML features, and audit logging
 
 ---

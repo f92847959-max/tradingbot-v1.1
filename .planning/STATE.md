@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
 current_phase: 14
-current_plan: 2
+current_plan: 3
 status: Executing Phase 14
-last_updated: "2026-05-28T10:55:11Z"
+last_updated: "2026-05-28T11:25:00Z"
 progress:
   total_phases: 24
   completed_phases: 18
   total_plans: 69
-  completed_plans: 57
-  percent: 83
+  completed_plans: 58
+  percent: 84
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 14
-**Current Plan:** 2
-**Phase Status:** Phase 14-01 (Elliott Wave Detection Core) completed. Phase 6 is explicitly excluded by user request. Continuing with Phase 14-02.
+**Current Plan:** 3
+**Phase Status:** Phase 14-01 (Detection Core) and 14-02 (Fibonacci & Advanced Patterns) completed. Phase 6 is explicitly excluded by user request. Continuing with Phase 14-03.
 **Total Phases:** 20
 
 ## Next Action
 
-Execute Phase 14-02 (Fibonacci Targets & Advanced Patterns).
+Execute Phase 14-03 (System Integration & ML Features).
 
 ## Decisions
 
@@ -115,6 +115,11 @@ Execute Phase 14-02 (Fibonacci Targets & Advanced Patterns).
 - [Phase 14-01]: WavePattern surface kept minimal (pattern_type, points, is_valid, violations, direction); Fibonacci scoring deferred to Wave 2
 - [Phase 14-01]: WaveDetector enforces strict peak/valley alternation by collapsing adjacent same-type extrema (keeps higher peak / lower valley)
 - [Phase 14-01]: Input validation hard-caps prices at MAX_INPUT_LENGTH=100k and rejects NaNs (T-14-01, T-14-02 mitigations)
+- [Phase 14-02]: Advanced rule classes live in ai_engine/elliott_wave/advanced_rules.py rather than extending rules.py because adding Diagonal/Flat/Triangle would have pushed rules.py past CLAUDE.md's 500-line hard cap
+- [Phase 14-02]: Sub-type tags (contracting/expanding/regular/expanded/running) encoded as "sub_type=..." in WavePattern.violations[0] on valid patterns to avoid expanding the dataclass shape mid-phase; _structural_violations filters this prefix when computing scoring penalties
+- [Phase 14-02]: Fibonacci ratio tables (STANDARD_*_RATIOS, IDEAL_WAVE_RATIOS) hardcoded as module constants in fibonacci.py; score_pattern accepts only the pattern argument so callers cannot inject custom ratios (T-14-04 mitigation, verified by inspect.signature test)
+- [Phase 14-02]: Per-wave confluence uses weighted max across multiple acceptable ratios (1.0 / 0.85 / 0.7); errors beyond 40% of an ideal contribute 0 to that wave's score
+- [Phase 14-02]: rank_patterns tie-break: (score desc, pattern_priority desc, input order); priority Impulse > Diagonal > Zigzag > Flat > Triangle > Complex
 
 ## Accumulated Context
 
@@ -137,3 +142,4 @@ Execute Phase 14-02 (Fibonacci Targets & Advanced Patterns).
 - 2026-04-29: Phase 12 completed under autonomous mode. Verified correlation fetcher/calculator/features with 21 passing targeted tests. Phase 6 remained excluded per user instruction.
 - 2026-04-29: Phase 12.7 completed under autonomous mode. Verified training coverage, causal labels, split manifests, promotion gates, and pipeline calibration regression with 24 passing targeted tests. Phase 6 remained excluded per user instruction.
 - 2026-05-28: Phase 14-01 (Elliott Wave Detection Core) completed under autonomous mode. Implemented ai_engine/elliott_wave package with models, find_extrema (scipy), calculate_ewo (manual SMA diff because pandas_ta lacks ewo), WaveDetector, and rules engine (ImpulseRule + ZigzagRule + RuleEngine). 35 targeted tests passing. Phase 6 remained excluded per user instruction.
+- 2026-05-28: Phase 14-02 (Fibonacci Targets & Advanced Patterns) completed under autonomous mode. Added ai_engine/elliott_wave/{fibonacci, advanced_rules, scoring}.py: Fibonacci retracement/projection/target math, DiagonalRule (W4 overlap requirement), FlatRule (regular/expanded/running classification), TriangleRule (contracting/expanding leg ratios), and Fibonacci confluence scoring (score_pattern, rank_patterns, get_primary_count) with T-14-04 tamper-mitigation via hardcoded ratio tables. 42 new tests; 77 total passing (35 Wave 1 + 42 Wave 2, no regression). Caught and fixed an inverted c_undershoot sign in FlatRule mid-flight (commit 604d752). Phase 6 remained excluded.
