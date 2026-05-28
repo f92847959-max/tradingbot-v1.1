@@ -227,7 +227,7 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 14-01-PLAN.md - Elliott Wave domain model, swing hierarchy, and count engine
+- [x] 14-01-PLAN.md - Elliott Wave domain model, swing hierarchy, and count engine
 - [ ] 14-02-PLAN.md - Primary/alternate counts, invalidation, and Fibonacci target map
 - [ ] 14-03-PLAN.md - Elliott Wave governance integration, ML features, and audit logging
 

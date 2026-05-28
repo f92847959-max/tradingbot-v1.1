@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: — Profitable Demo Trading
 current_phase: 14
-current_plan: 1
+current_plan: 2
 status: Executing Phase 14
-last_updated: "2026-05-28T10:47:15.740Z"
+last_updated: "2026-05-28T10:55:11Z"
 progress:
   total_phases: 24
   completed_phases: 18
   total_plans: 69
-  completed_plans: 56
-  percent: 81
+  completed_plans: 57
+  percent: 83
 ---
 
 # Project State
@@ -19,13 +19,13 @@ progress:
 **Project:** GoldBot 2
 **Milestone:** v1.0 -- Profitable Demo Trading
 **Current Phase:** 14
-**Current Plan:** 1
-**Phase Status:** Phase 12.7 (AI Training Pipeline Hardening) completed. Phase 6 is explicitly excluded by user request. Continuing with Phase 14.
+**Current Plan:** 2
+**Phase Status:** Phase 14-01 (Elliott Wave Detection Core) completed. Phase 6 is explicitly excluded by user request. Continuing with Phase 14-02.
 **Total Phases:** 20
 
 ## Next Action
 
-Execute Phase 14 (Elliott Wave Theorie Integration), skipping Phase 6.
+Execute Phase 14-02 (Fibonacci Targets & Advanced Patterns).
 
 ## Decisions
 
@@ -111,6 +111,10 @@ Execute Phase 14 (Elliott Wave Theorie Integration), skipping Phase 6.
 - [Phase 13]: Order-flow integration is feature/data only; runtime trading policy remains unchanged until a later phase explicitly consumes those features
 - [Phase 15]: Implementation based on density clustering (MeanShift) and Hough Transforms (trendln) to avoid noisy TA markers.
 - [Phase 15]: Confluence scoring aggregates SR, Fib, and Trendlines into high-probability zones.
+- [Phase 14-01]: pandas_ta has no ewo helper -> EWO implemented manually as SMA(fast=5) - SMA(slow=35) on close via pandas rolling
+- [Phase 14-01]: WavePattern surface kept minimal (pattern_type, points, is_valid, violations, direction); Fibonacci scoring deferred to Wave 2
+- [Phase 14-01]: WaveDetector enforces strict peak/valley alternation by collapsing adjacent same-type extrema (keeps higher peak / lower valley)
+- [Phase 14-01]: Input validation hard-caps prices at MAX_INPUT_LENGTH=100k and rejects NaNs (T-14-01, T-14-02 mitigations)
 
 ## Accumulated Context
 
@@ -132,3 +136,4 @@ Execute Phase 14 (Elliott Wave Theorie Integration), skipping Phase 6.
 - 2026-04-29: Phase 11 completed under autonomous mode. Phase 6 remained excluded per user instruction.
 - 2026-04-29: Phase 12 completed under autonomous mode. Verified correlation fetcher/calculator/features with 21 passing targeted tests. Phase 6 remained excluded per user instruction.
 - 2026-04-29: Phase 12.7 completed under autonomous mode. Verified training coverage, causal labels, split manifests, promotion gates, and pipeline calibration regression with 24 passing targeted tests. Phase 6 remained excluded per user instruction.
+- 2026-05-28: Phase 14-01 (Elliott Wave Detection Core) completed under autonomous mode. Implemented ai_engine/elliott_wave package with models, find_extrema (scipy), calculate_ewo (manual SMA diff because pandas_ta lacks ewo), WaveDetector, and rules engine (ImpulseRule + ZigzagRule + RuleEngine). 35 targeted tests passing. Phase 6 remained excluded per user instruction.
