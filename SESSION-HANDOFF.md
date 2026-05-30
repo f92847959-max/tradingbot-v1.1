@@ -1,150 +1,61 @@
 # Session Handoff — /gsd-autonomous (tradingbot v1 / GoldBot 2 v1.0)
 
-**Date:** 2026-05-28
-**Status:** SETUP COMPLETE — Phase 14 executor about to launch
-**Orchestrator:** Claude Opus 4.7 main session
-**User:** f92847959@gmail.com
+**Date:** 2026-05-30
+**Status:** AUTONOMOUS RESUME IN PROGRESS — Phase 14 ✅ DONE; next is Phase 14.1
+**Mode:** INLINE (no subagents — per user preference `feedback_no_subagents.md`)
+**Orchestrator:** Claude Opus 4.8 main session
 
----
+> Authoritative resume anchor is `.planning/STATE.md` (GSD-managed, committed per phase).
+> The GSD "next phase" pointer says 15, but **14.1 (decimal, no_directory) is numerically
+> next and still incomplete** — resume at 14.1. Each phase boundary is a safe resume point.
 
-## What was completed in this session
+## Project & milestone
+- **GoldBot 2** (`tradingbot v1`, formerly `ai-trading-gold`) at
+  `C:\Users\fuhhe\OneDrive\Desktop\ai\ai\tradingbot v1`
+- Milestone **v1.0 — Profitable Demo Trading** — 19/24 disk-complete (86%). Phase 6 excluded.
 
-### 1. Discovery and milestone state
-- Project: GoldBot 2 (tradingbot v1) at `C:\Users\fuhhe\OneDrive\Desktop\ai\ai\tradingbot v1`
-- Milestone: v1.0 — Profitable Demo Trading
-- Phases complete: 18/24. Phase 6 explicitly excluded (already complete on disk).
-- Remaining: 14, 14.1, 15, 16, 17, 18 (partial)
+## Done this session (Phase 14 — Elliott Wave Master Structure)
+- 14-03 executed: EW ML features (`1874bb1`), MiroFish structural context (`2bbfee3`),
+  opt-in EW BUY filter in `trading/signal_generator.py` (`9705218`, done inline after the
+  executor was stopped mid-plan per the no-agents switch).
+- Phase verification **PASSED** (8/8 must-haves; 92 EW tests green).
+- Regression gate found 10 pre-existing failures (NONE from phase 14):
+  - 8 MiroFish failures = deprecated `asyncio.get_event_loop()` test helpers breaking on
+    Py3.12 after the sentiment suite closes the loop → **fixed** in `f857925` (`asyncio.run`).
+  - 2 sentiment failures = pre-existing **VADER calibration** (`TD-SENT-1`, see below).
+- Phase completion committed `4b46972`.
 
-### 2. Folder normalization (committed)
+## Remaining work (in order, INLINE)
+| Phase | Status | Action |
+|-------|--------|--------|
+| 14.1 Dow Theory Trend Confirmation | no_directory | **NEW** — discuss(auto, inline) → write CONTEXT → plan inline → execute inline. Highest-uncertainty unit; review the design before building (no prior RESEARCH). Likely mirrors the EW integration: a `dow_theory` trend classifier (HH/HL vs LH/LL from `WaveDetector.detect_swings`) → ML feature + opt-in trend filter in signal_generator. |
+| 15 Fibonacci Engine & S/R Zones | planned | execute 3 waves inline (CONTEXT+RESEARCH+3 plans present) |
+| 16 Channel Formation (Kanalbildung) | planned | execute 3 waves inline |
+| 17 Demo Trading Validation | planned | execute 3 waves inline (may emit human_needed — defer honestly) |
+| 18 AI Efficiency Optimization | partial | execute remaining 18-04 inline |
+| Lifecycle | — | audit → complete-milestone v1.0 → cleanup. Gate cleanup on real disk state. |
 
-Renamed typo'd phase folders to canonical slugs (commit `a8a8d3c`):
-- `14 eliotwafe` → `14-elliott-wave-master-structure`
-- `15 fibonachi` → `15-fibonacci-engine-s-r-zones`
-- `16kanalbioldung` → `16-channel-formation-kanalbildung`
+## Git state
+- Branch `master`, HEAD `4b46972`. Working tree: `SESSION-HANDOFF.md` (this file) only.
+- `stash@{0}: pre-autonomous-2026-05-28` — parked; do NOT pop during the run.
 
-Renamed mislabeled phase 17 files (same commit):
-- `15-{01,02,03}-PLAN.md` → `17-{01,02,03}-PLAN.md` (frontmatter `phase:` field updated)
-- `15-RESEARCH.md` → `17-RESEARCH.md`
+## Open items / tech debt (do NOT block the run)
+- **TD-SENT-1:** `tests/sentiment/test_sentiment_analyzer.py` — 2 tests fail (VADER mis-scores
+  gold headlines, e.g. "dollar strengthens, gold crashes on hawkish Fed" → +0.4588). Phase 11
+  follow-up: add a gold lexicon to `SentimentAnalyzer.score` or recalibrate thresholds.
+- **Dual remote (post-run):** `private` remote is behind (`git fetch private && git merge
+  private/master` then push BOTH origin + private). NO push during the run.
+- After all phases: review `git stash show -p stash@{0}` for pre-autonomous WIP.
 
-Renamed phase-level overview files (commit `76d5ab2`):
-- `14-PLAN.md` → `14-OVERVIEW.md`
-- `16-PLAN.md` → `16-OVERVIEW.md`
-
-### 3. CONTEXT.md seeding (committed in `a8a8d3c`)
-- `14-elliott-wave-master-structure/14-CONTEXT.md`
-- `15-fibonacci-engine-s-r-zones/15-CONTEXT.md`
-- `16-channel-formation-kanalbildung/16-CONTEXT.md`
-- `17-demo-trading-validation/17-CONTEXT.md`
-
-Each points at the existing PLAN.md and RESEARCH.md files as authoritative
-sources. Discuss phase was skipped because prior plans already capture decisions.
-
-### 4. Dirty state stashed
-Pre-existing dirty state (modified `ai_engine/features/feature_engineer.py`,
-`mirofish_client.py`, `ensemble.py`, `pyproject.toml`, `data/gold_trader.db`,
-plus 95 deleted saved_models, untracked `data/prepared/`, `tests/profiling/`,
-2 new saved_models from prior session) was stashed:
-
-```
-stash@{0}: On master: pre-autonomous-2026-05-28: cleanup old saved_models + ai_engine WIP
-```
-
-**Backup copies of my renamed phase folders** are also at:
-`/tmp/gsd-autonomous-backup/{14,15,16}-*`
-
-To restore the pre-existing work after autonomous completes:
-```bash
-cd "C:\Users\fuhhe\OneDrive\Desktop\ai\ai\tradingbot v1"
-git stash pop  # may conflict with phase work — review carefully
-```
-
-### 5. Git remotes
-- `origin` https://github.com/f92847959-max/tradingbot-v1.1.git — pushed (master at `76d5ab2`)
-- `private` https://github.com/f92847959-max/tradingbot-v1.1-private.git — **REJECTED**
-  remote has commits we don't have (likely from `pmhh` secondary PC). Needs
-  manual `git fetch private && git merge private/master` to reconcile.
-  Per memory `feedback_tradingbot_dual_remote.md`, push to BOTH was required.
-
----
-
-## State of the remaining phases
-
-| Phase | Disk Status | Plans | Summaries | Action Needed |
-|-------|-------------|-------|-----------|---------------|
-| 14    | planned     | 3 (01/02/03) | 0 | Execute 3 waves |
-| 14.1  | no_directory | 0    | 0 | FULL discuss → plan → execute (NEW phase) |
-| 15    | planned     | 3 (01/02/03) | 0 | Execute 3 waves |
-| 16    | planned     | 3 (01/02/03) | 0 | Execute 3 waves |
-| 17    | planned     | 3 (01/02/03) | 0 | Execute 3 waves |
-| 18    | partial     | 4 (01-04)    | 3 | Execute remaining plan 18-04 |
-
-**Total work:** 16 plans + 1 new phase (14.1) requiring discuss+plan.
-
----
-
-## How to resume
-
-### Option A: continue in fresh session (recommended for scope)
-
-```
-/gsd-autonomous --from 14
-```
-
-The autonomous workflow will detect that phases 14/15/16/17 have CONTEXT.md
-already, so it will skip discuss and proceed to plan → execute. Phase 14.1
-will get full discuss+plan.
-
-### Option B: resume specific phase
-
-```
-/gsd-execute-phase 14 --no-transition
-```
-
-Skip the autonomous wrapper and just run execute for one phase. Repeat for 14.1
-(needs discuss/plan first), 15, 16, 17, 18.
-
-### Option C: surgical single-plan execution
-
-If a specific plan failed mid-execution, look at last committed SUMMARY.md to see
-what completed, then:
-
-```
-/gsd-execute-phase 14 --wave 2 --no-transition
-```
-
----
-
-## Open decisions / blockers
-
-1. **Private remote behind** — needs manual reconcile before next push, or skip
-   private until end and reconcile then.
-2. **Stashed pre-autonomous work** — user should review `git stash show -p stash@{0}`
-   after autonomous completes to decide what to keep.
-3. **Phase 14.1 (Dow Theory)** is a NEW phase. The autonomous flow will run
-   discuss+plan in --auto mode, which auto-picks recommended options. If the
-   user has specific opinions on Dow Theory implementation, run discuss-phase
-   manually (`/gsd-discuss-phase 14.1`) before autonomous resumes.
-
----
-
-## Memory notes applied
-
-- `feedback_autonomous_auto_decide.md` — auto-answer grey-area/verify/audit questions, only confirm destructive/scope-expanding. Applied throughout setup (confirmed destructive folder renames + stash with user; auto-skipped discuss for phases with pre-existing plans).
-- `feedback_tradingbot_dual_remote.md` — push to origin + private. Origin done; private deferred.
-- `feedback_codex_writes_claude_thinks.md` — scoped to claude-codex-collab workflow, NOT this autonomous run (advisor confirmed). Claude is doing the work here.
-
----
+## Auto-decide discipline
+Grey-area → recommended defaults. `gaps_found` → run gap closure (1 retry) then continue with
+prominent log. `human_needed` → defer honestly (not a pass). Pause only for destructive/
+scope-expanding actions. Work INLINE — no Task/Agent subagents.
 
 ## Resume point
-
 ```
-Start here:
-  cd "C:\Users\fuhhe\OneDrive\Desktop\ai\ai\tradingbot v1"
-  git status                                # should be clean (no dirty state)
-  gsd-sdk query roadmap.analyze | head -50  # confirm phase states
-  /gsd-autonomous --from 14                 # resumes autonomous workflow
+cd "C:\Users\fuhhe\OneDrive\Desktop\ai\ai\tradingbot v1"
+git status                       # expect clean (or just this file)
+gsd-sdk query roadmap.analyze    # confirm 14.1 is lowest incomplete
+# then continue inline from Phase 14.1 (Dow Theory): discuss(auto) -> CONTEXT -> plan -> execute
 ```
-
-If the autonomous loop has been making progress, this file may have been
-updated by the in-progress executor. Check `.planning/phases/*/14-NN-SUMMARY.md`
-for plan-level progress.
