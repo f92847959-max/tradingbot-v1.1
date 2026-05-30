@@ -128,6 +128,10 @@ class Settings(BaseSettings):
     mirofish_simulation_timeout_seconds: float = 180.0  # 3 min max per simulation
     mirofish_max_rounds: int = 15            # OASIS simulation rounds cap
 
+    # -- Elliott Wave Structural Filter (Phase 14-03, EWT-04) -----------------
+    ew_filter_enabled: bool = False          # Opt-in; False = graceful fallback (BUY-only filter)
+    ew_veto_completion: float = 0.8          # Motive W3/W5 completion >= this -> veto BUY (W4/ABC imminent)
+
     # -- Economic Calendar (Phase 8) -------------------------------------------
     calendar_enabled: bool = True
     calendar_fetch_interval_minutes: int = 360  # Refresh every 6 hours
