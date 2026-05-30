@@ -319,6 +319,29 @@ class MiroFishClient:
         }
 
     # ------------------------------------------------------------------
+    # Prompt / context preparation
+    # ------------------------------------------------------------------
+
+    def _prepare_prompt(self, market_data: dict) -> str:
+        """Build a structured context string for MiroFish agents.
+
+        Delegates to :func:`ai_engine.mirofish_wave_context.prepare_structural_prompt`
+        which runs the EW pipeline and injects a ``## Structural Context``
+        section.  The context string is sanitised against prompt injection
+        (T-14-05) and the WaveDetector input is capped (T-14-06) inside
+        that module.
+
+        Args:
+            market_data: Dict with optional keys ``ohlcv_df``, ``current_price``,
+                ``timeframe``.
+
+        Returns:
+            Prompt string containing a ``## Structural Context`` section.
+        """
+        from ai_engine.mirofish_wave_context import prepare_structural_prompt
+        return prepare_structural_prompt(market_data)
+
+    # ------------------------------------------------------------------
     # State persistence
     # ------------------------------------------------------------------
 
