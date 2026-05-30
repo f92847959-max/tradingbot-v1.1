@@ -267,7 +267,7 @@ class TestMiroFishClientHealthCheck:
         mock_client_ctx.get = AsyncMock(return_value=mock_response)
 
         with patch("httpx.AsyncClient", return_value=mock_client_ctx):
-            result = asyncio.get_event_loop().run_until_complete(client.health_check())
+            result = asyncio.run(client.health_check())
 
         assert result is True
 
@@ -286,7 +286,7 @@ class TestMiroFishClientHealthCheck:
         mock_client_ctx.get = AsyncMock(side_effect=httpx.ConnectError("Connection refused"))
 
         with patch("httpx.AsyncClient", return_value=mock_client_ctx):
-            result = asyncio.get_event_loop().run_until_complete(client.health_check())
+            result = asyncio.run(client.health_check())
 
         assert result is False
 

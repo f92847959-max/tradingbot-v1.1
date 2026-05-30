@@ -146,8 +146,13 @@ def _make_mock_system(
 
 
 def _run(coro):
-    """Run a coroutine synchronously."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    """Run a coroutine synchronously.
+
+    Uses ``asyncio.run`` (fresh loop per call) rather than the deprecated
+    ``get_event_loop().run_until_complete`` so the helper is immune to event-loop
+    state left behind by earlier tests (Python 3.12 raises on a closed/absent loop).
+    """
+    return asyncio.run(coro)
 
 
 def _make_mirofish_client(tmp_path, direction: str, confidence: float = 0.75, no_cache: bool = False):
