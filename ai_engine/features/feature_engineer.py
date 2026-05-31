@@ -25,6 +25,7 @@ from .support_resistance import SupportResistanceFeatures
 from .correlation_features import CorrelationFeatures
 from .sentiment_features import SentimentFeatures
 from .elliott_wave_features import ElliottWaveFeatures
+from .dow_theory_features import DowTheoryFeatures
 from correlation.snapshot import CorrelationSnapshot
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,7 @@ class FeatureEngineer:
         sentiment_enabled: bool = False,
         specialist_stride: int = 12,
         ew_enabled: bool = True,
+        dow_enabled: bool = True,
     ) -> None:
         """Initialize the FeatureEngineer with all sub-feature calculators."""
         self._technical = TechnicalFeatures()
@@ -133,6 +135,7 @@ class FeatureEngineer:
         self._sentiment_enabled = sentiment_enabled
         self._sentiment = SentimentFeatures(aggregator=sentiment_aggregator)
         self._ew = ElliottWaveFeatures(ew_enabled=ew_enabled)
+        self._dow = DowTheoryFeatures(dow_enabled=dow_enabled)
 
         # Combined feature list
         self._feature_names: List[str] = (
@@ -145,6 +148,7 @@ class FeatureEngineer:
             + self._sr.get_feature_names()
             + self._correlation.get_feature_names()
             + self._ew.get_feature_names()
+            + self._dow.get_feature_names()
         )
         if self._sentiment_enabled:
             self._feature_names += self._sentiment.get_feature_names()
@@ -218,7 +222,7 @@ class FeatureEngineer:
             return result
 
         total = (
-            9  # 8 original + 1 EW
+            10  # 8 original + EW + Dow
             + (1 if self._sentiment_enabled else 0)
             + (1 if include_specialist else 0)
             + (1 if multi_tf_data else 0)
@@ -243,6 +247,8 @@ class FeatureEngineer:
                               lambda: self._correlation.calculate(df, correlation_snapshot))
         idx += 1; df = _step(idx, total, "Elliott Wave features",
                               lambda: self._ew.calculate(df))
+        idx += 1; df = _step(idx, total, "Dow Theory features",
+                              lambda: self._dow.calculate(df))
         if self._sentiment_enabled:
             idx += 1; df = _step(idx, total, "sentiment features",
                                   lambda: self._sentiment.calculate(df))
@@ -413,6 +419,7 @@ class FeatureEngineer:
             "sentiment": self._sentiment.get_feature_names() if self._sentiment_enabled else [],
             "market_structure_liquidity": self._specialist.get_feature_names(),
             "elliott_wave": self._ew.get_feature_names(),
+            "dow_theory": self._dow.get_feature_names(),
         }
 
 
