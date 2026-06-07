@@ -69,6 +69,17 @@ class SignalGeneratorMixin:
                                 getattr(self.settings, "ew_veto_completion", 0.8)
                             ),
                         )
+
+                # Dow Theory structural filter (Phase 14.1, DOW-02) --
+                # optional & governable; only BUY signals are evaluated.
+                if (
+                    signal
+                    and signal.get("action") == "BUY"
+                    and getattr(self.settings, "dow_filter_enabled", False)
+                ):
+                    dow_df = self._resolve_primary_df(candle_data, "5m")
+                    if dow_df is not None:
+                        signal = apply_dow_filter(signal, dow_df, enabled=True)
                 return signal
         except (PredictionError, DataError) as e:
             logger.warning("AI engine error: %s", e)
@@ -267,4 +278,74 @@ def apply_ew_filter(signal, candle_df, *, enabled: bool, veto_completion: float 
     if decision == "support":
         prior = result.get("reasoning") or ""
         result["reasoning"] = f"{prior} | EW support: {reason}".strip(" |")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Dow Theory signal filter (Phase 14.1, DOW-02)
+#
+# Same pure-core + detection-shell shape as the EW filter. The primary Dow trend
+# gates BUY signals: a DOWN trend vetoes the long (BUY -> HOLD), an UP trend marks
+# it supported, RANGE is neutral. Disabled by default (settings.dow_filter_enabled).
+# ---------------------------------------------------------------------------
+
+
+def _decide_from_dow_trend(dow_trend: int) -> tuple[str, str]:
+    """Map a Dow primary trend to a BUY verdict.
+
+    ``dow_trend`` uses the DowTrend encoding (0=DOWN, 1=RANGE, 2=UP).
+    Returns ``(decision, reason)`` with decision in {veto, support, neutral}.
+    """
+    if dow_trend == 0:  # DOWN
+        return ("veto", "Dow primary trend DOWN -- contradicts BUY")
+    if dow_trend == 2:  # UP
+        return ("support", "Dow primary trend UP -- confirms BUY")
+    return ("neutral", "Dow primary trend RANGE -- no directional read")
+
+
+def evaluate_dow_buy_filter(candle_df) -> tuple[str, str]:
+    """Run Dow trend detection on ``candle_df`` and return ``(decision, reason)``.
+
+    Reuses ``extract_dow_features`` (single source of truth for the Dow trend,
+    incl. the T-14.1-01 window cap). Never raises — degenerate input yields a
+    RANGE trend, which maps to a neutral verdict.
+    """
+    from ai_engine.dow_theory import DowTrend
+    from ai_engine.features.dow_theory_features import extract_dow_features
+
+    feats = extract_dow_features(candle_df)
+    return _decide_from_dow_trend(int(feats.get("dow_trend", int(DowTrend.RANGE))))
+
+
+def apply_dow_filter(signal, candle_df, *, enabled: bool):
+    """Apply the Dow Theory trend filter to a signal dict.
+
+    Only ``BUY`` signals are evaluated; ``SELL`` / ``HOLD`` / ``None`` pass
+    through untouched. A ``veto`` (DOWN trend) converts BUY to HOLD; a ``support``
+    (UP trend) annotates the signal but keeps the action. The original ``signal``
+    is never mutated. No-ops when ``enabled`` is False.
+    """
+    if not enabled or signal is None:
+        return signal
+    if signal.get("action") != "BUY":
+        return signal
+
+    decision, reason = evaluate_dow_buy_filter(candle_df)
+    context = {"decision": decision, "reason": reason}
+
+    if decision == "veto":
+        result = dict(signal)
+        result["action"] = "HOLD"
+        result["dow_vetoed_action"] = "BUY"
+        result["dow_filter"] = context
+        prior = result.get("reasoning") or ""
+        result["reasoning"] = f"{prior} | Dow veto: {reason}".strip(" |")
+        logger.info("Dow Theory filter vetoed BUY -> HOLD: %s", reason)
+        return result
+
+    result = dict(signal)
+    result["dow_filter"] = context
+    if decision == "support":
+        prior = result.get("reasoning") or ""
+        result["reasoning"] = f"{prior} | Dow support: {reason}".strip(" |")
     return result
