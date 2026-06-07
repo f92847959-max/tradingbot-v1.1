@@ -112,3 +112,6 @@ desktop.ini
 !data/
 !data/**
 data/.probe_dukascopy/
+
+# Auto-resume skill state (local watcher control files)
+.auto-resume/
